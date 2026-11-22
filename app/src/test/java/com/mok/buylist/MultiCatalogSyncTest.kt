@@ -3,6 +3,7 @@ package com.mok.buylist
 import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
 import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.StoreProduct
 import com.mok.buylist.sync.Snapshot
 import com.mok.buylist.sync.SyncCodec
 import com.mok.buylist.sync.SyncItem
@@ -53,6 +54,29 @@ class MultiCatalogSyncTest {
         val noPrice = Snapshot(customProducts = listOf(product))
         assertEquals(null, SyncCodec.decode(SyncCodec.encode(noPrice))
             .customProducts.single().estimatedPriceKopecks)
+    }
+
+    @Test fun storeProductLinksPricesAndTombstonesSurviveV13Sync() {
+        val link = StoreProduct(store.id, "custom:${product.id}", 12990L, 100L)
+        val local = Snapshot(customProducts = listOf(product), stores = listOf(store),
+            storeProducts = listOf(link))
+        assertEquals(local, SyncCodec.decode(SyncCodec.encode(local)))
+        val deleted = link.copy(updatedAt = 200L, deleted = true)
+        val remote = local.copy(storeProducts = listOf(deleted))
+        val merged = SyncMerge.merge(local, remote)
+        assertEquals(listOf(deleted), merged.storeProducts)
+        assertEquals(merged, SyncMerge.merge(merged, local))
+        assertEquals(merged, SyncMerge.merge(local, merged))
+    }
+
+    @Test fun independentStoresCanHaveDifferentPricesForSameProduct() {
+        val first = StoreProduct("shop-a", "custom:${product.id}", 10000L, 100L)
+        val second = StoreProduct("shop-b", "custom:${product.id}", 12000L, 100L)
+        val merged = SyncMerge.merge(Snapshot(storeProducts = listOf(first)),
+            Snapshot(storeProducts = listOf(second)))
+        assertEquals(2, merged.storeProducts.size)
+        assertEquals(10000L, merged.storeProducts.first { it.storeId == "shop-a" }.priceKopecks)
+        assertEquals(12000L, merged.storeProducts.first { it.storeId == "shop-b" }.priceKopecks)
     }
 
     @Test fun unrelatedCatalogsAreNotMergedBySimilarName() {
