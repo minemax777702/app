@@ -1,5 +1,7 @@
 package com.mok.buylist.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mok.buylist.lentaCatalog
+import com.mok.buylist.barcodeSourceSettings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,7 +77,10 @@ internal fun CustomProductCreationSheet(
     onCreated: () -> Unit,
 ) {
     val p = LocalPalette.current
-    val catalog = LocalContext.current.lentaCatalog
+    val context = LocalContext.current
+    val catalog = context.lentaCatalog
+    val sourceSettings = context.barcodeSourceSettings
+    val enabledSources by sourceSettings.enabled.collectAsStateWithLifecycle()
     val localProducts by catalog.products.collectAsStateWithLifecycle()
     val localCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
     var name by remember(initialName) { mutableStateOf(initialName) }
@@ -90,6 +96,7 @@ internal fun CustomProductCreationSheet(
     var suggestions by remember { mutableStateOf<List<BarcodeProductSuggestion>>(emptyList()) }
     var lookedUpCode by remember { mutableStateOf("") }
     var nameEdited by remember(initialName) { mutableStateOf(initialName.isNotBlank()) }
+    var showAllSuggestions by remember { mutableStateOf(false) }
 
     val localSuggestions = remember(barcode, localProducts, localCodes) {
         if (!validProductBarcode(barcode)) emptyList() else {
@@ -106,19 +113,20 @@ internal fun CustomProductCreationSheet(
     }
     val shownSuggestions = remember(localSuggestions, suggestions) {
         (localSuggestions + suggestions).distinctBy { it.name.lowercase().trim() }
-            .sortedByDescending { it.score }.take(3)
+            .sortedByDescending { it.score }
     }
 
-    LaunchedEffect(barcode, localSuggestions) {
+    LaunchedEffect(barcode, localSuggestions, enabledSources) {
         suggestions = emptyList()
         lookedUpCode = ""
         if (!validProductBarcode(barcode)) return@LaunchedEffect
+        showAllSuggestions = false
         if (name.isBlank() && !nameEdited && localSuggestions.isNotEmpty())
             name = localSuggestions.first().name
         delay(650)
         lookupBusy = true
         try {
-            val found = BarcodeProductLookup.lookup(barcode)
+            val found = BarcodeProductLookup.lookup(barcode, sources = enabledSources)
             suggestions = found
             lookedUpCode = barcode
             if (name.isBlank() && !nameEdited && found.isNotEmpty())
@@ -158,7 +166,7 @@ internal fun CustomProductCreationSheet(
                 }
                 if (shownSuggestions.isNotEmpty()) {
                     Text("Найденные названия", color = p.textSecondary, fontSize = 12.sp)
-                    shownSuggestions.forEach { suggestion ->
+                    (if (showAllSuggestions) shownSuggestions else shownSuggestions.take(4)).forEach { suggestion ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                             .background(p.field)
                             .clickable { name = suggestion.name; nameEdited = true }
@@ -174,6 +182,12 @@ internal fun CustomProductCreationSheet(
                                 tint = p.accent, modifier = Modifier.size(18.dp))
                         }
                     }
+                    if (shownSuggestions.size > 4) {
+                        TextButton(onClick = { showAllSuggestions = !showAllSuggestions }) {
+                            Text(if (showAllSuggestions) "Свернуть варианты"
+                                else "Все варианты (${shownSuggestions.size})", color = p.accent)
+                        }
+                    }
                 } else if (!lookupBusy && lookedUpCode == barcode && barcode.isNotBlank()) {
                     Text("Название не найдено — его можно ввести вручную",
                         color = p.textSecondary, fontSize = 12.sp)
@@ -183,13 +197,23 @@ internal fun CustomProductCreationSheet(
                         scope.launch {
                             lookupBusy = true
                             try {
-                                suggestions = BarcodeProductLookup.lookup(barcode, force = true)
+                                suggestions = BarcodeProductLookup.lookup(barcode, force = true,
+                                    sources = enabledSources)
                                 lookedUpCode = barcode
                                 if (name.isBlank() && !nameEdited && suggestions.isNotEmpty())
                                     name = suggestions.first().name
                             } finally { lookupBusy = false }
                         }
                     }) { Text("Повторить поиск", color = p.accent) }
+                }
+                if (validProductBarcode(barcode) && BarcodeSource.GS1_RUSSIA in enabledSources) {
+                    TextButton(onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(
+                            "https://search.gs1ru.org/gtin/$barcode"))
+                        runCatching { context.startActivity(intent) }
+                    }) {
+                        Text("Проверить GTIN в GS1 Россия", color = p.accent)
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !isWeighted, onClick = { isWeighted = false },
