@@ -68,7 +68,62 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
 
     }
 
-    val impulsive = mine.filter { it.impulsive }
+    if (coverage.purchases > 0) PanelCard {
+        Text("Что купили", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExpenseMetric("Покупок", coverage.purchases.toString(), Modifier.weight(1f))
+            ExpenseMetric("Товаров", coverage.distinctProducts.toString(), Modifier.weight(1f))
+            ExpenseMetric("Единиц", coverage.units.toString(), Modifier.weight(1f))
+        }
+        MetricBar("Покупки с известной ценой",
+            "${coverage.priced} из ${coverage.purchases}",
+            coverage.priced.toFloat() / coverage.purchases)
+    }
+
+    val byStore = remember(selected) { expenseByStore(selected) }
+    if (byStore.isNotEmpty()) PanelCard {
+        Text("По магазинам", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text("Расходы и количество покупок за выбранный период",
+            color = p.textSecondary, fontSize = 12.sp)
+        val maxAmount = byStore.maxOf { it.total }.coerceAtLeast(1L)
+        val visible = if (showMoreStores) byStore.take(15) else byStore.take(4)
+        visible.forEach { store ->
+            val title = when {
+                store.id.isBlank() -> "Магазин не указан"
+                store.id == lentaStoreId() -> "Лента"
+                else -> stores.firstOrNull { it.id == store.id }?.name ?: "Другой магазин"
+            }
+            MetricBar(title, "${store.events} покупок · " +
+                if (store.priced > 0) money(store.total) else "без цен",
+                store.total.toFloat() / maxAmount)
+        }
+        if (byStore.size > 4) Text(
+            if (showMoreStores) "Свернуть" else "Показать ещё",
+            Modifier.clickable { showMoreStores = !showMoreStores }.padding(vertical = 8.dp),
+            color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+
+    val topProducts = remember(selected) { frequentProducts(selected) }
+    if (topProducts.isNotEmpty()) PanelCard {
+        Text("Чаще всего покупаю", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        val maxCount = topProducts.maxOf { it.purchases }.coerceAtLeast(1)
+        (if (showMoreProducts) topProducts.take(15) else topProducts.take(5)).forEach { product ->
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .clickable { onProductClick(product.key) }.padding(vertical = 5.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                MetricBar(product.name,
+                    "${product.purchases} покупок · ${product.units} ед." +
+                        if (product.knownTotal > 0L) " · ${money(product.knownTotal)}" else "",
+                    product.purchases.toFloat() / maxCount)
+            }
+        }
+        if (topProducts.size > 5) Text(
+            if (showMoreProducts) "Свернуть" else "Показать ещё",
+            Modifier.clickable { showMoreProducts = !showMoreProducts }.padding(vertical = 8.dp),
+            color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+
+    val impulsive = selected.filter { it.impulsive }
     if (impulsive.isNotEmpty()) PanelCard {
         Text("Импульсивные покупки", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         val total = exactExpenseSum(impulsive)
