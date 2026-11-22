@@ -28,6 +28,7 @@ fun SettingsScreen(
 ) {
     val p = LocalPalette.current
     var syncActive by remember { mutableStateOf(false) }
+    var section by remember { mutableStateOf(0) }
     val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     if (selectedProduct != null) {
@@ -38,16 +39,30 @@ fun SettingsScreen(
     Column(Modifier.fillMaxSize().background(p.background)) {
         if (!syncActive) SubScreenHeader("Настройки", onBack)
         TabRow(selectedTabIndex = tab, containerColor = p.background, contentColor = p.accent) {
-            listOf("База продуктов", "Магазины", "Настройки").forEachIndexed { index, title ->
+            listOf("Товары и магазины", "Настройки").forEachIndexed { index, title ->
                 Tab(selected = tab == index, onClick = { onTab(index) }, enabled = !syncActive, text = { Text(title) })
             }
         }
-        if (tab == 0) stateHolder.SaveableStateProvider("products") {
-            ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(2) }, viewModel = viewModel,
-                onProductClick = { selectedProduct = it })
-        }
-        else if (tab == 1) stateHolder.SaveableStateProvider("stores") {
-            StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it })
+        if (tab == 0) {
+            androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+            ) {
+                listOf("Товары", "Магазины").forEachIndexed { index, label ->
+                    androidx.compose.material3.FilterChip(
+                        selected = section == index,
+                        onClick = { section = index },
+                        label = { Text(label) },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+            if (section == 0) stateHolder.SaveableStateProvider("products") {
+                ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(1) }, viewModel = viewModel,
+                    onProductClick = { selectedProduct = it })
+            } else stateHolder.SaveableStateProvider("stores") {
+                StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it })
+            }
         }
         else SyncScreen(profile, onRename, addressRequest, onActiveChange = { syncActive = it })
     }
