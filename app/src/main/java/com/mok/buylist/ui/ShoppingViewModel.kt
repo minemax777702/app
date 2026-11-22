@@ -98,6 +98,10 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     val customBarcodes: StateFlow<List<CustomProductBarcode>> = repository.observeCustomBarcodes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val storeProducts: StateFlow<List<com.mok.buylist.data.StoreProduct>> =
+        repository.observeStoreProducts()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     val stores: StateFlow<List<ShoppingStore>> = repository.observeStores()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -229,6 +233,16 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun deleteStore(id: String, onResult: (String?) -> Unit) {
         viewModelScope.launch { onResult(repository.deleteStore(id)) }
+    }
+
+    fun saveStoreProduct(storeId: String, productKey: String, price: Long?,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.saveStoreProduct(storeId, productKey, price)) }
+    }
+
+    fun removeStoreProduct(storeId: String, productKey: String,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.removeStoreProduct(storeId, productKey)) }
     }
 
     fun createStore(name: String, onResult: (ShoppingStore?) -> Unit) {
