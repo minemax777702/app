@@ -212,8 +212,9 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.amendPurchase(eventId, unitPrice, storeName)) }
     }
 
-    fun addManualProduct(name: String, barcode: String, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode)) }
+    fun addManualProduct(name: String, barcode: String, estimatedPriceKopecks: Long?,
+        onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode, estimatedPriceKopecks)) }
     }
 
     fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {

@@ -12,6 +12,7 @@ data class CustomProduct(
     val barcode: String = "",
     val updatedAt: Long,
     val deleted: Boolean = false,
+    val estimatedPriceKopecks: Long? = null,
 )
 
 /** One shared store directory; blank storeId on a purchase means unspecified. */

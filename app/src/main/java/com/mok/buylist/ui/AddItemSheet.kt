@@ -88,7 +88,7 @@ fun AddItemSheet(
     customProducts: List<CustomProduct>,
     customBarcodes: List<CustomProductBarcode>,
     onAddCustom: (CustomProduct, (Boolean) -> Unit) -> Unit,
-    onCreateCustom: (String, String, (Boolean) -> Unit) -> Unit,
+    onCreateCustom: (String, String, Long?, (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onAddressSettings: () -> Unit,
 ) {
@@ -99,7 +99,6 @@ fun AddItemSheet(
     var createOpen by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newBarcode by remember { mutableStateOf("") }
-    var createError by remember { mutableStateOf<String?>(null) }
     val lenta = LocalContext.current.lentaCatalog
     val scope = rememberCoroutineScope()
     fun showHeard(name: String) {
@@ -228,14 +227,13 @@ fun AddItemSheet(
                     }
                 }
             }
-            if (!voice.listening) TextButton(onClick = {
-                newName = if (scannedCode == text) "" else text
-                newBarcode = scannedCode.orEmpty()
-                createError = null
-                createOpen = true
-            }) {
-                Text("Создать свой товар", color = p.accent, fontWeight = FontWeight.SemiBold)
-            }
+            if (!voice.listening) CreateCustomProductAction(
+                onClick = {
+                    newName = if (scannedCode == text) "" else text
+                    newBarcode = scannedCode.orEmpty()
+                    createOpen = true
+                },
+            )
 
             if (!voice.listening) LentaSuggestions(
                 query = text,
@@ -256,34 +254,17 @@ fun AddItemSheet(
         }
     }
     if (createOpen) {
-        AppSheet(
-            onDismissRequest = { createOpen = false },
-            containerColor = p.sheet,
-            title = { SheetHeader("Новый товар") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SheetTextField(newName, { newName = it; createError = null }, "Название товара")
-                    SheetTextField(newBarcode, { newBarcode = it.filter(Char::isDigit).take(13); createError = null },
-                        "Штрихкод (необязательно)", keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
-                    createError?.let { Text(it, color = p.error, fontSize = 13.sp) }
-                }
-            },
-            confirmButton = {
-                SheetActionButton(enabled = newName.isNotBlank(), onClick = {
-                    if (newBarcode.isNotBlank() && !validProductBarcode(newBarcode)) {
-                        createError = "Неверный штрихкод"
-                    } else {
-                        onCreateCustom(newName, newBarcode) { added ->
-                            if (added) {
-                                createOpen = false
-                                text = ""
-                                scannedCode = null
-                                onQueryChange("")
-                                activity?.notifyUser("Добавлено в список")
-                            } else createError = "Товар уже есть в списке или штрихкод неоднозначен"
-                        }
-                    }
-                }) { Text("Добавить") }
+        CustomProductCreationSheet(
+            initialName = newName,
+            initialBarcode = newBarcode,
+            onCreate = onCreateCustom,
+            onDismiss = { createOpen = false },
+            onCreated = {
+                createOpen = false
+                text = ""
+                scannedCode = null
+                onQueryChange("")
+                activity?.notifyUser("Товар добавлен")
             },
         )
     }

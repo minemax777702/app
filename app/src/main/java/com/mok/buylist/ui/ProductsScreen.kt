@@ -90,7 +90,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var createCustom by remember { mutableStateOf(false) }
     var customName by remember { mutableStateOf("") }
     var customBarcode by remember { mutableStateOf("") }
-    var customError by remember { mutableStateOf<String?>(null) }
     var shownCount by rememberSaveable(query) { mutableStateOf(20) }
     val rows = remember(products, query, barcodeRows) {
         val key = nameKeyOf(query)
@@ -125,12 +124,11 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             Text(if (batch?.running == true) "Обновление ${batch!!.completed}/${batch!!.total}" else "Обновить все цены")
         }
         if (rows.isEmpty() && ownRows.isEmpty()) Text(if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено", Modifier.fillMaxWidth().padding(32.dp), color = p.textSecondary, fontSize = 16.sp, textAlign = TextAlign.Center)
-        TextButton(onClick = {
+        CreateCustomProductAction(onClick = {
             customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
             customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
-            customError = null
             createCustom = true
-        }, modifier = Modifier.padding(start = 8.dp)) { Text("Создать собственный товар", color = p.accent) }
+        }, modifier = Modifier.padding(horizontal = 16.dp))
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
@@ -174,29 +172,16 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         }
     }
     if (createCustom) {
-        AppSheet(onDismissRequest = { createCustom = false }, containerColor = p.sheet,
-            title = { SheetHeader("Свой товар") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SheetTextField(customName, { customName = it; customError = null }, "Название")
-                    SheetTextField(customBarcode, { customBarcode = it.filter(Char::isDigit).take(13); customError = null },
-                        "Штрихкод (необязательно)",
-                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
-                    customError?.let { Text(it, color = p.error) }
-                }
+        CustomProductCreationSheet(
+            initialName = customName,
+            initialBarcode = customBarcode,
+            onCreate = viewModel::addManualProduct,
+            onDismiss = { createCustom = false },
+            onCreated = {
+                createCustom = false
+                activity?.notifyUser("Товар добавлен в базу и список")
             },
-            confirmButton = {
-                SheetActionButton(enabled = customName.isNotBlank(), onClick = {
-                    if (customBarcode.isNotEmpty() && !validProductBarcode(customBarcode)) {
-                        customError = "Неверный штрихкод"
-                    } else viewModel.addManualProduct(customName, customBarcode) { added ->
-                        if (added) {
-                            createCustom = false
-                            activity?.notifyUser("Товар добавлен в список и базу")
-                        } else customError = "Товар уже в списке или штрихкод неоднозначен"
-                    }
-                }) { Text("Добавить") }
-            })
+        )
     }
     if (adding) {
         androidx.compose.material3.ModalBottomSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,

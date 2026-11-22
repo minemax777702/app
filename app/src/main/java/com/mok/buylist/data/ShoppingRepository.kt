@@ -118,7 +118,12 @@ class ShoppingRepository(
      * A product with the same barcode from Lenta is reused rather than copied.
      * Ambiguous barcode matches are not automatically merged.
      */
-    suspend fun addManualProduct(rawName: String, rawBarcode: String = ""): Boolean {
+    suspend fun addManualProduct(
+        rawName: String,
+        rawBarcode: String = "",
+        estimatedPriceKopecks: Long? = null,
+    ): Boolean {
+        if (estimatedPriceKopecks != null && estimatedPriceKopecks < 0) return false
         val name = normalizeName(rawName).take(MAX_NAME_LENGTH)
         val code = rawBarcode.trim()
         if (name.isEmpty() || (code.isNotEmpty() && !validProductBarcode(code))) return false
@@ -142,14 +147,21 @@ class ShoppingRepository(
             val saved = existing.single()
             if (code.isNotEmpty() && saved.barcode.isNotEmpty() && saved.barcode != code) return false
             if (code.isNotEmpty() && saved.barcode.isEmpty()) {
-                val updated = saved.copy(barcode = code, updatedAt = System.currentTimeMillis())
+                val updated = saved.copy(barcode = code, updatedAt = System.currentTimeMillis(),
+                    estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks)
                 dao.upsertCustomProduct(updated)
                 dao.upsertCustomProductBarcode(CustomProductBarcode(updated.id, code, updated.updatedAt))
                 return addCustomToList(updated)
             }
+            if (estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks) {
+                dao.upsertCustomProduct(saved.copy(
+                    estimatedPriceKopecks = estimatedPriceKopecks,
+                    updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
+            }
             return addCustomToList(saved)
         }
-        val product = CustomProduct(UUID.randomUUID().toString(), name, code, System.currentTimeMillis())
+        val product = CustomProduct(UUID.randomUUID().toString(), name, code,
+            System.currentTimeMillis(), estimatedPriceKopecks = estimatedPriceKopecks)
         return db.withTransaction {
             dao.upsertCustomProduct(product)
             if (code.isNotEmpty()) dao.upsertCustomProductBarcode(CustomProductBarcode(product.id, code, product.updatedAt))
