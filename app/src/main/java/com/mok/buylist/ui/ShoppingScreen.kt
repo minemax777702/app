@@ -130,6 +130,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
 
     val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val totals by viewModel.totals.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
@@ -166,6 +168,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var renaming by rememberSaveable { mutableStateOf(false) }
     var detailsRow by remember { mutableStateOf<ListRow?>(null) }
     var weightItem by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
+    var pendingPurchase by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
 
     Box(Modifier.fillMaxSize().background(p.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -211,7 +214,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
                                 onWeight = { weightItem = row.item },
-                                onBuy = { viewModel.buy(row.item) },
+                                onBuy = { pendingPurchase = row.item },
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
@@ -345,8 +348,49 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         AddItemSheet(
             onQueryChange = {},
             onAdd = viewModel::addProduct,
+            customProducts = customProducts,
+            onAddCustom = viewModel::addCustomProduct,
+            onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
             onAddressSettings = { showAdd = false; settingsTab = 1; addressRequest++; showSettings = true },
+        )
+    }
+    pendingPurchase?.let { item ->
+        var price by remember(item.id) { mutableStateOf("") }
+        var storeName by remember(item.id) { mutableStateOf("") }
+        val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
+        AppSheet(
+            onDismissRequest = { pendingPurchase = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Отметить покупку") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(item.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                    SheetTextField(price, { price = it }, "Цена за единицу, ₽ (необязательно)",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    SheetTextField(storeName, { storeName = it }, "Магазин (необязательно)")
+                    val suggestions = stores.filter { !it.deleted &&
+                        (storeName.isBlank() || it.name.contains(storeName, ignoreCase = true)) }.take(5)
+                    if (suggestions.isNotEmpty()) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            suggestions.take(2).forEach { store ->
+                                androidx.compose.material3.TextButton(onClick = { storeName = store.name }) {
+                                    Text(store.name, color = p.accent, maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                    Text("Без цены покупка учитывается по количеству, но не в расходах.",
+                        color = p.textSecondary, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = price.isBlank() || priceValue != null, onClick = {
+                    viewModel.buy(item, priceValue, storeName)
+                    pendingPurchase = null
+                }) { Text("Куплено") }
+            },
         )
     }
     weightItem?.let { item ->
