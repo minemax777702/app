@@ -115,6 +115,14 @@ object SyncMerge {
                     .thenBy { it.deleted }.thenBy { it.toString() })
             }.sortedBy { it.id }
 
+        val activeCustomIds = customProducts.filterNot { it.deleted }.mapTo(HashSet()) { it.id }
+        val customProductBarcodes = (a.customProductBarcodes + b.customProductBarcodes)
+            .filter { it.productId in activeCustomIds }
+            .groupBy { it.productId to it.code }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.CustomProductBarcode> { it.updatedAt }
+                    .thenBy { it.deleted })
+            }.sortedWith(compareBy<com.mok.buylist.data.CustomProductBarcode> { it.productId }.thenBy { it.code })
+
         return Snapshot(
             users = users,
             items = items,
@@ -126,6 +134,7 @@ object SyncMerge {
             productBarcodes = productBarcodes,
             customProducts = customProducts,
             stores = stores,
+            customProductBarcodes = customProductBarcodes,
         )
     }
 
