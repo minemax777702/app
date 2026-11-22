@@ -1,6 +1,7 @@
 [versions]
 agp = "9.4.1"
 kotlin = "2.4.21"
+composeMultiplatform = "1.12.2"
 ksp = "2.3.12"
 composeBom = "2026.09.00"
 activityCompose = "1.13.0"
@@ -45,3 +46,5 @@ androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-co
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
