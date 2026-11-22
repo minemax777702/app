@@ -30,7 +30,7 @@ data class StoredLentaProduct(
 )
 
 /** Подтверждённый код товара. Несколько товаров могут иметь один код — выбор тогда неоднозначен. */
-@Entity(tableName = "product_barcodes", primaryKeys = ["productId", "code"], indices = [Index("code")])
+@Entity(tableName = "product_barcodes", primaryKeys = ["productId", "code"], indices = [Index(value = ["code"])])
 data class StoredProductBarcode(
     val productId: Long,
     val code: String,
