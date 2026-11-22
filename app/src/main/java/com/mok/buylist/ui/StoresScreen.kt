@@ -1,0 +1,236 @@
+package com.mok.buylist.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mok.buylist.R
+import com.mok.buylist.data.ArchivedList
+import com.mok.buylist.data.ShoppingItem
+import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.lentaStoreId
+import com.mok.buylist.ui.theme.LocalPalette
+import com.mok.buylist.lentaCatalog
+import androidx.compose.ui.platform.LocalContext
+import java.math.BigDecimal
+
+/** Stores are a persistent directory. Prices are derived from immutable purchase events. */
+@Composable
+internal fun StoresScreen(
+    viewModel: ShoppingViewModel,
+    archive: List<ArchivedList>,
+    bought: List<ShoppingItem>,
+    onProductClick: (String) -> Unit,
+) {
+    val p = LocalPalette.current
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val custom by viewModel.customProducts.collectAsStateWithLifecycle()
+    val customCodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
+    val catalog = LocalContext.current.lentaCatalog
+    val lenta by catalog.products.collectAsStateWithLifecycle()
+    val lentaCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
+    val products = remember(archive, bought, lenta, custom, lentaCodes, customCodes) {
+        mergeCatalogPriceHistory(
+            expensePurchases(archive, bought), custom, lenta, lentaCodes, customCodes)
+    }
+    var openedStore by remember { mutableStateOf<String?>(null) }
+    var shown by remember(openedStore) { mutableIntStateOf(8) }
+    var editing by remember { mutableStateOf<ShoppingStore?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<ShoppingStore?>(null) }
+    var shopName by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    val active = stores.filterNot { it.deleted }.distinctBy { it.id }.sortedBy { it.nameKey }
+    val store = active.firstOrNull { it.id == openedStore }
+
+    Column(Modifier.fillMaxSize().background(p.background)) {
+        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(if (store == null) "Магазины" else store.name,
+                Modifier.weight(1f), color = p.text, fontSize = 20.sp,
+                fontWeight = FontWeight.Bold)
+            if (store != null) {
+                IconButton(onClick = { openedStore = null }) {
+                    Icon(painterResource(R.drawable.ic_close), "Назад к магазинам",
+                        tint = p.iconMuted, modifier = Modifier.size(21.dp))
+                }
+            } else {
+                IconButton(onClick = { shopName = ""; error = null; creating = true }) {
+                    Icon(painterResource(R.drawable.ic_plus), "Добавить магазин",
+                        tint = p.accent, modifier = Modifier.size(24.dp))
+                }
+            }
+        }
+        if (store == null) {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(active, key = { it.id }) { shop ->
+                    val entries = products.filter { it.storeId == shop.id }
+                    val productCount = entries.map { it.productKey }.distinct().size
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .background(p.card, RoundedCornerShape(18.dp))
+                            .clickable { openedStore = shop.id }
+                            .padding(14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_store), null,
+                            tint = p.accent, modifier = Modifier.size(28.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(shop.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Товаров: $productCount · Покупок: ${entries.size}",
+                                color = p.textSecondary, fontSize = 12.sp)
+                        }
+                        if (shop.id != lentaStoreId()) {
+                            IconButton(onClick = { editing = shop; shopName = shop.name; error = null }) {
+                                Icon(painterResource(R.drawable.ic_edit), "Переименовать магазин",
+                                    tint = p.iconMuted, modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { pendingDelete = shop }) {
+                                Icon(painterResource(R.drawable.ic_trash), "Удалить магазин",
+                                    tint = p.iconMuted, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                }
+                if (active.isEmpty()) item {
+                    Text("Добавьте первый магазин", color = p.textSecondary,
+                        modifier = Modifier.padding(16.dp))
+                }
+            }
+        } else {
+            val entries = remember(store.id, products) {
+                products.filter { it.storeId == store.id }
+                    .groupBy { it.productKey }
+                    .map { (key, purchases) ->
+                        val latest = purchases.maxBy { it.at }
+                        val known = purchases.filter { it.unitPrice != null }.maxByOrNull { it.at }
+                        Triple(key, latest, known)
+                    }.sortedByDescending { it.second.at }
+            }
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (entries.isEmpty()) item {
+                    Text("Покупок в этом магазине пока нет", color = p.textSecondary,
+                        modifier = Modifier.padding(16.dp))
+                }
+                items(entries.take(shown), key = { it.first }) { entry ->
+                    val (key, latest, known) = entry
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .background(p.card, RoundedCornerShape(16.dp))
+                            .clickable { onProductClick(key) }
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(latest.name, color = p.text, fontSize = 15.sp,
+                                fontWeight = FontWeight.SemiBold)
+                            Text("Последняя покупка: " +
+                                java.time.Instant.ofEpochMilli(latest.at).atZone(
+                                    java.time.ZoneId.systemDefault()).toLocalDate()
+                                    .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+                                color = p.textSecondary, fontSize = 12.sp)
+                        }
+                        Text(known?.unitPrice?.let {
+                            BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
+                                if (known.weightGrams != null) "/кг" else ""
+                        } ?: "—", color = p.accent, fontWeight = FontWeight.Bold)
+                    }
+                }
+                if (shown < entries.size) item {
+                    TextButton(onClick = { shown += 8 }) {
+                        Text("Показать ещё", color = p.accent)
+                    }
+                }
+            }
+        }
+    }
+
+    if (creating || editing != null) {
+        val current = editing
+        AppSheet(
+            onDismissRequest = { creating = false; editing = null },
+            containerColor = p.sheet,
+            title = { SheetHeader(if (current == null) "Добавить магазин" else "Название магазина") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SheetTextField(shopName, { shopName = it; error = null }, "Название")
+                    error?.let { Text(it, color = p.error, fontSize = 13.sp) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = !saving && shopName.isNotBlank() &&
+                    shopName.length <= 100, onClick = {
+                    saving = true
+                    if (current == null) {
+                        viewModel.createStore(shopName) { made ->
+                            saving = false
+                            if (made == null) error = "Не удалось сохранить магазин"
+                            else { creating = false; openedStore = made.id }
+                        }
+                    } else {
+                        viewModel.renameStore(current.id, shopName) { result ->
+                            saving = false
+                            if (result != null) error = result
+                            else editing = null
+                        }
+                    }
+                }) { Text("Сохранить") }
+            },
+        )
+    }
+    pendingDelete?.let { shop ->
+        AppSheet(
+            onDismissRequest = { pendingDelete = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Удалить магазин?") },
+            text = {
+                Text("«${shop.name}» исчезнет из выбора. История покупок сохранится.",
+                    color = p.textSecondary)
+            },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    viewModel.deleteStore(shop.id) { message ->
+                        pendingDelete = null
+                        if (message != null) error = message
+                        if (openedStore == shop.id) openedStore = null
+                    }
+                }) { Text("Удалить") }
+            },
+        )
+    }
+}
