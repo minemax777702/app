@@ -27,6 +27,24 @@ interface ShoppingDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertLentaProducts(products: List<StoredLentaProduct>)
 
+    @Query("SELECT * FROM product_barcodes ORDER BY productId, code")
+    fun observeProductBarcodes(): Flow<List<StoredProductBarcode>>
+
+    @Query("SELECT * FROM product_barcodes ORDER BY productId, code")
+    suspend fun getProductBarcodes(): List<StoredProductBarcode>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProductBarcode(row: StoredProductBarcode)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProductBarcodes(rows: List<StoredProductBarcode>)
+
+    @Query("DELETE FROM product_barcodes WHERE productId = :id")
+    suspend fun deleteProductBarcodes(id: Long)
+
+    @Query("DELETE FROM product_barcodes")
+    suspend fun clearProductBarcodes()
+
     @Query("SELECT * FROM items WHERE deleted = 0 ORDER BY createdAt DESC")
     fun observeItems(): Flow<List<ShoppingItem>>
 
