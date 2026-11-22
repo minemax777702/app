@@ -55,6 +55,7 @@ data class ShoppingItem(
     @ColumnInfo(defaultValue = "''") val purchaseEvent: String = "",
     @ColumnInfo(defaultValue = "0") val productId: Long = 0,
     val weightGrams: Int? = null,
+    @ColumnInfo(defaultValue = "''") val customProductId: String = "",
 )
 
 /** Новый случайный идентификатор записи архива: 32 шестнадцатеричных символа. */
