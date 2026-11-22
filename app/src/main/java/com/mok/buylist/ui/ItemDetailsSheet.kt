@@ -1,5 +1,7 @@
 package com.mok.buylist.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,11 +9,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -80,55 +85,110 @@ internal fun ItemDetailsSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             NoticeInSheet()
-            SheetHeader(item.name)
-            LentaImage(product?.image.orEmpty(), Modifier.size(136.dp))
+            Text("Подробно о товаре", color = p.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Row(
+                Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                LentaImage(product?.image.orEmpty(), Modifier.size(88.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(item.name, color = p.text, fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold, lineHeight = 23.sp,
+                        maxLines = 4, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        when {
+                            own?.isWeighted == true -> "Весовой товар"
+                            own != null -> "Свой товар"
+                            else -> "Лента"
+                        },
+                        color = p.textSecondary, fontSize = 12.sp,
+                    )
+                }
+            }
 
-            if (own != null) {
-                Text(if (own.isWeighted) "Весовой товар" else "Штучный товар",
-                    color = p.textSecondary, fontSize = 13.sp)
-                own.estimatedPriceKopecks?.let {
-                    Text("Ориентировочная цена: ${unitMoney(it)}" +
-                        if (own.isWeighted) "/кг" else "",
-                        color = p.text, fontWeight = FontWeight.SemiBold)
-                }
-                if (codes.isNotEmpty()) {
-                    Text("Штрихкоды", color = p.textSecondary, fontSize = 13.sp)
-                    codes.sorted().forEach { code ->
-                        Text(code, color = p.text, fontSize = 15.sp)
-                    }
-                }
-                Text("Цены по магазинам", color = p.text,
-                    fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                if (shopPrices.isEmpty()) Text("Пока нет известных цен",
-                    color = p.textSecondary, fontSize = 14.sp)
-                shopPrices.forEach { row ->
-                    Row(Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(row.storeName, color = p.text, modifier = Modifier.weight(1f))
-                        Text(row.priceKopecks?.let(::unitMoney)?.plus(
-                            if (own.isWeighted) "/кг" else "") ?: "Цена не указана",
-                            color = p.accent, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            } else {
-                livePrice?.price?.takeIf { it.isNotBlank() && it != "null" }?.let {
-                    Text("$it ₽", color = p.text, fontWeight = FontWeight.Bold)
-                }
-                if (livePrice != null) {
-                    val date = livePrice.fetchedAt.takeIf { it > 0 }
-                        ?.let { DateFormat.getDateTimeInstance().format(Date(it)) }
-                    if (date != null) Text("Цена получена: $date", color = p.textSecondary)
-                }
-                product?.pack?.takeIf { it.isNotBlank() }?.let {
-                    Text("Упаковка: $it", color = p.textSecondary)
-                }
-                product?.ean?.takeIf { it.isNotBlank() }?.let {
-                    Text("Штрихкод: $it", color = p.textSecondary)
-                }
-                SheetActionButton(
-                    onClick = onRefresh,
-                    enabled = product != null && refresh != "Загрузка",
+            val catalogPrice = livePrice?.price?.takeIf { it.isNotBlank() && it != "null" }
+            val lowest = cheapestShopPrice(shopPrices)
+            val displayPrice = lowest?.priceKopecks?.let(::unitMoney)
+                ?: own?.estimatedPriceKopecks?.let(::unitMoney)
+                ?: catalogPrice?.let { "$it ₽" }
+            if (displayPrice != null) {
+                Column(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
+                    Text(
+                        when {
+                            lowest != null -> "Минимальная цена"
+                            own != null -> "Ориентировочная цена"
+                            else -> "Текущая цена"
+                        },
+                        color = p.textSecondary, fontSize = 12.sp,
+                    )
+                    Text(displayPrice + if (own?.isWeighted == true) " /кг" else "",
+                        color = p.accent, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    lowest?.let {
+                        Text(it.storeName, color = p.textSecondary, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            if (shopPrices.isNotEmpty()) {
+                Text("Магазины и цены", color = p.text,
+                    fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Column(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                ) {
+                    shopPrices.forEach { shop ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(shop.storeName, modifier = Modifier.weight(1f),
+                                color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(shop.priceKopecks?.let(::unitMoney)?.plus(
+                                if (own?.isWeighted == true) "/кг" else "") ?: "—",
+                                color = if (shop.priceKopecks != null) p.accent else p.textSecondary,
+                                fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+                    }
+                }
+            }
+
+            val packageName = product?.pack?.takeIf { it.isNotBlank() }
+            val barcodeList = if (own != null) codes.sorted()
+                else product?.ean?.takeIf { it.isNotBlank() }?.let(::listOf).orEmpty()
+            val updated = livePrice?.fetchedAt?.takeIf { it > 0L }
+                ?.let { DateFormat.getDateTimeInstance().format(Date(it)) }
+            if (packageName != null || barcodeList.isNotEmpty() || updated != null) {
+                Text("Информация", color = p.text,
+                    fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Column(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    packageName?.let {
+                        Text("Упаковка", color = p.textSecondary, fontSize = 12.sp)
+                        Text(it, color = p.text, fontSize = 14.sp)
+                    }
+                    if (barcodeList.isNotEmpty()) {
+                        Text("Штрихкод" + if (barcodeList.size > 1) "ы" else "",
+                            color = p.textSecondary, fontSize = 12.sp)
+                        barcodeList.forEach { code ->
+                            Text(code, color = p.text, fontSize = 14.sp)
+                        }
+                    }
+                    updated?.let {
+                        Text("Цена обновлена $it", color = p.textSecondary, fontSize = 12.sp)
+                    }
+                }
+            }
+            if (product != null) {
+                SheetActionButton(onClick = onRefresh, enabled = refresh != "Загрузка") {
                     Text(if (refresh == "Загрузка") "Обновление…" else "Обновить цену")
                 }
             }
