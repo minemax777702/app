@@ -8,6 +8,10 @@ on:
       - ".github/workflows/multi-catalog-checks.yml"
   workflow_dispatch:
 
+concurrency:
+  group: multi-catalog-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
