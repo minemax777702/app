@@ -9,13 +9,13 @@
 ### Windows PowerShell
 
 ```powershell
-.\gradlew.bat :ui-preview:wasmJsBrowserDevelopmentRun
+.\gradlew.bat -p ui-preview wasmJsBrowserDevelopmentRun
 ```
 
 ### Linux / macOS
 
 ```sh
-./gradlew :ui-preview:wasmJsBrowserDevelopmentRun
+./gradlew -p ui-preview wasmJsBrowserDevelopmentRun
 ```
 
 Откройте URL из вывода Gradle (обычно `http://localhost:8080`). При правках Kotlin браузерный сборщик пересоберёт предпросмотр; перезагрузите вкладку.
@@ -23,10 +23,12 @@
 ### Статическая сборка для публикации
 
 ```powershell
-.\gradlew.bat :ui-preview:wasmJsBrowserDistribution
+.\gradlew.bat -p ui-preview wasmJsBrowserDistribution
 ```
 
 Каталог: `ui-preview/build/dist/wasmJs/productionExecutable/`.
+
+`ui-preview` — самостоятельный Gradle-проект со своим `settings.gradle.kts`; он специально **не подключён** в корневом `settings.gradle.kts`, чтобы Android Studio продолжала видеть `:app`. Запускайте предпросмотр через `-p ui-preview` из корня репозитория.
 
 ## Уже есть
 
@@ -54,7 +56,7 @@
 
 ## Перед интеграцией
 
-- [ ] Запустить `:ui-preview:wasmJsBrowserDevelopmentRun` и убедиться, что dev-server доступен.
-- [ ] Проверить `:ui-preview:wasmJsBrowserDistribution`.
+- [ ] Запустить `-p ui-preview wasmJsBrowserDevelopmentRun` и убедиться, что dev-server доступен.
+- [ ] Проверить `-p ui-preview wasmJsBrowserDistribution`.
 - [ ] Прогнать `:app:testDebugUnitTest :app:assembleRelease` и убедиться, что Android-приложение не изменилось.
 - [ ] Постепенно выносить в общий код только чистые Compose-компоненты; Android-специфичные сервисы передавать через callbacks/адаптеры.
