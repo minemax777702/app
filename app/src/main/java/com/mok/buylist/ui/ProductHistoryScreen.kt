@@ -178,10 +178,13 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = barcodeError != null,
                     )
-                    SheetActionButton(onClick = {
-                        barcodeEditorOpen = false
-                        scanningBarcode = true
-                    }, enabled = !barcodeSaving) { Text("Сканировать камерой") }
+                    TextButton(
+                        onClick = {
+                            barcodeEditorOpen = false
+                            scanningBarcode = true
+                        },
+                        enabled = !barcodeSaving,
+                    ) { Text("Сканировать камерой", color = p.accent, fontWeight = FontWeight.SemiBold) }
                     barcodeError?.let { Text(it, color = p.error, fontSize = 13.sp) }
                     Text("Проверьте распознанный код перед сохранением.", color = p.textSecondary, fontSize = 13.sp)
                 }
