@@ -89,7 +89,7 @@ internal object CustomProductPreviews {
             requested.add(token)
         }
         return withContext(Dispatchers.IO) {
-            val suggestions = BarcodeProductLookup.lookup(barcode)
+            val suggestions = BarcodeProductLookup.lookup(barcode, force = force)
             for (suggestion in suggestions) {
                 val url = suggestion.imageUrl ?: continue
                 val bytes = runCatching {
