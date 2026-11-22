@@ -44,7 +44,17 @@ class ExpenseStatsTest {
         assertEquals(12550L, event.unitPrice)
         assertEquals(2, event.quantity)
         org.junit.Assert.assertTrue(event.impulsive)
-        val legacy = java.util.Base64.getDecoder().decode(encoded).dropLast(5).toByteArray()
+        // v9 appends two UTF strings after the legacy fields. Construct the actual
+        // pre-impulsive format rather than trimming an arbitrary number of bytes.
+        val legacy = java.io.ByteArrayOutputStream().also { bytes ->
+            java.io.DataOutputStream(bytes).use { out ->
+                out.writeUTF(event.id); out.writeLong(event.productId ?: 0)
+                out.writeUTF(event.name); out.writeLong(event.unitPrice ?: -1)
+                out.writeUTF(event.priceType); out.writeInt(event.quantity); out.writeLong(event.boughtAt)
+                out.writeUTF(event.buyer); out.writeUTF(event.address); out.writeUTF(event.channel)
+                out.writeLong(event.fetchedAt)
+            }
+        }.toByteArray()
         org.junit.Assert.assertFalse(decodePurchaseEvent(java.util.Base64.getEncoder().encodeToString(legacy))!!.impulsive)
         val saved = item.copy(deleted = true, purchaseEvent = encoded)
         val current = expensePurchases(emptyList(), listOf(saved)).single()
