@@ -161,7 +161,7 @@ internal fun CustomProductImageActions(productId: String, barcode: String) {
         }
     }
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(horizontalAlignment = Alignment.Start) {
             TextButton(onClick = { picker.launch("image/*") }, enabled = !loading) {
                 Text("Выбрать фото", color = p.accent)
             }
