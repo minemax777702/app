@@ -9,6 +9,21 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ShoppingDao {
+    @Query("SELECT * FROM custom_product_barcodes ORDER BY productId, code")
+    fun observeCustomProductBarcodes(): Flow<List<CustomProductBarcode>>
+
+    @Query("SELECT * FROM custom_product_barcodes ORDER BY productId, code")
+    suspend fun getCustomProductBarcodes(): List<CustomProductBarcode>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProductBarcode(row: CustomProductBarcode)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProductBarcodes(rows: List<CustomProductBarcode>)
+
+    @Query("DELETE FROM custom_product_barcodes")
+    suspend fun clearCustomProductBarcodes()
+
     @Query("SELECT * FROM custom_products ORDER BY name, id")
     fun observeCustomProducts(): Flow<List<CustomProduct>>
 
