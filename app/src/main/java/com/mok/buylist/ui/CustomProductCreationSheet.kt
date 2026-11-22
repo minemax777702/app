@@ -73,7 +73,7 @@ internal fun CustomProductCreationSheet(
     var saving by remember { mutableStateOf(false) }
     val parsedPrice = if (price.isBlank()) null else parsePriceKopecks(price)
 
-    AppSheet(
+    if (!scanning) AppSheet(
         onDismissRequest = { if (!saving && !scanning) onDismiss() },
         containerColor = p.sheet,
         title = { SheetHeader("Свой товар") },
