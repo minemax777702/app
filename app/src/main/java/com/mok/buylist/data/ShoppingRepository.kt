@@ -307,6 +307,7 @@ class ShoppingRepository(
     private suspend fun buildSnapshot(): Snapshot {
         return Snapshot(
             products = dao.getLentaProducts(),
+            productBarcodes = dao.getProductBarcodes(),
             users = dao.getUsers().map { SyncUser(it.id, it.name, it.updatedAt) },
             items = dao.getAllItems().map { SyncItem(it.name, it.createdAt, it.updatedAt, it.deleted, it.authorId, it.quantity, it.purchaseEvent, it.productId, it.weightGrams) },
             archives = dao.getArchives().map { list ->
@@ -440,8 +441,10 @@ class ShoppingRepository(
     private suspend fun write(merged: Snapshot) {
         val cutoff = System.currentTimeMillis() - TOMBSTONE_TTL_MILLIS
 
+        dao.clearProductBarcodes()
         dao.clearLentaProducts()
         dao.upsertLentaProducts(merged.products)
+        dao.insertProductBarcodes(merged.productBarcodes)
 
         dao.clearUsers()
         dao.insertUsers(merged.users.map { AppUser(it.id, it.name, it.at) })
