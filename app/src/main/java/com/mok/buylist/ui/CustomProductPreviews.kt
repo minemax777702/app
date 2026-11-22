@@ -84,13 +84,16 @@ internal object CustomProductPreviews {
     }
     suspend fun fetch(context: Context, id: String, barcode: String, force: Boolean = false): Boolean {
         if (!validProductBarcode(barcode)) return false
-        val token = id + ":" + barcode
+        val enabled = context.barcodeSourceSettings.enabled.value
+        if (enabled.none { it == BarcodeSource.OPEN_FOOD_FACTS ||
+                it == BarcodeSource.UPCITEMDB || it == BarcodeSource.OLEGON }) return false
+        val token = id + ":" + barcode + "|" +
+            enabled.map { it.name }.sorted().joinToString(",")
         synchronized(requested) {
             if (!force && (token in requested || file(context, id).exists())) return false
             requested.add(token)
         }
         return withContext(Dispatchers.IO) {
-            val enabled = context.barcodeSourceSettings.enabled.value
             val suggestions = BarcodeProductLookup.lookup(barcode, force = force, sources = enabled)
             for (suggestion in suggestions) {
                 val url = suggestion.imageUrl ?: continue
