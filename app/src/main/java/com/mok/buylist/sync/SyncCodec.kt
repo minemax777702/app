@@ -9,6 +9,7 @@ import com.mok.buylist.data.StoredProductBarcode
 import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
 import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.StoreProduct
 
 class SyncFormatException(message: String) : Exception(message)
 
@@ -100,7 +101,7 @@ internal class ByteReader(private val data: ByteArray) {
 
 /** Двоичный формат сообщений. Сообщение сжимается deflate: названия в архиве и истории часто повторяются. */
 object SyncCodec {
-    private const val VERSION = 12
+    private const val VERSION = 13
     private const val MAX_UNPACKED_BYTES = 16 * 1024 * 1024
 
     fun encode(snapshot: Snapshot): ByteArray = deflate(write(snapshot))
@@ -152,6 +153,12 @@ object SyncCodec {
         for (barcode in s.customProductBarcodes) {
             w.string(barcode.productId); w.string(barcode.code); w.long(barcode.updatedAt)
             w.byte(if (barcode.deleted) 1 else 0)
+        }
+        w.int(s.storeProducts.size)
+        for (entry in s.storeProducts) {
+            w.string(entry.storeId); w.string(entry.productKey)
+            w.long(entry.priceKopecks ?: -1); w.long(entry.updatedAt)
+            w.byte(if (entry.deleted) 1 else 0)
         }
         return w.toByteArray()
     }
@@ -217,8 +224,12 @@ object SyncCodec {
                 CustomProductBarcode(product.id, it, product.updatedAt)
             }
         }
+        val storeProducts = if (version >= 13) List(r.count()) {
+            StoreProduct(r.string(), r.string(), r.long().takeIf { it >= 0 },
+                r.long(), r.byte() != 0)
+        } else emptyList()
         return Snapshot(users, items, history, hidden, archives, tombs, products, barcodes,
-            customProducts, stores, customBarcodes)
+            customProducts, stores, customBarcodes, storeProducts)
     }
 
     /** uid — 32 шестнадцатеричных символа: храним 16 байтами; нестандартный — строкой. */
