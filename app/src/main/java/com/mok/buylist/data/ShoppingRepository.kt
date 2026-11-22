@@ -53,6 +53,65 @@ class ShoppingRepository(
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
     fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores()
 
+    fun observeCustomBarcodes(): Flow<List<CustomProductBarcode>> = dao.observeCustomProductBarcodes()
+
+    suspend fun editCustomProduct(id: String, rawName: String): String? = db.withTransaction {
+        val name = normalizeName(rawName).take(MAX_NAME_LENGTH)
+        if (name.isEmpty()) return@withTransaction "Введите название"
+        val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
+            ?: return@withTransaction "Товар не найден"
+        dao.upsertCustomProduct(row.copy(name = name,
+            updatedAt = maxOf(System.currentTimeMillis(), row.updatedAt + 1)))
+        null
+    }
+
+    suspend fun deleteCustomProduct(id: String): Boolean = db.withTransaction {
+        val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
+            ?: return@withTransaction false
+        dao.upsertCustomProduct(row.copy(deleted = true,
+            updatedAt = maxOf(System.currentTimeMillis(), row.updatedAt + 1)))
+        true
+    }
+
+    suspend fun changeCustomBarcode(id: String, previous: String?, rawCode: String?): String? = db.withTransaction {
+        val product = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
+            ?: return@withTransaction "Товар не найден"
+        val code = rawCode?.trim().orEmpty()
+        if (code.isNotEmpty() && !validProductBarcode(code))
+            return@withTransaction "Некорректный штрихкод"
+        val rows = dao.getCustomProductBarcodes()
+        val old = previous?.let { key -> rows.firstOrNull {
+            it.productId == id && it.code == key && !it.deleted
+        } }
+        if (previous != null && old == null) return@withTransaction "Штрихкод не найден"
+        if (previous == code) return@withTransaction null
+        if (code.isNotEmpty()) {
+            val used = rows.any { !it.deleted && it.code == code && it.productId != id }
+            val usedLenta = dao.getProductBarcodes().any { !it.deleted && it.code == code } ||
+                dao.getLentaProducts().any { it.ean == code }
+            // Cross-source duplicates are allowed and become an alias for one
+            // shared product. Within one catalog the same code must be unique.
+            if (used) return@withTransaction "Штрихкод уже занят другим своим товаром"
+            if (rows.any { !it.deleted && it.code == code && it.productId == id })
+                return@withTransaction "Штрихкод уже добавлен"
+        }
+        val now = System.currentTimeMillis()
+        if (old != null) dao.upsertCustomProductBarcode(old.copy(
+            updatedAt = maxOf(now, old.updatedAt + 1), deleted = true))
+        if (code.isNotEmpty()) {
+            val earlier = rows.firstOrNull { it.productId == id && it.code == code }
+            dao.upsertCustomProductBarcode(CustomProductBarcode(id, code,
+                maxOf(now, (earlier?.updatedAt ?: 0) + 1)))
+        }
+        // Legacy barcode stays immutable for old synced devices, except when
+        // it is explicitly removed: the alias tombstone wins for v10 peers.
+        if (code.isNotEmpty() && product.barcode.isBlank())
+            dao.upsertCustomProduct(product.copy(barcode = code,
+                updatedAt = maxOf(now, product.updatedAt + 1)))
+        null
+    }
+
+
     /**
      * A product with the same barcode from Lenta is reused rather than copied.
      * Ambiguous barcode matches are not automatically merged.
@@ -65,7 +124,11 @@ class ShoppingRepository(
             val lentaIds = dao.getProductBarcodes().asSequence()
                 .filter { !it.deleted && it.code == code }.map { it.productId }.toSet()
             val matchedLenta = dao.getLentaProducts().filter { it.id in lentaIds || it.ean == code }
-            val matchedCustom = dao.getCustomProducts().filter { !it.deleted && it.barcode == code }
+            val customIds = dao.getCustomProductBarcodes().filter { !it.deleted && it.code == code }
+                .mapTo(HashSet()) { it.productId }
+            val matchedCustom = dao.getCustomProducts().filter { !it.deleted &&
+                (it.id in customIds || (it.barcode == code && dao.getCustomProductBarcodes()
+                    .none { alias -> alias.productId == it.id && alias.code == code && alias.deleted })) }
             if (matchedLenta.size + matchedCustom.size == 1) {
                 return matchedLenta.singleOrNull()?.let { addProduct(it.toProduct()) }
                     ?: addCustomToList(matchedCustom.single())
@@ -79,6 +142,7 @@ class ShoppingRepository(
             if (code.isNotEmpty() && saved.barcode.isEmpty()) {
                 val updated = saved.copy(barcode = code, updatedAt = System.currentTimeMillis())
                 dao.upsertCustomProduct(updated)
+                dao.upsertCustomProductBarcode(CustomProductBarcode(updated.id, code, updated.updatedAt))
                 return addCustomToList(updated)
             }
             return addCustomToList(saved)
@@ -86,6 +150,7 @@ class ShoppingRepository(
         val product = CustomProduct(UUID.randomUUID().toString(), name, code, System.currentTimeMillis())
         return db.withTransaction {
             dao.upsertCustomProduct(product)
+            if (code.isNotEmpty()) dao.upsertCustomProductBarcode(CustomProductBarcode(product.id, code, product.updatedAt))
             addCustomToListInTransaction(product)
         }.also { if (it) refreshWidget() }
     }
@@ -99,11 +164,13 @@ class ShoppingRepository(
 
     private suspend fun addCustomToListInTransaction(product: CustomProduct, quantity: Int = 1): Boolean {
         archiveFinishedTrip()
-        if (product.barcode.isNotEmpty()) {
+        val codes = dao.getCustomProductBarcodes().filter { it.productId == product.id && !it.deleted }
+            .mapTo(HashSet()) { it.code }
+        if (codes.isNotEmpty()) {
             val linkedLenta = dao.getProductBarcodes().asSequence()
-                .filter { !it.deleted && it.code == product.barcode }
+                .filter { !it.deleted && it.code in codes }
                 .map { it.productId }.toSet() +
-                dao.getLentaProducts().filter { it.ean == product.barcode }.map { it.id }
+                dao.getLentaProducts().filter { it.ean in codes }.map { it.id }
             if (linkedLenta.isNotEmpty() && dao.getItems().any { it.productId in linkedLenta }) return false
         }
         val key = customKey(product.id)
@@ -177,9 +244,9 @@ class ShoppingRepository(
             .filter { !it.deleted && it.productId == product.id }.map { it.code }.toSet() +
             (if (product.ean.isBlank()) emptySet() else setOf(product.ean))
         if (productCodes.isNotEmpty()) {
-            val linkedCustomIds = dao.getCustomProducts().filter {
-                !it.deleted && it.barcode in productCodes
-            }.mapTo(HashSet()) { it.id }
+            val linkedCustomIds = dao.getCustomProductBarcodes().filter {
+                !it.deleted && it.code in productCodes
+            }.mapTo(HashSet()) { it.productId }
             if (linkedCustomIds.isNotEmpty() &&
                 dao.getItems().any { it.customProductId in linkedCustomIds }) return false
         }
@@ -435,6 +502,7 @@ class ShoppingRepository(
             productBarcodes = dao.getProductBarcodes(),
             customProducts = dao.getCustomProducts(),
             stores = dao.getStores(),
+            customProductBarcodes = dao.getCustomProductBarcodes(),
             users = dao.getUsers().map { SyncUser(it.id, it.name, it.updatedAt) },
             items = dao.getAllItems().map { SyncItem(it.name, it.createdAt, it.updatedAt, it.deleted, it.authorId, it.quantity, it.purchaseEvent, it.productId, it.weightGrams, it.customProductId) },
             archives = dao.getArchives().map { list ->
@@ -577,6 +645,8 @@ class ShoppingRepository(
         dao.upsertCustomProducts(merged.customProducts)
         dao.clearStores()
         dao.upsertStores(merged.stores)
+        dao.clearCustomProductBarcodes()
+        dao.upsertCustomProductBarcodes(merged.customProductBarcodes)
 
         dao.clearUsers()
         dao.insertUsers(merged.users.map { AppUser(it.id, it.name, it.at) })
