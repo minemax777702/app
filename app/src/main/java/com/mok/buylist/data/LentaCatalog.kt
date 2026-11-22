@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
@@ -49,23 +49,24 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
     val address = _address.asStateFlow()
     private val _ready = MutableStateFlow(false)
     val ready = _ready.asStateFlow()
-    val products = dao.observeLentaProducts().map { rows -> rows.map { it.toProduct() } }
-        .onEach { _ready.value = true }
+    private val _barcodeRows = dao.observeProductBarcodes()
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+    val products = combine(dao.observeLentaProducts(), dao.observeProductBarcodes()) { rows, _ ->
+        rows.map { it.toProduct() }
+    }.onEach { _ready.value = true }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    /** Дополнительные подтверждённые коды товара, сохранённые на этом устройстве. */
     fun barcodeAliases(id: Long): Set<String> =
-        prefs.getStringSet("barcode_aliases_$id", emptySet())?.toSet().orEmpty()
+        _barcodeRows.value.asSequence().filter { it.productId == id }.map { it.code }.toSet()
 
     fun matchesBarcode(product: LentaProduct, scanned: String): Boolean =
         com.mok.buylist.sync.barcodeMatches(product.ean, scanned) ||
             barcodeAliases(product.id).any { com.mok.buylist.sync.barcodeMatches(it, scanned) }
 
-    private fun rememberBarcode(id: Long, code: String) {
-        val barcode = code.trim()
+    private suspend fun rememberBarcode(id: Long, code: String?) {
+        val barcode = code?.trim().orEmpty()
         if (barcode.length !in setOf(8, 12, 13) || !barcode.all(Char::isDigit)) return
-        val aliases = barcodeAliases(id) + barcode
-        prefs.edit().putStringSet("barcode_aliases_$id", aliases).apply()
+        dao.insertProductBarcode(StoredProductBarcode(id, barcode))
     }
 
     fun setAddress(value: String) {
@@ -82,15 +83,16 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
             val deletedAt = dao.getTombstones().firstOrNull { it.kind == TombKind.PRODUCT.code && it.target == product.id.toString() }?.deletedAt ?: 0
             dao.upsertLentaProduct(saved.toStored().copy(updatedAt = maxOf(System.currentTimeMillis(), deletedAt + 1)))
             // Если Лента заменила EAN у того же ID, старый код остаётся доступным.
-            old?.ean?.takeIf { it.isNotBlank() && it != product.ean }?.let { rememberBarcode(product.id, it) }
-            scannedBarcode?.let { rememberBarcode(product.id, it) }
+            rememberBarcode(product.id, old?.ean)
+            rememberBarcode(product.id, saved.ean)
+            rememberBarcode(product.id, scannedBarcode)
         }
     }
 
     suspend fun removeById(id: Long) {
         db.withTransaction {
             dao.deleteLentaProduct(id)
-            prefs.edit().remove("barcode_aliases_$id").apply()
+            dao.deleteProductBarcodes(id)
             dao.upsertTombstone(Tombstone(TombKind.PRODUCT.code, id.toString(), System.currentTimeMillis()))
         }
     }
@@ -128,7 +130,8 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
             val saved = existing.copy(price = fresh.price, priceType = fresh.priceType, ean = fresh.ean.ifBlank { existing.ean },
                 address = currentAddress, storeId = fresh.storeId, channel = fresh.channel, fetchedAt = fresh.fetchedAt)
             dao.upsertLentaProduct(saved.toStored())
-            existing.ean.takeIf { it.isNotBlank() && it != fresh.ean }?.let { rememberBarcode(id, it) }
+            rememberBarcode(id, existing.ean)
+            rememberBarcode(id, fresh.ean)
         }
     }
 
