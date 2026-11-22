@@ -7,6 +7,7 @@ import com.mok.buylist.data.AppUser
 import com.mok.buylist.data.ArchivedList
 import com.mok.buylist.data.Profile
 import com.mok.buylist.data.ShoppingItem
+import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.nameKeyOf
@@ -92,6 +93,9 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Progress(0, 0))
 
     val customProducts: StateFlow<List<CustomProduct>> = repository.observeCustomProducts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val customBarcodes: StateFlow<List<CustomProductBarcode>> = repository.observeCustomBarcodes()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val stores: StateFlow<List<ShoppingStore>> = repository.observeStores()
@@ -188,6 +192,19 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun addProduct(product: com.mok.buylist.data.LentaProduct, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(repository.addProduct(product)) }
+    }
+
+    fun editCustomProduct(id: String, name: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.editCustomProduct(id, name)) }
+    }
+
+    fun deleteCustomProduct(id: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.deleteCustomProduct(id)) }
+    }
+
+    fun changeCustomBarcode(id: String, previous: String?, value: String?,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.changeCustomBarcode(id, previous, value)) }
     }
 
     fun addManualProduct(name: String, barcode: String, onResult: (Boolean) -> Unit) {
