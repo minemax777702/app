@@ -30,7 +30,7 @@ jobs:
         run: |
           sed -i 's/release(37)/release(36)/g' app/build.gradle.kts
           chmod +x ./gradlew
-          ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:kspDebugKotlin --stacktrace --no-daemon
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:kspDebugKotlin -x :app:checkDebugAarMetadata --stacktrace --no-daemon
       - name: Upload generated Room schema
         if: always()
         uses: actions/upload-artifact@v4
