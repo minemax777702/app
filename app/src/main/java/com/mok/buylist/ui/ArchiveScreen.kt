@@ -313,15 +313,12 @@ private fun ArchiveCard(
             Spacer(Modifier.width(8.dp))
         }
 
-        val boughtLines = names.indices.map { index ->
-            val event = decodePurchaseEvent(list.events[index])
-            com.mok.buylist.data.PricedLine(list.counts[index], true, event?.unitPrice, event?.weightGrams)
-        }
-        val remainingLines = list.remaining.map { com.mok.buylist.data.PricedLine(it.quantity, false, it.unitPrice, it.weightGrams) }
-        val amounts = com.mok.buylist.data.calculateShoppingTotals(boughtLines + remainingLines)
         if (expanded) {
-            val total = if (list.hasRemainingSnapshot) amounts.total else amounts.total.copy(unknown = amounts.total.unknown + 1)
-            if (total.known > 0) Text("Стоимость: ${formatAmount(total)}", Modifier.padding(top = 8.dp), color = p.textSecondary)
+            // Planned-but-unpurchased items are not part of the amount spent.
+            val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
+            if (spent.known > 0)
+                Text("Потрачено: ${formatAmount(spent)}",
+                    Modifier.padding(top = 8.dp), color = p.textSecondary)
         }
 
         if (!expanded) {

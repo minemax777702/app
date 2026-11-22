@@ -111,3 +111,20 @@ internal fun calculateShoppingTotals(lines: List<PricedLine>): ShoppingTotals {
     }
     return ShoppingTotals(amount(lines), amount(lines.filterNot { it.bought }))
 }
+
+/**
+ * Archive expenses are based solely on confirmed purchase events.
+ * Remaining planned products are an inventory snapshot, not money spent.
+ */
+internal fun archivedPurchaseTotal(archive: ArchivedList): PartialAmount {
+    val lines = archive.names.indices.map { index ->
+        val event = decodePurchaseEvent(archive.events[index])
+        PricedLine(
+            quantity = event?.quantity ?: archive.counts[index],
+            bought = true,
+            unitPriceKopecks = event?.unitPrice,
+            weightGrams = event?.weightGrams,
+        )
+    }
+    return calculateShoppingTotals(lines).total
+}
