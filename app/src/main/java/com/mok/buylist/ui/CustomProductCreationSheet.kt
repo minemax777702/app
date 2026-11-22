@@ -38,6 +38,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
+import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.parsePriceKopecks
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.ui.theme.LocalPalette
@@ -75,6 +76,7 @@ internal fun CustomProductCreationSheet(
     onCreate: (name: String, barcode: String, estimatedPriceKopecks: Long?, isWeighted: Boolean, onResult: (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onCreated: () -> Unit,
+    onChooseLenta: ((LentaProduct, (Boolean) -> Unit) -> Unit)? = null,
 ) {
     val p = LocalPalette.current
     val context = LocalContext.current
@@ -110,6 +112,13 @@ internal fun CustomProductCreationSheet(
             }.filter { BarcodeProductLookup.usefulName(it.name, barcode) }
                 .distinctBy { it.name.lowercase() }.take(3).toList()
         }
+    }
+    val matchingLenta = remember(barcode, localProducts, localCodes) {
+        if (!validProductBarcode(barcode)) emptyList() else localProducts.filter { product ->
+            product.ean == barcode || localCodes.any { row ->
+                row.productId == product.id && row.code == barcode && !row.deleted
+            }
+        }.distinctBy { it.id }
     }
     val shownSuggestions = remember(localSuggestions, suggestions) {
         (localSuggestions + suggestions).distinctBy { it.name.lowercase().trim() }
@@ -154,6 +163,46 @@ internal fun CustomProductCreationSheet(
                     IconButton(onClick = { scanning = true }, enabled = !saving) {
                         Icon(painterResource(R.drawable.ic_camera),
                             contentDescription = "Сканировать штрихкод камерой", tint = p.accent)
+                    }
+                }
+                if (matchingLenta.isNotEmpty()) {
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .background(p.card).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("Сначала проверьте товар Ленты", color = p.accent,
+                            fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        matchingLenta.take(4).forEach { product ->
+                            Row(Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                LentaImage(product.image, Modifier.size(56.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(product.name, color = p.text, fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold)
+                                    if (product.pack.isNotBlank())
+                                        Text(product.pack, color = p.textSecondary, fontSize = 12.sp)
+                                }
+                            }
+                            if (onChooseLenta != null) {
+                                SheetActionButton(enabled = !saving, onClick = {
+                                    saving = true
+                                    onChooseLenta(product) { added ->
+                                        saving = false
+                                        if (added) onCreated()
+                                        else error = "Товар уже в списке"
+                                    }
+                                }) { Text("Добавить товар Ленты") }
+                            } else {
+                                TextButton(onClick = {
+                                    name = product.name
+                                    nameEdited = true
+                                }) { Text("Использовать название Ленты", color = p.accent) }
+                            }
+                        }
+                        if (matchingLenta.size > 4) Text("Найдено ещё несколько совпадений в Ленте",
+                            color = p.textSecondary, fontSize = 12.sp)
+                        Text("Можно также создать свой товар ниже",
+                            color = p.textSecondary, fontSize = 12.sp)
                     }
                 }
                 if (lookupBusy) {
