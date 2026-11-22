@@ -357,6 +357,43 @@ class ShoppingRepository(
         refreshWidget()
     }
 
+    /**
+     * Correct an existing purchase in-place without changing event ID or boughtAt.
+     * The revision timestamp makes the corrected version win when QR snapshots merge.
+     */
+    suspend fun amendPurchase(eventId: String, unitPrice: Long?, storeName: String): String? {
+        if (unitPrice != null && unitPrice < 0) return "Неверная цена"
+        val normalizedStore = normalizeName(storeName).take(100)
+        return db.withTransaction {
+            val now = System.currentTimeMillis()
+            val storeId = if (normalizedStore.isEmpty()) "" else {
+                val store = dao.getStores().firstOrNull { !it.deleted &&
+                    it.nameKey == nameKeyOf(normalizedStore) }
+                    ?: ShoppingStore(UUID.randomUUID().toString(), normalizedStore, updatedAt = now)
+                        .also { dao.upsertStore(it) }
+                store.id
+            }
+            val bought = dao.getBought().firstOrNull {
+                decodePurchaseEvent(it.purchaseEvent)?.id == eventId
+            }
+            if (bought != null) {
+                val amended = amendPurchaseEvent(bought.purchaseEvent, unitPrice, storeId, now)
+                    ?: return@withTransaction "Событие покупки повреждено"
+                dao.updateItem(bought.copy(purchaseEvent = amended, updatedAt = now))
+                return@withTransaction null
+            }
+            val archive = dao.getArchives().firstOrNull { list ->
+                list.events.any { decodePurchaseEvent(it)?.id == eventId }
+            } ?: return@withTransaction "Покупка не найдена"
+            val updatedEvents = archive.events.map { encoded ->
+                if (decodePurchaseEvent(encoded)?.id != eventId) encoded
+                else amendPurchaseEvent(encoded, unitPrice, storeId, now) ?: encoded
+            }
+            dao.updateArchived(archive.copy(purchaseEvents = updatedEvents.joinToString("\n")))
+            null
+        }
+    }
+
     suspend fun setQuantity(id: String, quantity: Int) {
         dao.setQuantity(id, quantity.coerceIn(1, 999), System.currentTimeMillis(), profile.id)
         refreshWidget()
