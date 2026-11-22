@@ -393,7 +393,11 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             text = { Text("Покупки останутся в истории.", color = p.textSecondary) },
             confirmButton = {
                 SheetActionButton(destructive = true, onClick = {
-                    viewModel.removeStoreProduct(shopId, productKey) { result ->
+                    val actualKey = storeLinks.firstOrNull { link ->
+                        link.storeId == shopId && !link.deleted &&
+                            (identities[link.productKey] ?: link.productKey) == sharedKey
+                    }?.productKey ?: productKey
+                    viewModel.removeStoreProduct(shopId, actualKey) { result ->
                         pendingLinkRemoval = null
                         if (result != null) activity?.notifyUser(result)
                     }
