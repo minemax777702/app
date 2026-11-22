@@ -169,6 +169,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var detailsRow by remember { mutableStateOf<ListRow?>(null) }
     var weightItem by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
     var pendingPurchase by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
+    var scannedCustom by remember { mutableStateOf<com.mok.buylist.data.CustomProduct?>(null) }
 
     Box(Modifier.fillMaxSize().background(p.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -408,12 +409,45 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
         val matches = lentaProducts.filter { context.lentaCatalog.matchesBarcode(it, code) }
-        if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) && matches.size == 1) {
+        val ownMatches = customProducts.filter { !it.deleted && it.barcode == code }
+        val customAlreadyPlanned = ownMatches.singleOrNull()?.let { custom ->
+            rows?.any { it.item.customProductId == custom.id && it.state == RowState.ACTIVE }
+        } == true
+        if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) &&
+            ownMatches.size == 1 && (matches.isEmpty() || customAlreadyPlanned)) {
+            scannedCustom = ownMatches.single()
+        } else if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) && matches.size == 1) {
             viewModel.buyScanned(matches.single(), null) { done ->
                 activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
             }
         } else scanLookup = code
     })
+    scannedCustom?.let { product ->
+        var price by remember(product.id) { mutableStateOf("") }
+        var storeName by remember(product.id) { mutableStateOf("") }
+        val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
+        AppSheet(onDismissRequest = { scannedCustom = null }, containerColor = p.sheet,
+            title = { SheetHeader(product.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SheetTextField(price, { price = it }, "Фактическая цена за единицу, ₽ (необязательно)",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    SheetTextField(storeName, { storeName = it }, "Магазин (необязательно)")
+                    Text("Покупка будет сохранена в общей истории, даже если товара не было в списке.",
+                        color = p.textSecondary, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = price.isBlank() || priceValue != null, onClick = {
+                    viewModel.buyScannedCustom(product, priceValue, storeName) { done ->
+                        activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
+                    }
+                    scannedCustom = null
+                }) { Text("Куплено") }
+            },
+        )
+    }
     scanLookup?.let { code ->
         var lookupQuery by remember(code) { mutableStateOf(code) }
         androidx.compose.material3.ModalBottomSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
