@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 import com.mok.buylist.data.validProductBarcode
+import com.mok.buylist.barcodeSourceSettings
 import com.mok.buylist.ui.theme.LocalPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,7 +90,8 @@ internal object CustomProductPreviews {
             requested.add(token)
         }
         return withContext(Dispatchers.IO) {
-            val suggestions = BarcodeProductLookup.lookup(barcode, force = force)
+            val enabled = context.barcodeSourceSettings.enabled.value
+            val suggestions = BarcodeProductLookup.lookup(barcode, force = force, sources = enabled)
             for (suggestion in suggestions) {
                 val url = suggestion.imageUrl ?: continue
                 val bytes = runCatching {
