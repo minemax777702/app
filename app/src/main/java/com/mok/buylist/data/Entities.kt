@@ -34,6 +34,8 @@ data class StoredLentaProduct(
 data class StoredProductBarcode(
     val productId: Long,
     val code: String,
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
 )
 
 /**
