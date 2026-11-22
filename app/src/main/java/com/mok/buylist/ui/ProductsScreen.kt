@@ -137,7 +137,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                         Text(product.name, color = p.text, fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            fontWeight = FontWeight.SemiBold)
                         val linkedKey = identities["custom:${product.id}"]
                         val meta = if (linkedKey?.startsWith("lenta:") == true)
                             "Связан с товаром Ленты" else "Свой товар"

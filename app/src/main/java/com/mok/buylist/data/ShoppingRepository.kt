@@ -56,7 +56,7 @@ class ShoppingRepository(
     fun observeCustomBarcodes(): Flow<List<CustomProductBarcode>> = dao.observeCustomProductBarcodes()
 
     suspend fun editCustomProduct(id: String, rawName: String): String? = db.withTransaction {
-        val name = normalizeName(rawName).take(MAX_NAME_LENGTH)
+        val name = normalizeName(rawName).take(MAX_CUSTOM_PRODUCT_NAME_LENGTH)
         if (name.isEmpty()) return@withTransaction "Введите название"
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction "Товар не найден"
@@ -124,7 +124,7 @@ class ShoppingRepository(
         estimatedPriceKopecks: Long? = null,
     ): Boolean {
         if (estimatedPriceKopecks != null && estimatedPriceKopecks < 0) return false
-        val name = normalizeName(rawName).take(MAX_NAME_LENGTH)
+        val name = normalizeName(rawName).take(MAX_CUSTOM_PRODUCT_NAME_LENGTH)
         val code = rawBarcode.trim()
         if (name.isEmpty() || (code.isNotEmpty() && !validProductBarcode(code))) return false
         if (code.isNotEmpty()) {
@@ -783,5 +783,6 @@ class ShoppingRepository(
 
     private companion object {
         const val MAX_NAME_LENGTH = 30
+        const val MAX_CUSTOM_PRODUCT_NAME_LENGTH = 200
     }
 }

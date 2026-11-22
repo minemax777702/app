@@ -80,6 +80,7 @@ internal fun CustomProductCreationSheet(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SheetTextField(name, { name = it; error = null }, "Название товара")
+                if (name.length > 200) Text("Максимум 200 символов", color = p.error, fontSize = 12.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         SheetTextField(
@@ -109,7 +110,7 @@ internal fun CustomProductCreationSheet(
         },
         confirmButton = {
             SheetActionButton(
-                enabled = !saving && name.isNotBlank() && (price.isBlank() || parsedPrice != null),
+                enabled = !saving && name.isNotBlank() && name.length <= 200 && (price.isBlank() || parsedPrice != null),
                 onClick = {
                     if (barcode.isNotBlank() && !validProductBarcode(barcode)) {
                         error = "Некорректный штрихкод"
