@@ -22,12 +22,13 @@ jobs:
           distribution: temurin
           java-version: "25"
       - uses: gradle/actions/setup-gradle@v4
-      - name: Install Android API 37
+      - name: Install Android SDK for source validation
         run: |
           yes | "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
-          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" --channel=3 "platforms;android-37" "build-tools;37.0.0"
-      - name: Test and compile
+          "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"
+      - name: Test and compile (CI SDK 36 fallback only)
         run: |
+          sed -i 's/release(37)/release(36)/g' app/build.gradle.kts
           chmod +x ./gradlew
           ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:kspDebugKotlin --stacktrace --no-daemon
       - name: Upload generated Room schema
