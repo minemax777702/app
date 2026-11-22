@@ -81,7 +81,9 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         if (records.any { it.productId == id && !it.deleted && it.code == code }) {
             return@withTransaction "Этот штрихкод уже добавлен"
         }
-        dao.upsertProductBarcode(StoredProductBarcode(id, code, System.currentTimeMillis(), false))
+        val previous = records.firstOrNull { it.productId == id && it.code == code }
+        val at = maxOf(System.currentTimeMillis(), (previous?.updatedAt ?: -1L) + 1)
+        dao.upsertProductBarcode(StoredProductBarcode(id, code, at, false))
         null
     }
 
@@ -95,18 +97,20 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
 
     suspend fun editBarcode(id: Long, previous: String, replacement: String): String? = db.withTransaction {
         val next = replacement.trim()
-        if (previous == next) return@withTransaction null
         if (!validProductBarcode(next)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
         val records = dao.getProductBarcodes()
         val current = records.firstOrNull { it.productId == id && it.code == previous && !it.deleted }
             ?: return@withTransaction "Исходный штрихкод не найден"
+        if (previous == next) return@withTransaction null
         if (records.any { !it.deleted && (it.productId != id || it.code != previous) &&
                 com.mok.buylist.sync.barcodeMatches(it.code, next) }) {
             return@withTransaction "Этот штрихкод уже используется"
         }
         val now = System.currentTimeMillis()
         dao.upsertProductBarcode(current.copy(updatedAt = maxOf(now, current.updatedAt + 1), deleted = true))
-        dao.upsertProductBarcode(StoredProductBarcode(id, next, now, false))
+        val previouslyUsed = records.firstOrNull { it.productId == id && it.code == next }
+        val restoredAt = maxOf(now, (previouslyUsed?.updatedAt ?: -1L) + 1)
+        dao.upsertProductBarcode(StoredProductBarcode(id, next, restoredAt, false))
         null
     }
 
