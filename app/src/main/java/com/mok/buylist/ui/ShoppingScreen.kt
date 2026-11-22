@@ -358,7 +358,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onAddCustom = viewModel::addCustomProduct,
             onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
-            onAddressSettings = { showAdd = false; settingsTab = 1; addressRequest++; showSettings = true },
+            onAddressSettings = { showAdd = false; settingsTab = 2; addressRequest++; showSettings = true },
         )
     }
     pendingPurchase?.let { item ->
