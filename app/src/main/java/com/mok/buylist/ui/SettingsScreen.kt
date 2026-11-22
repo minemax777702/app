@@ -38,13 +38,16 @@ fun SettingsScreen(
     Column(Modifier.fillMaxSize().background(p.background)) {
         if (!syncActive) SubScreenHeader("Настройки", onBack)
         TabRow(selectedTabIndex = tab, containerColor = p.background, contentColor = p.accent) {
-            listOf("База продуктов", "Настройки").forEachIndexed { index, title ->
+            listOf("База продуктов", "Магазины", "Настройки").forEachIndexed { index, title ->
                 Tab(selected = tab == index, onClick = { onTab(index) }, enabled = !syncActive, text = { Text(title) })
             }
         }
         if (tab == 0) stateHolder.SaveableStateProvider("products") {
-            ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(1) }, viewModel = viewModel,
+            ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(2) }, viewModel = viewModel,
                 onProductClick = { selectedProduct = it })
+        }
+        else if (tab == 1) stateHolder.SaveableStateProvider("stores") {
+            StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it })
         }
         else SyncScreen(profile, onRename, addressRequest, onActiveChange = { syncActive = it })
     }
