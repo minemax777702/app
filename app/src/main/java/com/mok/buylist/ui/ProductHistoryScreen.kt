@@ -361,7 +361,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         { purchasePrice = it; purchaseError = null; purchasePriceRevision++ },
                         "Цена за единицу, ₽ (необязательно)",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    StoreSelectField(stores, purchaseStore, onSelected = { store ->
+                    if (row.productKey.startsWith("lenta:")) {
+                        Text("Магазин: Лента", color = p.textSecondary)
+                    } else StoreSelectField(stores, purchaseStore, onSelected = { store ->
                         purchaseStore = store
                         purchaseError = null
                         val revision = ++purchasePriceRevision
@@ -378,7 +380,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             },
             confirmButton = {
                 SheetActionButton(enabled = purchasePrice.isBlank() || parsed != null, onClick = {
-                    viewModel.amendPurchase(row.id, parsed, purchaseStore?.name.orEmpty()) { error ->
+                    viewModel.amendPurchase(row.id, parsed,
+                        if (row.productKey.startsWith("lenta:")) "Лента"
+                        else purchaseStore?.name.orEmpty()) { error ->
                         if (error == null) editingPurchase = null else purchaseError = error
                     }
                 }) { Text("Сохранить") }

@@ -17,7 +17,12 @@ internal fun lastStorePurchasePrice(
     if (storeId.isBlank()) return null
     val target = aliases[productKey] ?: productKey
     return events.asSequence()
-        .filter { it.storeId == storeId && it.id != excludedEventId && it.unitPrice != null }
+        .filter {
+            val legacyLenta = storeId == lentaStoreId() && it.storeId.isBlank() &&
+                it.productId != null && it.customProductId.isBlank()
+            (it.storeId == storeId || legacyLenta) &&
+                it.id != excludedEventId && it.unitPrice != null
+        }
         .filter { event ->
             val key = when {
                 event.customProductId.isNotBlank() -> customKey(event.customProductId)

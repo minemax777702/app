@@ -57,7 +57,10 @@ internal fun StoresScreen(
     val lentaCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
     val products = remember(archive, bought, lenta, custom, lentaCodes, customCodes) {
         mergeCatalogPriceHistory(
-            expensePurchases(archive, bought), custom, lenta, lentaCodes, customCodes)
+            expensePurchases(archive, bought).map { receipt ->
+                if (receipt.storeId.isBlank() && receipt.productKey.startsWith("lenta:"))
+                    receipt.copy(storeId = lentaStoreId()) else receipt
+            }, custom, lenta, lentaCodes, customCodes)
     }
     var openedStore by remember { mutableStateOf<String?>(null) }
     var shown by remember(openedStore) { mutableIntStateOf(8) }
@@ -90,6 +93,7 @@ internal fun StoresScreen(
         }
         if (store == null) {
             LazyColumn(
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -139,6 +143,7 @@ internal fun StoresScreen(
                     }.sortedByDescending { it.second.at }
             }
             LazyColumn(
+                modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
