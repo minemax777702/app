@@ -35,10 +35,20 @@ import com.mok.buylist.data.ArchivedList
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.lentaStoreId
+import com.mok.buylist.data.parsePriceKopecks
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.lentaCatalog
 import androidx.compose.ui.platform.LocalContext
 import java.math.BigDecimal
+
+private data class StoreProductLine(
+    val key: String,
+    val name: String,
+    val purchasedAt: Long?,
+    val price: Long?,
+    val weighted: Boolean,
+    val source: String,
+)
 
 /** Stores are a persistent directory. Prices are derived from immutable purchase events. */
 @Composable
@@ -64,6 +74,7 @@ internal fun StoresScreen(
     }
     var openedStore by remember { mutableStateOf<String?>(null) }
     var shown by remember(openedStore) { mutableIntStateOf(8) }
+    var productQuery by remember(openedStore) { mutableStateOf("") }
     var editing by remember { mutableStateOf<ShoppingStore?>(null) }
     var creating by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ShoppingStore?>(null) }
@@ -99,7 +110,9 @@ internal fun StoresScreen(
             ) {
                 items(active, key = { it.id }) { shop ->
                     val entries = products.filter { it.storeId == shop.id }
-                    val productCount = entries.map { it.productKey }.distinct().size
+                    val productCount = (entries.map { it.productKey } +
+                        if (shop.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList())
+                        .distinct().size
                     Row(
                         Modifier.fillMaxWidth()
                             .background(p.card, RoundedCornerShape(18.dp))
@@ -133,50 +146,66 @@ internal fun StoresScreen(
                 }
             }
         } else {
-            val entries = remember(store.id, products) {
-                products.filter { it.storeId == store.id }
+            val entries = remember(store.id, products, lenta) {
+                val history = products.filter { it.storeId == store.id }
                     .groupBy { it.productKey }
                     .map { (key, purchases) ->
                         val latest = purchases.maxBy { it.at }
                         val known = purchases.filter { it.unitPrice != null }.maxByOrNull { it.at }
-                        Triple(key, latest, known)
-                    }.sortedByDescending { it.second.at }
+                        StoreProductLine(key, latest.name, latest.at, known?.unitPrice,
+                            known?.weightGrams != null, "Последняя покупка")
+                    }
+                val historyKeys = history.mapTo(HashSet()) { it.key }
+                val fromLenta = if (store.id == lentaStoreId()) lenta.filter { item ->
+                    "lenta:${item.id}" !in historyKeys
+                }.map { item ->
+                    StoreProductLine("lenta:${item.id}", item.name, null,
+                        parsePriceKopecks(item.price), false, "Цена каталога")
+                } else emptyList()
+                (history + fromLenta).sortedWith(
+                    compareByDescending<StoreProductLine> { it.purchasedAt != null }
+                        .thenByDescending { it.purchasedAt ?: 0L }
+                        .thenBy { it.name.lowercase() })
             }
+            val visibleEntries = remember(entries, productQuery) {
+                entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
+            }
+            SheetTextField(productQuery, { productQuery = it }, "Поиск товаров")
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (entries.isEmpty()) item {
-                    Text("Покупок в этом магазине пока нет", color = p.textSecondary,
+                if (visibleEntries.isEmpty()) item {
+                    Text("Товары не найдены", color = p.textSecondary,
                         modifier = Modifier.padding(16.dp))
                 }
-                items(entries.take(shown), key = { it.first }) { entry ->
-                    val (key, latest, known) = entry
+                items(visibleEntries.take(shown), key = { it.key }) { entry ->
                     Row(
                         Modifier.fillMaxWidth()
                             .background(p.card, RoundedCornerShape(16.dp))
-                            .clickable { onProductClick(key) }
+                            .clickable { onProductClick(entry.key) }
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(latest.name, color = p.text, fontSize = 15.sp,
+                            Text(entry.name, color = p.text, fontSize = 15.sp,
                                 fontWeight = FontWeight.SemiBold)
-                            Text("Последняя покупка: " +
-                                java.time.Instant.ofEpochMilli(latest.at).atZone(
-                                    java.time.ZoneId.systemDefault()).toLocalDate()
-                                    .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")),
-                                color = p.textSecondary, fontSize = 12.sp)
+                            Text(entry.purchasedAt?.let { at ->
+                                "Последняя покупка: " +
+                                    java.time.Instant.ofEpochMilli(at).atZone(
+                                        java.time.ZoneId.systemDefault()).toLocalDate()
+                                        .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                            } ?: entry.source, color = p.textSecondary, fontSize = 12.sp)
                         }
-                        Text(known?.unitPrice?.let {
+                        Text(entry.price?.let {
                             BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
-                                if (known.weightGrams != null) "/кг" else ""
+                                if (entry.weighted) "/кг" else ""
                         } ?: "—", color = p.accent, fontWeight = FontWeight.Bold)
                     }
                 }
-                if (shown < entries.size) item {
+                if (shown < visibleEntries.size) item {
                     TextButton(onClick = { shown += 8 }) {
                         Text("Показать ещё", color = p.accent)
                     }
