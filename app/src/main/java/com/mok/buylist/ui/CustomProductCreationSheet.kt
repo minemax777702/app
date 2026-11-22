@@ -121,17 +121,19 @@ internal fun CustomProductCreationSheet(
         }.distinctBy { it.id }
     }
     val shownSuggestions = remember(localSuggestions, suggestions) {
-        (localSuggestions + suggestions).distinctBy { it.name.lowercase().trim() }
+        (if (matchingLenta.isNotEmpty()) suggestions else localSuggestions + suggestions)
+            .distinctBy { it.name.lowercase().trim() }
             .sortedByDescending { it.score }
     }
 
-    LaunchedEffect(barcode, localSuggestions, enabledSources) {
+    LaunchedEffect(barcode, localSuggestions, matchingLenta, enabledSources) {
         suggestions = emptyList()
         lookedUpCode = ""
         if (!validProductBarcode(barcode)) return@LaunchedEffect
         showAllSuggestions = false
         if (name.isBlank() && !nameEdited && localSuggestions.isNotEmpty())
             name = localSuggestions.first().name
+        if (matchingLenta.isNotEmpty()) return@LaunchedEffect
         delay(650)
         lookupBusy = true
         try {
@@ -201,6 +203,18 @@ internal fun CustomProductCreationSheet(
                         }
                         if (matchingLenta.size > 4) Text("Найдено ещё несколько совпадений в Ленте",
                             color = p.textSecondary, fontSize = 12.sp)
+                        if (!lookupBusy && suggestions.isEmpty()) {
+                            TextButton(onClick = {
+                                scope.launch {
+                                    lookupBusy = true
+                                    try {
+                                        suggestions = BarcodeProductLookup.lookup(barcode,
+                                            sources = enabledSources)
+                                        lookedUpCode = barcode
+                                    } finally { lookupBusy = false }
+                                }
+                            }) { Text("Поискать в других базах", color = p.accent) }
+                        }
                         Text("Можно также создать свой товар ниже",
                             color = p.textSecondary, fontSize = 12.sp)
                     }
