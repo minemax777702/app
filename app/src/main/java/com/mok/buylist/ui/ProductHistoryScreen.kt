@@ -11,6 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -38,6 +41,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private fun historyMoney(value: Long): String = NumberFormat.getNumberInstance(Locale.forLanguageTag("ru-RU"))
     .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(BigDecimal.valueOf(value, 2)) + " ₽"
@@ -115,6 +119,12 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
     val barcodes = product?.let { catalog.barcodeAliases(it.id) + it.ean.trim() }?.filter { it.isNotBlank() }?.sorted().orEmpty()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
+    val scope = rememberCoroutineScope()
+    var editingBarcode by remember(productKey) { mutableStateOf<String?>(null) }
+    var barcodeInput by remember(productKey) { mutableStateOf("") }
+    var barcodeError by remember(productKey) { mutableStateOf<String?>(null) }
+    var deletingBarcode by remember(productKey) { mutableStateOf<String?>(null) }
+    var barcodeEditorOpen by remember(productKey) { mutableStateOf(false) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var openedTrip by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
@@ -136,6 +146,52 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             onDelete = { viewModel.deleteArchived(it); openedTrip = null }, users = users,
             meId = profile?.id.orEmpty(), initiallyExpandedId = trip.id, viewModel = viewModel)
         return
+    }
+    if (barcodeEditorOpen && product != null) {
+        AlertDialog(
+            onDismissRequest = { barcodeEditorOpen = false },
+            title = { Text(if (editingBarcode == null) "Добавить штрихкод" else "Изменить штрихкод") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = barcodeInput,
+                        onValueChange = { barcodeInput = it.filter(Char::isDigit).take(13); barcodeError = null },
+                        label = { Text("EAN-8, UPC-A или EAN-13") },
+                        singleLine = true,
+                        isError = barcodeError != null,
+                    )
+                    barcodeError?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val error = editingBarcode?.let { catalog.editBarcode(product.id, it, barcodeInput) }
+                            ?: catalog.addBarcode(product.id, barcodeInput)
+                        if (error == null) barcodeEditorOpen = false else barcodeError = error
+                    }
+                }) { Text("Сохранить") }
+            },
+            dismissButton = { TextButton(onClick = { barcodeEditorOpen = false }) { Text("Отмена") } },
+        )
+    }
+    deletingBarcode?.let { code ->
+        AlertDialog(
+            onDismissRequest = { deletingBarcode = null },
+            title = { Text("Удалить штрихкод?") },
+            text = { Text("Код $code перестанет находить этот товар. Удаление передастся при синхронизации.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val productId = product?.id ?: return@TextButton
+                    scope.launch {
+                        val error = catalog.removeBarcode(productId, code)
+                        deletingBarcode = null
+                        if (error != null) activity?.notifyUser(error)
+                    }
+                }) { Text("Удалить") }
+            },
+            dismissButton = { TextButton(onClick = { deletingBarcode = null }) { Text("Отмена") } },
+        )
     }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
@@ -171,12 +227,32 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }
                 }
             }
-            if (product != null && barcodes.isNotEmpty()) item {
+            if (product != null) item {
                 HistoryCard {
-                    Text("Штрихкоды товара", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Штрихкоды товара", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        TextButton(onClick = {
+                            editingBarcode = null
+                            barcodeInput = ""
+                            barcodeError = null
+                            barcodeEditorOpen = true
+                        }) { Text("Добавить") }
+                    }
+                    if (barcodes.isEmpty()) Text("Нет сохранённых штрихкодов", color = p.textSecondary)
                     barcodes.forEach { code ->
-                        Text(code + if (code == product.ean) " · текущий в Ленте" else " · сохранённый",
-                            color = p.textSecondary)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text(code, color = p.text)
+                                if (code == product.ean) Text("Текущий в Ленте", color = p.textSecondary, fontSize = 12.sp)
+                            }
+                            TextButton(onClick = {
+                                editingBarcode = code
+                                barcodeInput = code
+                                barcodeError = null
+                                barcodeEditorOpen = true
+                            }) { Text("Изменить") }
+                            TextButton(onClick = { deletingBarcode = code }) { Text("Удалить") }
+                        }
                     }
                 }
             }
