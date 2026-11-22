@@ -89,62 +89,6 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
             .filter { nameKeyOf(it.name).contains(nameKeyOf(query)) }
             .sortedBy { nameKeyOf(it.name) }
     }
-    if (editingName && ownProduct != null) {
-        AppSheet(onDismissRequest = { editingName = false }, containerColor = p.sheet,
-            title = { SheetHeader("Название товара") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SheetTextField(nameInput, { nameInput = it; nameError = null }, "Название")
-                    nameError?.let { Text(it, color = p.error) }
-                }
-            },
-            confirmButton = {
-                SheetActionButton(enabled = nameInput.isNotBlank(), onClick = {
-                    viewModel.editCustomProduct(ownProduct.id, nameInput) { error ->
-                        if (error == null) editingName = false else nameError = error
-                    }
-                }) { Text("Сохранить") }
-            })
-    }
-    if (deleteOwnPending && ownProduct != null) {
-        AppSheet(onDismissRequest = { deleteOwnPending = false }, containerColor = p.sheet,
-            title = { SheetHeader("Удалить свой товар?") },
-            text = { Text("Карточка исчезнет из каталога. Уже купленные товары и их цены сохранятся.", color = p.textSecondary) },
-            confirmButton = {
-                SheetActionButton(destructive = true, onClick = {
-                    viewModel.deleteCustomProduct(ownProduct.id) { deleted ->
-                        if (deleted) { deleteOwnPending = false; onBack() }
-                    }
-                }) { Text("Удалить") }
-            })
-    }
-    editingPurchase?.let { row ->
-        val parsed = com.mok.buylist.data.parsePriceKopecks(purchasePrice)
-        AppSheet(onDismissRequest = { editingPurchase = null }, containerColor = p.sheet,
-            title = { SheetHeader("Изменить покупку") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(row.name, color = p.text)
-                    SheetTextField(purchasePrice, { purchasePrice = it; purchaseError = null },
-                        "Цена за единицу, ₽ (необязательно)",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    SheetTextField(purchaseStore, { purchaseStore = it; purchaseError = null },
-                        "Магазин (необязательно)")
-                    stores.filter { !it.deleted && (purchaseStore.isBlank() ||
-                        it.name.contains(purchaseStore, ignoreCase = true)) }.take(3).forEach { store ->
-                        TextButton(onClick = { purchaseStore = store.name }) { Text(store.name, color = p.accent) }
-                    }
-                    purchaseError?.let { Text(it, color = p.error) }
-                }
-            },
-            confirmButton = {
-                SheetActionButton(enabled = purchasePrice.isBlank() || parsed != null, onClick = {
-                    viewModel.amendPurchase(row.id, parsed, purchaseStore) { error ->
-                        if (error == null) editingPurchase = null else purchaseError = error
-                    }
-                }) { Text("Сохранить") }
-            })
-    }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("История продуктов", onBack)
@@ -327,6 +271,62 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 }) { Text("Удалить") }
             },
         )
+    }
+    if (editingName && ownProduct != null) {
+        AppSheet(onDismissRequest = { editingName = false }, containerColor = p.sheet,
+            title = { SheetHeader("Название товара") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SheetTextField(nameInput, { nameInput = it; nameError = null }, "Название")
+                    nameError?.let { Text(it, color = p.error) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = nameInput.isNotBlank(), onClick = {
+                    viewModel.editCustomProduct(ownProduct.id, nameInput) { error ->
+                        if (error == null) editingName = false else nameError = error
+                    }
+                }) { Text("Сохранить") }
+            })
+    }
+    if (deleteOwnPending && ownProduct != null) {
+        AppSheet(onDismissRequest = { deleteOwnPending = false }, containerColor = p.sheet,
+            title = { SheetHeader("Удалить свой товар?") },
+            text = { Text("Карточка исчезнет из каталога. Уже купленные товары и их цены сохранятся.", color = p.textSecondary) },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    viewModel.deleteCustomProduct(ownProduct.id) { deleted ->
+                        if (deleted) { deleteOwnPending = false; onBack() }
+                    }
+                }) { Text("Удалить") }
+            })
+    }
+    editingPurchase?.let { row ->
+        val parsed = com.mok.buylist.data.parsePriceKopecks(purchasePrice)
+        AppSheet(onDismissRequest = { editingPurchase = null }, containerColor = p.sheet,
+            title = { SheetHeader("Изменить покупку") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(row.name, color = p.text)
+                    SheetTextField(purchasePrice, { purchasePrice = it; purchaseError = null },
+                        "Цена за единицу, ₽ (необязательно)",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    SheetTextField(purchaseStore, { purchaseStore = it; purchaseError = null },
+                        "Магазин (необязательно)")
+                    stores.filter { !it.deleted && (purchaseStore.isBlank() ||
+                        it.name.contains(purchaseStore, ignoreCase = true)) }.take(3).forEach { store ->
+                        TextButton(onClick = { purchaseStore = store.name }) { Text(store.name, color = p.accent) }
+                    }
+                    purchaseError?.let { Text(it, color = p.error) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = purchasePrice.isBlank() || parsed != null, onClick = {
+                    viewModel.amendPurchase(row.id, parsed, purchaseStore) { error ->
+                        if (error == null) editingPurchase = null else purchaseError = error
+                    }
+                }) { Text("Сохранить") }
+            })
     }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
