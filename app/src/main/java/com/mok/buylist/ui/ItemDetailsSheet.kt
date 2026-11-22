@@ -65,22 +65,8 @@ internal fun ItemDetailsSheet(
     if (own != null && own.barcode.isNotBlank() &&
         aliases.none { it.code == own.barcode && it.deleted }) codes += own.barcode
 
-    val history = expensePurchases(archive, bought).filter {
-        it.productKey == productKey && it.storeId.isNotBlank()
-    }
-    val shopPrices = (history.map { it.storeId } +
-        storeLinks.filter { !it.deleted && it.productKey == productKey }.map { it.storeId })
-        .distinct().map { shopId ->
-            val link = storeLinks.firstOrNull {
-                it.storeId == shopId && it.productKey == productKey && !it.deleted
-            }
-            val latest = history.filter { it.storeId == shopId && it.unitPrice != null }
-                .maxByOrNull { it.at }
-            val name = stores.firstOrNull { it.id == shopId }?.name
-                ?: if (shopId == lentaStoreId()) "Лента" else "Другой магазин"
-            Triple(name, latest?.unitPrice ?: link?.priceKopecks,
-                latest != null)
-        }.sortedBy { it.first }
+    val shopPrices = productShopPrices(
+        productKey, stores, storeLinks, expensePurchases(archive, bought))
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -115,12 +101,13 @@ internal fun ItemDetailsSheet(
                     fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 if (shopPrices.isEmpty()) Text("Пока нет известных цен",
                     color = p.textSecondary, fontSize = 14.sp)
-                shopPrices.forEach { (name, price, fromHistory) ->
+                shopPrices.forEach { row ->
                     Row(Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(name, color = p.text, modifier = Modifier.weight(1f))
-                        Text(price?.let(::unitMoney)?.plus(if (own.isWeighted) "/кг" else "")
-                            ?: "Цена не указана", color = p.accent, fontWeight = FontWeight.SemiBold)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(row.storeName, color = p.text, modifier = Modifier.weight(1f))
+                        Text(row.priceKopecks?.let(::unitMoney)?.plus(
+                            if (own.isWeighted) "/кг" else "") ?: "Цена не указана",
+                            color = p.accent, fontWeight = FontWeight.SemiBold)
                     }
                 }
             } else {
