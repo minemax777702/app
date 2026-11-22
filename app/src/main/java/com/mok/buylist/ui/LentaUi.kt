@@ -52,7 +52,9 @@ fun LentaSettings(onDismiss: () -> Unit) {
 }
 
 @Composable
-fun LentaSuggestions(query: String, modifier: Modifier = Modifier, onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit, onlineOnly: Boolean = false) {
+fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
+    onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
+    onlineOnly: Boolean = false, hasOtherResults: Boolean = false) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
@@ -73,7 +75,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier, onAdd: (Lenta
     Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
         if (trimmed.length >= 2) {
             if (address.isBlank()) TextButton(onClick = onSettings) { Text("Указать адрес") }
-            if (!state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
+            if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
                 Text("Ничего не найдено", color = p.textSecondary, fontSize = 13.sp)
             LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(state.local, key = { "local:${it.id}" }) { product ->

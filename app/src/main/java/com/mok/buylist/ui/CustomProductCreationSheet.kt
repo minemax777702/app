@@ -49,10 +49,8 @@ internal fun CreateCustomProductAction(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Icon(painterResource(R.drawable.ic_plus), contentDescription = null, tint = p.accent)
-        Column(Modifier.weight(1f)) {
-            Text("Создать свой товар", color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text("Без каталога Ленты", color = p.textSecondary, fontSize = 12.sp)
-        }
+        Text("Создать свой товар", modifier = Modifier.weight(1f),
+            color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
 }
 

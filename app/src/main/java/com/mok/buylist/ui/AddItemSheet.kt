@@ -135,6 +135,7 @@ fun AddItemSheet(
                 .fillMaxHeight(0.85f)
                 .imePadding()
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             NoticeInSheet()
             SheetHeader(stringResource(R.string.add_title))
@@ -212,32 +213,50 @@ fun AddItemSheet(
                             barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }.take(5)
             }
             if (!voice.listening && matches.isNotEmpty()) {
-                Text("Свои товары", color = p.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
-                matches.forEach { custom ->
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field)
-                        .clickable {
-                            onAddCustom(custom) { added ->
-                                activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                                if (added) { text = ""; onQueryChange(""); scannedCode = null }
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    matches.forEach { custom ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                .background(p.field)
+                                .clickable {
+                                    onAddCustom(custom) { added ->
+                                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                        if (added) { text = ""; onQueryChange(""); scannedCode = null }
+                                    }
+                                }
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            LentaImage("", Modifier.size(52.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(custom.name, color = p.text, fontSize = 13.sp,
+                                    lineHeight = 17.sp, fontWeight = FontWeight.Bold)
+                                custom.estimatedPriceKopecks?.let { price ->
+                                    Text("${java.math.BigDecimal.valueOf(price, 2).stripTrailingZeros().toPlainString()} ₽",
+                                        color = p.accent, fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold)
+                                }
                             }
-                        }.padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text(custom.name, Modifier.weight(1f), color = p.text, fontWeight = FontWeight.SemiBold)
-                        Text("+", color = p.accent, fontSize = 22.sp)
+                        }
                     }
                 }
             }
-            if (!voice.listening) CreateCustomProductAction(
-                onClick = {
-                    newName = if (scannedCode == text) "" else text
-                    newBarcode = scannedCode.orEmpty()
-                    createOpen = true
-                },
-            )
+            if (!voice.listening) {
+                CreateCustomProductAction(
+                    onClick = {
+                        newName = if (scannedCode == text) "" else text
+                        newBarcode = scannedCode.orEmpty()
+                        createOpen = true
+                    },
+                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
+                )
+            }
 
             if (!voice.listening) LentaSuggestions(
                 query = text,
                 modifier = Modifier.weight(1f),
+                hasOtherResults = matches.isNotEmpty(),
                 onSettings = onAddressSettings,
                 onAdd = { product ->
                     scope.launch {

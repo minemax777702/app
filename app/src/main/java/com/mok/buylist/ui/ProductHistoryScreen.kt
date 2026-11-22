@@ -147,6 +147,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var barcodeEditorOpen by remember(productKey) { mutableStateOf(false) }
     var scanningBarcode by remember(productKey) { mutableStateOf(false) }
     var barcodeSaving by remember(productKey) { mutableStateOf(false) }
+    var editingPrice by remember(productKey) { mutableStateOf(false) }
+    var estimatedPriceText by remember(productKey) { mutableStateOf("") }
+    var estimatedPriceError by remember(productKey) { mutableStateOf<String?>(null) }
     var editingName by remember(productKey) { mutableStateOf(false) }
     var nameInput by remember(productKey) { mutableStateOf("") }
     var nameError by remember(productKey) { mutableStateOf<String?>(null) }
@@ -285,6 +288,38 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             },
         )
     }
+    if (editingPrice && ownProduct != null) {
+        val amount = if (estimatedPriceText.isBlank()) null
+            else com.mok.buylist.data.parsePriceKopecks(estimatedPriceText)
+        AppSheet(
+            onDismissRequest = { editingPrice = false },
+            containerColor = p.sheet,
+            title = { SheetHeader("Ориентировочная цена") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SheetTextField(
+                        estimatedPriceText,
+                        { estimatedPriceText = it; estimatedPriceError = null },
+                        "Цена, ₽ (необязательно)",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                    Text("Это цена для планирования. История расходов изменяется только при покупке.",
+                        color = p.textSecondary, fontSize = 12.sp)
+                    estimatedPriceError?.let { Text(it, color = p.error, fontSize = 13.sp) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(
+                    enabled = estimatedPriceText.isBlank() || amount != null,
+                    onClick = {
+                        viewModel.updateCustomEstimatedPrice(ownProduct.id, amount) { error ->
+                            if (error == null) editingPrice = false else estimatedPriceError = error
+                        }
+                    },
+                ) { Text("Сохранить") }
+            },
+        )
+    }
     if (editingName && ownProduct != null) {
         AppSheet(onDismissRequest = { editingName = false }, containerColor = p.sheet,
             title = { SheetHeader("Название товара") },
@@ -354,27 +389,50 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             }
             if (ownProduct != null) item {
                 HistoryCard {
-                    Text("Свой товар", color = p.textSecondary, fontSize = 13.sp)
-                    ownProduct.estimatedPriceKopecks?.let { kopecks ->
-                        Text("Ориентировочная цена: ${BigDecimal.valueOf(kopecks, 2).stripTrailingZeros().toPlainString()} ₽",
-                            color = p.textSecondary, fontSize = 13.sp)
-                    }
-                    if (barcodes.isNotEmpty()) Text("Штрихкодов: ${barcodes.size}", color = p.text)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        TextButton(onClick = {
-                            nameInput = ownProduct.name
-                            nameError = null
-                            editingName = true
-                        }) { Text("Изменить название", color = p.accent) }
-                        TextButton(onClick = { deleteOwnPending = true }) {
-                            Text("Удалить", color = p.error)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Ориентировочная цена", color = p.textSecondary, fontSize = 13.sp)
+                            Text(
+                                ownProduct.estimatedPriceKopecks?.let(::historyMoney) ?: "Не указана",
+                                color = p.text, fontSize = 19.sp, fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        IconButton(onClick = {
+                            estimatedPriceText = ownProduct.estimatedPriceKopecks?.let {
+                                BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                            }.orEmpty()
+                            estimatedPriceError = null
+                            editingPrice = true
+                        }) {
+                            Icon(painterResource(R.drawable.ic_edit),
+                                contentDescription = "Изменить ориентировочную цену", tint = p.accent)
                         }
                     }
+                    if (barcodes.isNotEmpty())
+                        Text("Штрихкодов: ${barcodes.size}", color = p.textSecondary, fontSize = 13.sp)
                     SheetActionButton(onClick = {
                         viewModel.addCustomProduct(ownProduct) { added ->
                             activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                         }
                     }) { Text("Добавить в список") }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            IconButton(onClick = {
+                                nameInput = ownProduct.name
+                                nameError = null
+                                editingName = true
+                            }) {
+                                Icon(painterResource(R.drawable.ic_edit),
+                                    contentDescription = "Изменить название", tint = p.iconMuted)
+                            }
+                            Text("Название", color = p.textSecondary, fontSize = 13.sp)
+                        }
+                        IconButton(onClick = { deleteOwnPending = true }) {
+                            Icon(painterResource(R.drawable.ic_trash),
+                                contentDescription = "Удалить свой товар", tint = p.error)
+                        }
+                    }
                 }
             }
             if (product != null) item {

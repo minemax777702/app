@@ -69,6 +69,19 @@ class ShoppingRepository(
         null
     }
 
+    /** Estimated price is catalog metadata, never a purchase event. */
+    suspend fun updateCustomEstimatedPrice(id: String, priceKopecks: Long?): String? =
+        db.withTransaction {
+            if (priceKopecks != null && priceKopecks < 0) return@withTransaction "Некорректная цена"
+            val product = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
+                ?: return@withTransaction "Товар не найден"
+            dao.upsertCustomProduct(product.copy(
+                estimatedPriceKopecks = priceKopecks,
+                updatedAt = maxOf(System.currentTimeMillis(), product.updatedAt + 1),
+            ))
+            null
+        }
+
     suspend fun deleteCustomProduct(id: String): Boolean = db.withTransaction {
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction false
