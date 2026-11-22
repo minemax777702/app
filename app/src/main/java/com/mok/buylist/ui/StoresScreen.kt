@@ -232,7 +232,9 @@ internal fun StoresScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             val catalogItem = lenta.firstOrNull { "lenta:${it.id}" == entry.key }
-                            LentaImage(catalogItem?.image.orEmpty(), Modifier.size(46.dp))
+                            if (entry.key.startsWith("custom:"))
+                                CustomProductImage(entry.key.removePrefix("custom:"), Modifier.size(46.dp))
+                            else LentaImage(catalogItem?.image.orEmpty(), Modifier.size(46.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text(entry.name, color = p.text, fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold, lineHeight = 20.sp,
