@@ -49,7 +49,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
     val address = _address.asStateFlow()
     private val _ready = MutableStateFlow(false)
     val ready = _ready.asStateFlow()
-    private val _barcodeRows = dao.observeProductBarcodes()
+    val barcodeRows = dao.observeProductBarcodes()
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
     val products = combine(dao.observeLentaProducts(), dao.observeProductBarcodes()) { rows, _ ->
         rows.map { it.toProduct() }
@@ -57,7 +57,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     fun barcodeAliases(id: Long): Set<String> =
-        _barcodeRows.value.asSequence().filter { it.productId == id && !it.deleted }.map { it.code }.toSet()
+        barcodeRows.value.asSequence().filter { it.productId == id && !it.deleted }.map { it.code }.toSet()
 
     fun matchesBarcode(product: LentaProduct, scanned: String): Boolean =
         barcodeAliases(product.id).any { com.mok.buylist.sync.barcodeMatches(it, scanned) }
