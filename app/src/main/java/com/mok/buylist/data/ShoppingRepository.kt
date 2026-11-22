@@ -73,7 +73,16 @@ class ShoppingRepository(
             if (matchedLenta.isNotEmpty() || matchedCustom.isNotEmpty()) return false
         }
         val existing = dao.getCustomProducts().filter { !it.deleted && nameKeyOf(it.name) == nameKeyOf(name) }
-        if (existing.size == 1) return addCustomToList(existing.single())
+        if (existing.size == 1) {
+            val saved = existing.single()
+            if (code.isNotEmpty() && saved.barcode.isNotEmpty() && saved.barcode != code) return false
+            if (code.isNotEmpty() && saved.barcode.isEmpty()) {
+                val updated = saved.copy(barcode = code, updatedAt = System.currentTimeMillis())
+                dao.upsertCustomProduct(updated)
+                return addCustomToList(updated)
+            }
+            return addCustomToList(saved)
+        }
         val product = CustomProduct(UUID.randomUUID().toString(), name, code, System.currentTimeMillis())
         return db.withTransaction {
             dao.upsertCustomProduct(product)
