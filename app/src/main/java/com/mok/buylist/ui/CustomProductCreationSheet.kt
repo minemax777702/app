@@ -120,7 +120,7 @@ internal fun CustomProductCreationSheet(
             }
         }.distinctBy { it.id }
     }
-    val shownSuggestions = remember(localSuggestions, suggestions) {
+    val shownSuggestions = remember(localSuggestions, matchingLenta, suggestions) {
         (if (matchingLenta.isNotEmpty()) suggestions else localSuggestions + suggestions)
             .distinctBy { it.name.lowercase().trim() }
             .sortedByDescending { it.score }
