@@ -89,7 +89,7 @@ fun ArchiveScreen(
     var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
     var pendingDelete by remember { mutableStateOf<ArchivedList?>(null) }
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
-    var selectedProduct by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedProduct by rememberSaveable { mutableStateOf<String?>(null) }
     val allArchive by viewModel.archive.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
@@ -97,7 +97,7 @@ fun ArchiveScreen(
     val userNames = remember(users) { users.associate { it.id to it.name } }
     val multiUser = users.size > 1
     if (selectedProduct != null) {
-        ProductDetailsScreen("lenta:$selectedProduct", remember(allArchive, bought) { expensePurchases(allArchive, bought) },
+        ProductDetailsScreen(selectedProduct!!, remember(allArchive, bought) { expensePurchases(allArchive, bought) },
             users, viewModel, onBack = { selectedProduct = null })
         return
     }
@@ -463,7 +463,7 @@ private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, che
 
 @Composable
 private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map<String, String>, meId: String, showBuyers: Boolean,
-    stores: List<ShoppingStore>, onProduct: (Long) -> Unit, onDismiss: () -> Unit) {
+    stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit) {
     val p = LocalPalette.current
     val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
     val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
@@ -492,7 +492,13 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
             }
         } },
         confirmButton = {
-            event?.productId?.let { id -> SheetActionButton(onClick = { onProduct(id) }) { Text("Информация о товаре") } }
+            val productKey = event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
+                ?: event?.productId?.let { "lenta:$it" }
+            productKey?.let { key ->
+                SheetActionButton(onClick = { onProduct(key) }) {
+                    Text("Информация о товаре")
+                }
+            }
         },
     )
 }
