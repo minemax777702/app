@@ -362,7 +362,7 @@ class ShoppingRepository(
 
     suspend fun buyScannedCustom(product: CustomProduct, priceOverride: Long? = null,
         storeName: String = "", weightGrams: Int? = null): ScannedPurchaseResult? {
-        if (product.isWeighted && weightGrams !in 1..999000) return null
+        if (product.isWeighted && (weightGrams == null || weightGrams !in 1..999000)) return null
         if (product.deleted) return null
         val normalizedStore = normalizeName(storeName).take(100)
         val result = db.withTransaction {
