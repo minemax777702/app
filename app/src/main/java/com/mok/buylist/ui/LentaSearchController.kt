@@ -65,12 +65,15 @@ internal class LentaSearchController(
                 val response = search(query, address, page, storeId)
                 if (page == 1 && response.isNotEmpty()) storeId = response.first().storeId
                 val fresh = response.filter { it.id > 0 && it.id !in seenIds }.distinctBy { it.id }
-                if (response.isEmpty() || fresh.isEmpty()) {
+                if (response.isEmpty()) {
                     state.value = state.value.copy(loading = false, hasMore = false, failed = false)
                     return
                 }
-                seenIds.addAll(fresh.map { it.id })
+                // Повторяющаяся страница не означает конец выдачи: сервер может
+                // возвращать пересекающиеся результаты на соседних страницах.
                 nextPage = page + 1
+                if (fresh.isEmpty()) return@repeat
+                seenIds.addAll(fresh.map { it.id })
                 val added = fresh.filter { it.id !in savedIds }
                 if (added.isNotEmpty()) {
                     state.value = state.value.copy(online = state.value.online + added,
