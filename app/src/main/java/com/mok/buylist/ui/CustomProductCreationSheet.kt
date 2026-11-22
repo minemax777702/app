@@ -137,6 +137,7 @@ internal fun CustomProductCreationSheet(
                             .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LentaImage(suggestion.imageUrl.orEmpty(), Modifier.size(48.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(suggestion.name, color = p.text, fontSize = 14.sp)
                                 Text(suggestion.source, color = p.textSecondary, fontSize = 11.sp)
