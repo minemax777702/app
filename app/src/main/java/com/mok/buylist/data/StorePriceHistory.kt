@@ -30,3 +30,20 @@ internal fun lastStorePurchasePrice(
             .thenBy { it.revisedAt }.thenBy { it.id })
         ?.unitPrice
 }
+
+/**
+ * Human-readable shop for archive and history.
+ * Historical Lenta purchases did not have a storeId before the store feature,
+ * so their Lenta catalog product ID is the safe legacy fallback.
+ */
+internal fun purchaseStoreName(
+    event: PurchaseEvent?,
+    stores: List<ShoppingStore>,
+): String? {
+    if (event == null) return null
+    if (event.storeId.isNotBlank()) {
+        if (event.storeId == lentaStoreId()) return "Лента"
+        return stores.firstOrNull { it.id == event.storeId }?.name ?: "Неизвестный магазин"
+    }
+    return if (event.productId != null && event.customProductId.isBlank()) "Лента" else null
+}
