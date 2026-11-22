@@ -39,6 +39,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: room-schema-v23
-          path: app/schemas/com.mok.buylist.data.AppDatabase/23.json
+          name: room-schema-v24
+          path: app/schemas/com.mok.buylist.data.AppDatabase/24.json
           if-no-files-found: ignore
