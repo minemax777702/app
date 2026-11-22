@@ -27,6 +27,7 @@ fun SettingsScreen(
     users: List<com.mok.buylist.data.AppUser>,
 ) {
     val p = LocalPalette.current
+    val activeTab = tab.coerceIn(0, 1)
     var syncActive by remember { mutableStateOf(false) }
     var section by remember { mutableStateOf(0) }
     val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
@@ -38,12 +39,12 @@ fun SettingsScreen(
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
         if (!syncActive) SubScreenHeader("Настройки", onBack)
-        TabRow(selectedTabIndex = tab, containerColor = p.background, contentColor = p.accent) {
+        TabRow(selectedTabIndex = activeTab, containerColor = p.background, contentColor = p.accent) {
             listOf("Товары и магазины", "Настройки").forEachIndexed { index, title ->
-                Tab(selected = tab == index, onClick = { onTab(index) }, enabled = !syncActive, text = { Text(title) })
+                Tab(selected = activeTab == index, onClick = { onTab(index) }, enabled = !syncActive, text = { Text(title) })
             }
         }
-        if (tab == 0) {
+        if (activeTab == 0) {
             androidx.compose.foundation.layout.Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
