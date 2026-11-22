@@ -313,10 +313,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     Text(if (ownWeighted) "Цена за кг" else "Ориентировочная цена",
                         color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownPriceInput,
-                        { ownPriceInput = it; ownDetailsError = null }, "Цена, ₽ (необязательно)",
+                        { ownPriceInput = it; ownDetailsError = null }, "Цена, ₽",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    Text("Фактическая цена покупки сохраняется отдельно.",
-                        color = p.textSecondary, fontSize = 12.sp)
                     ownDetailsError?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
             },

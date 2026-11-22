@@ -192,7 +192,8 @@ class ShoppingRepository(
                         estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
                         isWeighted = saved.isWeighted || isWeighted,
                         updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
-                return addCustomToList(saved)
+                return addCustomToList(if (isWeighted && !saved.isWeighted)
+                    saved.copy(isWeighted = true) else saved)
             }
             if (matchedCustom.size > 1 || matchedLenta.size > 1) return false
             // Without a user-specific price reuse the known Lenta product.
