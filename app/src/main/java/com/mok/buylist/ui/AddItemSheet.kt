@@ -277,6 +277,12 @@ fun AddItemSheet(
             initialName = newName,
             initialBarcode = newBarcode,
             onCreate = onCreateCustom,
+            onChooseLenta = { product, onResult ->
+                onAdd(product) { added ->
+                    onResult(added)
+                    if (added) activity?.notifyUser("Добавлен товар Ленты")
+                }
+            },
             onDismiss = { createOpen = false },
             onCreated = {
                 createOpen = false
