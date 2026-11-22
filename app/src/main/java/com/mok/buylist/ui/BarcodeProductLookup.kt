@@ -81,9 +81,9 @@ internal object BarcodeProductLookup {
                     if (output.size() + n > limit) return null
                     output.write(buffer, 0, n)
                 }
-                val declared = connection.contentType
-                    ?.substringAfter("charset=", "", ignoreCase = true)
-                    ?.substringBefore(";")?.trim()?.replace("\"", "")
+                val declared = Regex("charset=([^;]+)", RegexOption.IGNORE_CASE)
+                    .find(connection.contentType.orEmpty())
+                    ?.groupValues?.getOrNull(1)?.trim()?.replace("\"", "")
                     ?.lowercase(Locale.ROOT).orEmpty()
                 val charset = when (declared) {
                     "windows-1251", "cp1251" -> java.nio.charset.Charset.forName("windows-1251")
