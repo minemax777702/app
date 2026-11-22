@@ -113,6 +113,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val address by catalog.address.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
+    val barcodes = product?.let { catalog.barcodeAliases(it.id) + it.ean.trim() }?.filter { it.isNotBlank() }?.sorted().orEmpty()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
@@ -168,6 +169,15 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         androidx.compose.material3.TextButton(onClick = { viewModel.refreshPrice(product.id) }, enabled = message != "Загрузка") {
                             Text(if (message == "Загрузка") "Обновление…" else "Обновить цену")
                         }
+                }
+            }
+            if (product != null && barcodes.isNotEmpty()) item {
+                HistoryCard {
+                    Text("Штрихкоды товара", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    barcodes.forEach { code ->
+                        Text(code + if (code == product.ean) " · текущий в Ленте" else " · сохранённый",
+                            color = p.textSecondary)
+                    }
                 }
             }
             if (interval != null) item {
