@@ -368,6 +368,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             }.orEmpty())
         }
         var selectedStore by remember(item.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+        var priceRevision by remember(item.id) { mutableIntStateOf(0) }
         var weightText by remember(item.id) {
             mutableStateOf(java.math.BigDecimal.valueOf(
                 (item.weightGrams ?: 1000).toLong(), 3).stripTrailingZeros().toPlainString())
@@ -386,12 +387,16 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         weightText, { weightText = it }, "Вес, кг",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
-                    SheetTextField(price, { price = it },
+                    SheetTextField(price, { price = it; priceRevision++ },
                         if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     StoreSelectField(stores, selectedStore, onSelected = { store ->
                         selectedStore = store
+                        price = suggestedPrice?.let {
+                            java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                        }.orEmpty()
+                        val revision = ++priceRevision
                         if (store != null) {
                             val key = when {
                                 item.customProductId.isNotBlank() -> "custom:${item.customProductId}"
@@ -399,7 +404,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 else -> ""
                             }
                             if (key.isNotBlank()) viewModel.latestStorePrice(key, store.id) { known ->
-                                if (selectedStore?.id == store.id && known != null)
+                                if (selectedStore?.id == store.id && priceRevision == revision && known != null)
                                     price = java.math.BigDecimal.valueOf(known, 2)
                                         .stripTrailingZeros().toPlainString()
                             }
@@ -458,6 +463,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             }.orEmpty())
         }
         var selectedStore by remember(product.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+        var priceRevision by remember(product.id) { mutableIntStateOf(0) }
         var weightText by remember(product.id) { mutableStateOf("1") }
         val weightGrams = if (product.isWeighted)
             com.mok.buylist.data.parseWeightGrams(weightText) else null
@@ -470,14 +476,18 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         weightText, { weightText = it }, "Вес, кг",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
-                    SheetTextField(price, { price = it },
+                    SheetTextField(price, { price = it; priceRevision++ },
                         if (product.isWeighted) "Цена за кг, ₽" else "Цена, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     StoreSelectField(stores, selectedStore, onSelected = { store ->
                         selectedStore = store
+                        price = product.estimatedPriceKopecks?.let {
+                            java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                        }.orEmpty()
+                        val revision = ++priceRevision
                         if (store != null) viewModel.latestStorePrice("custom:${product.id}", store.id) { known ->
-                            if (selectedStore?.id == store.id && known != null)
+                            if (selectedStore?.id == store.id && priceRevision == revision && known != null)
                                 price = java.math.BigDecimal.valueOf(known, 2)
                                     .stripTrailingZeros().toPlainString()
                         }

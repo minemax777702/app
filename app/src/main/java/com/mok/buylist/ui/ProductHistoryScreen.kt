@@ -161,6 +161,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var editingPurchase by remember(productKey) { mutableStateOf<ExpensePurchase?>(null) }
     var purchasePrice by remember(productKey) { mutableStateOf("") }
     var purchaseStore by remember(productKey) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+    var purchasePriceRevision by remember(productKey) { mutableIntStateOf(0) }
     var purchaseError by remember(productKey) { mutableStateOf<String?>(null) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
@@ -356,16 +357,18 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(row.name, color = p.text)
-                    SheetTextField(purchasePrice, { purchasePrice = it; purchaseError = null },
+                    SheetTextField(purchasePrice,
+                        { purchasePrice = it; purchaseError = null; purchasePriceRevision++ },
                         "Цена за единицу, ₽ (необязательно)",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     StoreSelectField(stores, purchaseStore, onSelected = { store ->
                         purchaseStore = store
                         purchaseError = null
+                        val revision = ++purchasePriceRevision
                         if (store != null) viewModel.latestStorePrice(
                             row.productKey, store.id, row.id
                         ) { known ->
-                            if (purchaseStore?.id == store.id && known != null)
+                            if (purchaseStore?.id == store.id && purchasePriceRevision == revision && known != null)
                                 purchasePrice = BigDecimal.valueOf(known, 2)
                                     .stripTrailingZeros().toPlainString()
                         }
