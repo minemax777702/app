@@ -1,7 +1,6 @@
 package com.mok.buylist.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,7 +14,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -30,7 +28,6 @@ import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.StoreProduct
-import com.mok.buylist.data.lentaStoreId
 import com.mok.buylist.ui.theme.LocalPalette
 import java.math.BigDecimal
 import java.text.DateFormat
@@ -160,7 +157,7 @@ internal fun ItemDetailsSheet(
 
             val packageName = product?.pack?.takeIf { it.isNotBlank() }
             val barcodeList = if (own != null) codes.sorted()
-                else product?.ean?.takeIf { it.isNotBlank() }?.let(::listOf).orEmpty()
+                else product?.ean?.takeIf { it.isNotBlank() }?.let { listOf(it) }.orEmpty()
             val updated = livePrice?.fetchedAt?.takeIf { it > 0L }
                 ?.let { DateFormat.getDateTimeInstance().format(Date(it)) }
             if (packageName != null || barcodeList.isNotEmpty() || updated != null) {
