@@ -106,8 +106,8 @@ fun AddItemSheet(
     }
     DisposableEffect(Unit) { onDispose { onQueryChange("") } }
 
-    suspend fun saveLenta(product: LentaProduct) {
-        lenta.save(product)
+    suspend fun saveLenta(product: LentaProduct, scannedBarcode: String?) {
+        lenta.save(product, scannedBarcode)
     }
 
     ModalBottomSheet(
