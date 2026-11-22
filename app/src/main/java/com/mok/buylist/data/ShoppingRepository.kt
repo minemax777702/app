@@ -50,6 +50,61 @@ class ShoppingRepository(
 ) {
     private val dao = db.shoppingDao()
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
+    fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
+    fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores()
+
+    /**
+     * A product with the same barcode from Lenta is reused rather than copied.
+     * Ambiguous barcode matches are not automatically merged.
+     */
+    suspend fun addManualProduct(rawName: String, rawBarcode: String = ""): Boolean {
+        val name = normalizeName(rawName).take(MAX_NAME_LENGTH)
+        val code = rawBarcode.trim()
+        if (name.isEmpty() || (code.isNotEmpty() && !validProductBarcode(code))) return false
+        if (code.isNotEmpty()) {
+            val lentaIds = dao.getProductBarcodes().asSequence()
+                .filter { !it.deleted && it.code == code }.map { it.productId }.toSet()
+            val matchedLenta = dao.getLentaProducts().filter { it.id in lentaIds || it.ean == code }
+            val matchedCustom = dao.getCustomProducts().filter { !it.deleted && it.barcode == code }
+            if (matchedLenta.size + matchedCustom.size == 1) {
+                return matchedLenta.singleOrNull()?.let { addProduct(it.toProduct()) }
+                    ?: addCustomToList(matchedCustom.single())
+            }
+            if (matchedLenta.isNotEmpty() || matchedCustom.isNotEmpty()) return false
+        }
+        val existing = dao.getCustomProducts().filter { !it.deleted && nameKeyOf(it.name) == nameKeyOf(name) }
+        if (existing.size == 1) return addCustomToList(existing.single())
+        val product = CustomProduct(UUID.randomUUID().toString(), name, code, System.currentTimeMillis())
+        return db.withTransaction {
+            dao.upsertCustomProduct(product)
+            addCustomToListInTransaction(product)
+        }.also { if (it) refreshWidget() }
+    }
+
+    suspend fun addCustomToList(product: CustomProduct): Boolean {
+        if (product.deleted) return false
+        val added = db.withTransaction { addCustomToListInTransaction(product) }
+        if (added) refreshWidget()
+        return added
+    }
+
+    private suspend fun addCustomToListInTransaction(product: CustomProduct): Boolean {
+        archiveFinishedTrip()
+        val key = customKey(product.id)
+        var existing = dao.findByKey(key)
+        if (existing?.deleted == true) {
+            archiveFinishedTrip(allowRemaining = true)
+            existing = dao.findByKey(key)
+        }
+        val now = System.currentTimeMillis()
+        when {
+            existing == null -> dao.insertItem(ShoppingItem(name = product.name, nameKey = key,
+                customProductId = product.id, createdAt = now, authorId = profile.id))
+            existing.deleted -> dao.revive(existing.id, product.name, now, profile.id, 1)
+            else -> return false
+        }
+        return true
+    }
 
     fun observeAllItems(): Flow<List<ShoppingItem>> = dao.observeAllItems()
 
@@ -153,7 +208,7 @@ class ShoppingRepository(
     }
 
     /** Товар куплен — убираем из списка (в историю он уже записан при добавлении). */
-    suspend fun buy(id: String, priceOverride: Long? = null, impulsive: Boolean = false) {
+    suspend fun buy(id: String, priceOverride: Long? = null, impulsive: Boolean = false, storeName: String = "") {
         db.withTransaction {
             val item = dao.findById(id) ?: return@withTransaction
             if (item.deleted) return@withTransaction
@@ -162,8 +217,16 @@ class ShoppingRepository(
             val product = dao.getLentaProducts().firstOrNull { it.id == item.productId }?.toProduct()?.takeIf {
                 catalog.address.value.isNotBlank() && it.address == catalog.address.value && it.channel == "locc"
             }
+            val normalizedStore = normalizeName(storeName).take(100)
+            val storeId = if (normalizedStore.isEmpty()) "" else {
+                val store = dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(normalizedStore) }
+                    ?: ShoppingStore(UUID.randomUUID().toString(), normalizedStore, updatedAt = now)
+                        .also { dao.upsertStore(it) }
+                store.id
+            }
             dao.updateItem(item.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                purchaseEvent = purchaseEvent(item, product, now, profile.id, priceOverride, impulsive)))
+                purchaseEvent = purchaseEvent(item, if (storeId.isNotEmpty()) null else product,
+                    now, profile.id, priceOverride, impulsive, storeId)))
         }
         refreshWidget()
     }
@@ -240,11 +303,14 @@ class ShoppingRepository(
 
     suspend fun repeatItems(names: List<String>, quantities: List<Int>, events: List<String> = emptyList()) {
         val products = dao.getLentaProducts().associateBy { it.id }
+        val custom = dao.getCustomProducts().associateBy { it.id }
         names.forEachIndexed { index, name ->
             val event = decodePurchaseEvent(events.getOrElse(index) { "" })
             val id = event?.productId
             val product = id?.let(products::get)
-            if (product != null) {
+            if (event?.customProductId?.let(custom::get)?.takeUnless { it.deleted } != null) {
+                addCustomToList(custom.getValue(event.customProductId))
+            } else if (product != null) {
                 if (addProduct(product.toProduct(), quantities.getOrElse(index) { 1 }) && event?.weightGrams != null)
                     dao.findByKey("lenta:$id")?.let { setWeight(it.id, event.weightGrams) }
             }
@@ -308,8 +374,10 @@ class ShoppingRepository(
         return Snapshot(
             products = dao.getLentaProducts(),
             productBarcodes = dao.getProductBarcodes(),
+            customProducts = dao.getCustomProducts(),
+            stores = dao.getStores(),
             users = dao.getUsers().map { SyncUser(it.id, it.name, it.updatedAt) },
-            items = dao.getAllItems().map { SyncItem(it.name, it.createdAt, it.updatedAt, it.deleted, it.authorId, it.quantity, it.purchaseEvent, it.productId, it.weightGrams) },
+            items = dao.getAllItems().map { SyncItem(it.name, it.createdAt, it.updatedAt, it.deleted, it.authorId, it.quantity, it.purchaseEvent, it.productId, it.weightGrams, it.customProductId) },
             archives = dao.getArchives().map { list ->
                 SyncArchive(
                     uid = list.uid,
@@ -446,6 +514,11 @@ class ShoppingRepository(
         dao.upsertLentaProducts(merged.products)
         dao.insertProductBarcodes(merged.productBarcodes)
 
+        dao.clearCustomProducts()
+        dao.upsertCustomProducts(merged.customProducts)
+        dao.clearStores()
+        dao.upsertStores(merged.stores)
+
         dao.clearUsers()
         dao.insertUsers(merged.users.map { AppUser(it.id, it.name, it.at) })
 
@@ -466,6 +539,7 @@ class ShoppingRepository(
                 purchaseEvent = item.purchaseEvent,
                 productId = item.productId,
                 weightGrams = item.weightGrams,
+                customProductId = item.customProductId,
             )
             when {
                 old == null -> dao.insertItem(row)
