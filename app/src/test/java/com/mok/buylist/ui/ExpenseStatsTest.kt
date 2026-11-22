@@ -5,6 +5,7 @@ import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.data.purchaseEvent
 import com.mok.buylist.data.decodePurchaseEvent
+import com.mok.buylist.data.amendPurchaseEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -12,6 +13,39 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class ExpenseStatsTest {
+    @Test fun correctedArchivedPurchaseRetainsIdentityAndWinsAfterSync() {
+        val item = ShoppingItem(name = "Яйца", customProductId = "uuid")
+        val original = purchaseEvent(item, null, 500L, "buyer", priceOverride = 12900L)
+        val corrected = amendPurchaseEvent(original, 11900L, "store-id", 900L)!!
+        val before = decodePurchaseEvent(original)!!
+        val after = decodePurchaseEvent(corrected)!!
+        assertEquals(before.id, after.id)
+        assertEquals(before.boughtAt, after.boughtAt)
+        assertEquals("uuid", after.customProductId)
+        assertEquals("store-id", after.storeId)
+        assertEquals(11900L, after.unitPrice)
+        assertEquals(900L, after.revisedAt)
+
+        val first = com.mok.buylist.sync.SyncArchive("archive", 500L,
+            listOf("Яйца"), listOf("buyer"), 0L, 1, purchaseEvents = listOf(original))
+        val second = first.copy(purchaseEvents = listOf(corrected))
+        val merged = com.mok.buylist.sync.SyncMerge.merge(
+            com.mok.buylist.sync.Snapshot(archives = listOf(first)),
+            com.mok.buylist.sync.Snapshot(archives = listOf(second)))
+        assertEquals(11900L, decodePurchaseEvent(merged.archives.single().purchaseEvents.single())?.unitPrice)
+    }
+
+    @Test fun historicalPriceCanBeClearedAndDoesNotAffectExpenseSum() {
+        val original = purchaseEvent(ShoppingItem(name = "Молоко", customProductId = "uuid"),
+            null, 1L, "buyer", priceOverride = 12000L)
+        val cleared = amendPurchaseEvent(original, null, "", 999L)!!
+        val purchase = expensePurchases(emptyList(),
+            listOf(ShoppingItem(name = "Молоко", customProductId = "uuid",
+                deleted = true, purchaseEvent = cleared))).single()
+        assertNull(purchase.unitPrice)
+        assertEquals(0L, expenseSum(listOf(purchase)))
+    }
+
     @Test fun weightIsIncludedInArchiveAndExpenseTotal() {
         val item = ShoppingItem(name = "Картофель", productId = 42, weightGrams = 2540)
         val product = LentaProduct(42, item.name, "", "", "30", "card", "", "")
