@@ -9,6 +9,36 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ShoppingDao {
+    @Query("SELECT * FROM custom_products ORDER BY name, id")
+    fun observeCustomProducts(): Flow<List<CustomProduct>>
+
+    @Query("SELECT * FROM custom_products")
+    suspend fun getCustomProducts(): List<CustomProduct>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProducts(rows: List<CustomProduct>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProduct(row: CustomProduct)
+
+    @Query("DELETE FROM custom_products")
+    suspend fun clearCustomProducts()
+
+    @Query("SELECT * FROM stores ORDER BY name, id")
+    fun observeStores(): Flow<List<ShoppingStore>>
+
+    @Query("SELECT * FROM stores")
+    suspend fun getStores(): List<ShoppingStore>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertStores(rows: List<ShoppingStore>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertStore(row: ShoppingStore)
+
+    @Query("DELETE FROM stores")
+    suspend fun clearStores()
+
     @Query("SELECT * FROM lenta_products ORDER BY name, id")
     fun observeLentaProducts(): Flow<List<StoredLentaProduct>>
 
