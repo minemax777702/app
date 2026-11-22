@@ -83,7 +83,7 @@ internal object BarcodeProductLookup {
                 }
                 val declared = connection.contentType
                     ?.substringAfter("charset=", "", ignoreCase = true)
-                    ?.substringBefore(";")?.trim()?.replace("\\"", "")
+                    ?.substringBefore(";")?.trim()?.replace("\"", "")
                     ?.lowercase(Locale.ROOT).orEmpty()
                 val charset = when (declared) {
                     "windows-1251", "cp1251" -> java.nio.charset.Charset.forName("windows-1251")
