@@ -4,9 +4,9 @@ on:
   pull_request:
     paths:
       - "ui-preview/**"
-      - "settings.gradle.kts"
-      - "build.gradle.kts"
-      - "gradle/libs.versions.toml"
+      - "ui-preview/settings.gradle.kts"
+
+
       - ".github/workflows/compose-wasm-preview.yml"
   workflow_dispatch:
 
@@ -27,7 +27,7 @@ jobs:
       - name: Build browser preview
         run: |
           chmod +x ./gradlew
-          ./gradlew :ui-preview:wasmJsBrowserDistribution --stacktrace --no-daemon
+          ./gradlew -p ui-preview wasmJsBrowserDistribution --stacktrace --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: compose-wasm-preview
