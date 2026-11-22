@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -13,7 +14,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +35,8 @@ import com.mok.buylist.R
 import com.mok.buylist.data.parsePriceKopecks
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.ui.theme.LocalPalette
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * The same real creation form is available from the shopping list and the
@@ -72,6 +79,25 @@ internal fun CustomProductCreationSheet(
     var scanning by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     val parsedPrice = if (price.isBlank()) null else parsePriceKopecks(price)
+    val scope = rememberCoroutineScope()
+    var lookupBusy by remember { mutableStateOf(false) }
+    var suggestions by remember { mutableStateOf<List<BarcodeProductSuggestion>>(emptyList()) }
+    var lookedUpCode by remember { mutableStateOf("") }
+    var nameEdited by remember(initialName) { mutableStateOf(initialName.isNotBlank()) }
+
+    LaunchedEffect(barcode) {
+        suggestions = emptyList()
+        lookedUpCode = ""
+        if (!validProductBarcode(barcode)) return@LaunchedEffect
+        delay(650)
+        lookupBusy = true
+        try {
+            val found = BarcodeProductLookup.lookup(barcode)
+            suggestions = found
+            lookedUpCode = barcode
+            if (name.isBlank() && !nameEdited && found.isNotEmpty()) name = found.first().name
+        } finally { lookupBusy = false }
+    }
 
     if (!scanning) AppSheet(
         onDismissRequest = { if (!saving && !scanning) onDismiss() },
@@ -79,7 +105,7 @@ internal fun CustomProductCreationSheet(
         title = { SheetHeader("Свой товар") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SheetTextField(name, { name = it; error = null }, "Название товара")
+                SheetTextField(name, { name = it; nameEdited = true; error = null }, "Название товара")
                 if (name.length > 200) Text("Максимум 200 символов", color = p.error, fontSize = 12.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -94,6 +120,47 @@ internal fun CustomProductCreationSheet(
                         Icon(painterResource(R.drawable.ic_camera),
                             contentDescription = "Сканировать штрихкод камерой", tint = p.accent)
                     }
+                }
+                if (lookupBusy) {
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp,
+                            color = p.accent)
+                        Text("Ищем название по штрихкоду…", color = p.textSecondary, fontSize = 12.sp)
+                    }
+                } else if (suggestions.isNotEmpty()) {
+                    Text("Найденные названия", color = p.textSecondary, fontSize = 12.sp)
+                    suggestions.take(3).forEach { suggestion ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(p.field)
+                            .clickable { name = suggestion.name; nameEdited = true }
+                            .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Text(suggestion.name, color = p.text, fontSize = 14.sp)
+                                Text(suggestion.source, color = p.textSecondary, fontSize = 11.sp)
+                            }
+                            Icon(painterResource(R.drawable.ic_plus), null,
+                                tint = p.accent, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                } else if (lookedUpCode == barcode && barcode.isNotBlank()) {
+                    Text("Название не найдено — его можно ввести вручную",
+                        color = p.textSecondary, fontSize = 12.sp)
+                }
+                if (validProductBarcode(barcode) && !lookupBusy) {
+                    TextButton(onClick = {
+                        scope.launch {
+                            lookupBusy = true
+                            try {
+                                suggestions = BarcodeProductLookup.lookup(barcode, force = true)
+                                lookedUpCode = barcode
+                                if (name.isBlank() && !nameEdited && suggestions.isNotEmpty())
+                                    name = suggestions.first().name
+                            } finally { lookupBusy = false }
+                        }
+                    }) { Text("Повторить поиск", color = p.accent) }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !isWeighted, onClick = { isWeighted = false },
