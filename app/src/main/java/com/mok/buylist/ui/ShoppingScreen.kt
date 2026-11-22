@@ -391,8 +391,9 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     SheetTextField(storeName, { storeName = it }, "Магазин")
-                    val suggestions = stores.filter { !it.deleted &&
-                        (storeName.isBlank() || it.name.contains(storeName, ignoreCase = true)) }.take(5)
+                    val suggestions = if (storeName.isBlank()) emptyList() else
+                        stores.filter { !it.deleted &&
+                            it.name.contains(storeName, ignoreCase = true) }.take(2)
                     if (suggestions.isNotEmpty()) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             suggestions.take(2).forEach { store ->
