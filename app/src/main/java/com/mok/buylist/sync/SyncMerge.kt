@@ -68,8 +68,11 @@ object SyncMerge {
                 }
             }).filter { it.productId in activeProductIds &&
             it.code.length in setOf(8, 12, 13) && it.code.all(Char::isDigit) }
-            .distinctBy { it.productId to it.code }
-            .sortedWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.productId }.thenBy { it.code })
+            .groupBy { it.productId to it.code }
+            .values.map { rows ->
+                rows.maxWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.updatedAt }
+                    .thenBy { it.deleted })
+            }.sortedWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.productId }.thenBy { it.code })
 
         val hidden = pick(
             a.hidden + b.hidden, TombKind.HIDDEN, { it.key }, { it.at },
