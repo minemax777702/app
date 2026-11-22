@@ -85,6 +85,7 @@ fun StatsScreen(
     val lentaProducts by catalog.products.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
     val customBarcodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val purchases = remember(archive, bought, customProducts, lentaProducts, barcodeRows, customBarcodes) {
         mergeCatalogPriceHistory(expensePurchases(archive, bought), customProducts, lentaProducts, barcodeRows, customBarcodes)
@@ -154,7 +155,8 @@ fun StatsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExpenseStatsPanel(purchases, userId, period, onProductClick = { selectedProduct = it }) { period = it }
+                    ExpenseStatsPanel(purchases, userId, period, stores = stores,
+                        onProductClick = { selectedProduct = it }) { period = it }
                 } }
                 if (stats.lists > 0) item { Card {
                     Text(stringResource(R.string.stats_overview), color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
