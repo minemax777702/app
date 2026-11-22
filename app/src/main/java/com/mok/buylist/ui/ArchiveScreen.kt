@@ -474,29 +474,109 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
     fun money(value: Long): String = java.text.NumberFormat.getNumberInstance(java.util.Locale.forLanguageTag("ru-RU"))
         .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
         .format(java.math.BigDecimal.valueOf(value, 2)) + " ₽"
-    AppSheet(onDismissRequest = onDismiss, containerColor = p.sheet,
-        title = { Text(event?.name ?: list.names[index], color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            LentaImage(image, Modifier.size(120.dp))
-            val quantity = event?.quantity ?: list.counts[index]
-            val amount = event?.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: quantity.toString()
-            Text(if (price == null || total == null) amount
-                else "$amount × ${money(price)} = ${money(total)}", color = p.text, fontWeight = FontWeight.Bold)
-            purchaseStoreName(event, stores)?.let { label ->
-                Text("Магазин: $label", color = p.textSecondary)
+    val name = event?.name ?: list.names.getOrNull(index).orEmpty()
+    val buyerId = event?.buyer?.ifBlank { null } ?: list.buyerIds.getOrNull(index).orEmpty()
+    val buyer = if (buyerId == meId) stringResource(R.string.archive_buyer_you)
+        else userNames[buyerId].orEmpty()
+    val store = purchaseStoreName(event, stores)
+    val quantity = event?.quantity ?: list.counts.getOrNull(index) ?: 1
+    val weight = event?.weightGrams
+    val quantityText = weight?.let {
+        java.math.BigDecimal.valueOf(it.toLong(), 3)
+            .stripTrailingZeros().toPlainString() + " кг"
+    } ?: "$quantity шт."
+    val productKey = event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
+        ?: event?.productId?.let { "lenta:$it" }
+
+    AppSheet(
+        onDismissRequest = onDismiss,
+        containerColor = p.sheet,
+        title = { SheetHeader("Подробно о товаре") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val customId = event?.customProductId.orEmpty()
+                    if (customId.isNotBlank()) CustomProductImage(customId, Modifier.size(88.dp))
+                    else LentaImage(image, Modifier.size(88.dp))
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(name, color = p.text, fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp, lineHeight = 23.sp, maxLines = 4,
+                            overflow = TextOverflow.Ellipsis)
+                        Text(if (customId.isNotBlank()) "Свой товар" else "Товар из истории",
+                            color = p.textSecondary, fontSize = 12.sp)
+                    }
+                }
+
+                Column(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Text("Стоимость покупки", color = p.textSecondary, fontSize = 12.sp)
+                    Text(total?.let(::money) ?: "Цена не указана",
+                        color = if (total == null) p.textSecondary else p.accent,
+                        fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Количество", color = p.textSecondary, fontSize = 13.sp)
+                        Text(quantityText, color = p.text, fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                    if (price != null) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(if (weight != null) "Цена за кг" else "Цена за шт.",
+                                color = p.textSecondary, fontSize = 13.sp)
+                            Text(money(price), color = p.text, fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                if (store != null || (showBuyers && buyer.isNotBlank())) {
+                    Text("Информация о покупке", color = p.text,
+                        fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Column(
+                        Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        store?.let {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Магазин", color = p.textSecondary, fontSize = 12.sp)
+                                Text(it, color = p.text, fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        if (showBuyers && buyer.isNotBlank()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Покупатель", color = p.textSecondary, fontSize = 12.sp)
+                                Text(buyer, color = p.text, fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
             }
-            val buyerId = event?.buyer?.ifBlank { null } ?: list.buyerIds[index]
-            if (showBuyers && buyerId.isNotBlank()) {
-                val buyer = if (buyerId == meId) stringResource(R.string.archive_buyer_you) else userNames[buyerId].orEmpty()
-                if (buyer.isNotBlank()) Text("Покупатель: $buyer", color = p.textSecondary)
-            }
-        } },
+        },
         confirmButton = {
-            val productKey = event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
-                ?: event?.productId?.let { "lenta:$it" }
             productKey?.let { key ->
                 SheetActionButton(onClick = { onProduct(key) }) {
-                    Text("Информация о товаре")
+                    Text("Открыть товар")
                 }
             }
         },
