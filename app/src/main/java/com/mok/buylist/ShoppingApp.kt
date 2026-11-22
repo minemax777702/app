@@ -28,7 +28,7 @@ class ShoppingApp : Application() {
         ShoppingRepository(this, database, userProfile)
     }
     val themeSettings: ThemeSettings by lazy { ThemeSettings(this) }
-    val barcodeSourceSettings: BarcodeSourceSettings by lazy { BarcodeSourceSettings(this) }
+    internal val barcodeSourceSettings: BarcodeSourceSettings by lazy { BarcodeSourceSettings(this) }
     val lentaCatalog: LentaCatalog by lazy { LentaCatalog(this, database, appScope) }
 
 }
@@ -48,5 +48,5 @@ val Context.lentaCatalog: LentaCatalog
 val Context.nearbySync: NearbySync
     get() = (applicationContext as ShoppingApp).nearbySync
 
-val Context.barcodeSourceSettings: BarcodeSourceSettings
+internal val Context.barcodeSourceSettings: BarcodeSourceSettings
     get() = (applicationContext as ShoppingApp).barcodeSourceSettings
