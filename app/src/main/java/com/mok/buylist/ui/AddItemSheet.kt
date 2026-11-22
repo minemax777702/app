@@ -37,6 +37,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,6 +68,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mok.buylist.R
 import com.mok.buylist.lentaCatalog
 import com.mok.buylist.data.LentaProduct
+import com.mok.buylist.data.CustomProduct
+import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Manrope
 import com.mok.buylist.ui.theme.Motion
@@ -80,6 +84,9 @@ private val Recording = Color(0xFFD93A3A)
 fun AddItemSheet(
     onQueryChange: (String) -> Unit,
     onAdd: (LentaProduct, (Boolean) -> Unit) -> Unit,
+    customProducts: List<CustomProduct>,
+    onAddCustom: (CustomProduct, (Boolean) -> Unit) -> Unit,
+    onCreateCustom: (String, String, (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onAddressSettings: () -> Unit,
 ) {
@@ -87,6 +94,10 @@ fun AddItemSheet(
     var text by rememberSaveable { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
+    var createOpen by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
+    var newBarcode by remember { mutableStateOf("") }
+    var createError by remember { mutableStateOf<String?>(null) }
     val lenta = LocalContext.current.lentaCatalog
     val scope = rememberCoroutineScope()
     fun showHeard(name: String) {
@@ -191,6 +202,35 @@ fun AddItemSheet(
                 }
             }
 
+            val matches = remember(customProducts, text) {
+                if (text.isBlank()) emptyList() else customProducts.filter { !it.deleted &&
+                    (nameKeyOf(it.name).contains(nameKeyOf(text)) || it.barcode == text.trim()) }.take(5)
+            }
+            if (!voice.listening && matches.isNotEmpty()) {
+                Text("Свои товары", color = p.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+                matches.forEach { custom ->
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field)
+                        .clickable {
+                            onAddCustom(custom) { added ->
+                                activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                if (added) { text = ""; onQueryChange(""); scannedCode = null }
+                            }
+                        }.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(custom.name, Modifier.weight(1f), color = p.text, fontWeight = FontWeight.SemiBold)
+                        Text("+", color = p.accent, fontSize = 22.sp)
+                    }
+                }
+            }
+            if (!voice.listening) TextButton(onClick = {
+                newName = if (scannedCode == text) "" else text
+                newBarcode = scannedCode.orEmpty()
+                createError = null
+                createOpen = true
+            }) {
+                Text("Создать свой товар", color = p.accent, fontWeight = FontWeight.SemiBold)
+            }
+
             if (!voice.listening) LentaSuggestions(
                 query = text,
                 modifier = Modifier.weight(1f),
@@ -208,6 +248,38 @@ fun AddItemSheet(
             )
 
         }
+    }
+    if (createOpen) {
+        AppSheet(
+            onDismissRequest = { createOpen = false },
+            containerColor = p.sheet,
+            title = { SheetHeader("Новый товар") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SheetTextField(newName, { newName = it; createError = null }, "Название товара")
+                    SheetTextField(newBarcode, { newBarcode = it.filter(Char::isDigit).take(13); createError = null },
+                        "Штрихкод (необязательно)", keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number))
+                    createError?.let { Text(it, color = p.error, fontSize = 13.sp) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = newName.isNotBlank(), onClick = {
+                    if (newBarcode.isNotBlank() && !validProductBarcode(newBarcode)) {
+                        createError = "Неверный штрихкод"
+                    } else {
+                        onCreateCustom(newName, newBarcode) { added ->
+                            if (added) {
+                                createOpen = false
+                                text = ""
+                                scannedCode = null
+                                onQueryChange("")
+                                activity?.notifyUser("Добавлено в список")
+                            } else createError = "Товар уже есть в списке или штрихкод неоднозначен"
+                        }
+                    }
+                }) { Text("Добавить") }
+            },
+        )
     }
     if (scanning) BarcodeScannerSheet(onDismiss = { scanning = false }, onCode = { code ->
         scanning = false
