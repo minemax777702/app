@@ -205,6 +205,15 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun updateCustomProductDetails(
+        id: String, name: String, estimatedPriceKopecks: Long?,
+        onResult: (String?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            onResult(repository.updateCustomProductDetails(id, name, estimatedPriceKopecks))
+        }
+    }
+
     fun deleteCustomProduct(id: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(repository.deleteCustomProduct(id)) }
     }

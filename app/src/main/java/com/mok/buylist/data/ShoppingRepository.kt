@@ -82,6 +82,34 @@ class ShoppingRepository(
             null
         }
 
+    /**
+     * Edit a custom product in one Room transaction so name and estimated price
+     * are saved atomically and synced using the same updatedAt revision.
+     */
+    suspend fun updateCustomProductDetails(
+        id: String, rawName: String, estimatedPriceKopecks: Long?,
+    ): String? = db.withTransaction {
+        val name = normalizeName(rawName)
+        if (name.isEmpty()) return@withTransaction "Введите название"
+        if (name.length > MAX_CUSTOM_PRODUCT_NAME_LENGTH)
+            return@withTransaction "Максимум $MAX_CUSTOM_PRODUCT_NAME_LENGTH символов"
+        if (estimatedPriceKopecks != null && estimatedPriceKopecks < 0)
+            return@withTransaction "Некорректная цена"
+        val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
+            ?: return@withTransaction "Товар не найден"
+        if (row.name == name && row.estimatedPriceKopecks == estimatedPriceKopecks)
+            return@withTransaction null
+        val now = maxOf(System.currentTimeMillis(), row.updatedAt + 1)
+        dao.upsertCustomProduct(row.copy(name = name,
+            estimatedPriceKopecks = estimatedPriceKopecks, updatedAt = now))
+        if (row.name != name) {
+            dao.getItems().filter { it.customProductId == id && !it.deleted }.forEach { item ->
+                dao.updateItem(item.copy(name = name, updatedAt = now))
+            }
+        }
+        null
+    }
+
     suspend fun deleteCustomProduct(id: String): Boolean = db.withTransaction {
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction false
