@@ -9,7 +9,7 @@ internal enum class BarcodeSource(val title: String, val description: String) {
     OPEN_FOOD_FACTS("Open Food Facts", "Название и фото продуктов"),
     UPCITEMDB("UPCitemdb", "Международная база, ограничения бесплатного API"),
     OLEGON("Olegon", "Российские товары; доступность сервиса не гарантируется"),
-    GS1_RUSSIA("GS1 Россия", "Официальная проверка GTIN на сайте, без публичного API"),
+    DISAI("DiSAI", "Названия из карточек DiSAI; доступность сайта не гарантируется"),
 }
 
 internal class BarcodeSourceSettings(context: Context) {
