@@ -389,7 +389,10 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         )
                         if (ownProduct != null) {
                             Box {
-                                IconButton(onClick = { ownDetailsMenuOpen = true }) {
+                                IconButton(
+                                    onClick = { ownDetailsMenuOpen = true },
+                                    modifier = Modifier.semantics { contentDescription = "Действия с товаром" },
+                                ) {
                                     Text("⋮", color = p.iconMuted, fontSize = 24.sp)
                                 }
                                 DropdownMenu(
