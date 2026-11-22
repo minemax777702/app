@@ -61,6 +61,8 @@ import com.mok.buylist.data.decodePurchaseEvent
 import com.mok.buylist.R
 import com.mok.buylist.data.AppUser
 import com.mok.buylist.data.ArchivedList
+import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.purchaseStoreName
 import com.mok.buylist.data.tripMinutes
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Motion
@@ -89,6 +91,7 @@ fun ArchiveScreen(
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
     var selectedProduct by rememberSaveable { mutableStateOf<Long?>(null) }
     val allArchive by viewModel.archive.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
     val now = remember { System.currentTimeMillis() }
     val userNames = remember(users) { users.associate { it.id to it.name } }
@@ -130,6 +133,7 @@ fun ArchiveScreen(
                         userNames = userNames,
                         meId = meId,
                         showBuyers = multiUser,
+                        stores = stores,
                         modifier = Modifier.animateItem(
                             fadeInSpec = Motion.smooth(),
                             placementSpec = Motion.settle(),
@@ -142,7 +146,7 @@ fun ArchiveScreen(
     }
 
     details?.let { (list, index) ->
-        ArchiveProductDetails(list, index, userNames, meId, multiUser,
+        ArchiveProductDetails(list, index, userNames, meId, multiUser, stores,
             onProduct = { id -> details = null; selectedProduct = id }) { details = null }
     }
 
@@ -238,10 +242,12 @@ private fun ArchiveCard(
     userNames: Map<String, String>,
     meId: String,
     showBuyers: Boolean,
+    stores: List<ShoppingStore>,
     modifier: Modifier = Modifier,
 ) {
     val p = LocalPalette.current
     val names = list.names
+    val storeNames = list.events.mapNotNull { purchaseStoreName(decodePurchaseEvent(it), stores) }.distinct()
     val youLabel = stringResource(R.string.archive_buyer_you)
     fun buyerLabel(id: String): String = when {
         id.isEmpty() -> ""
@@ -303,6 +309,11 @@ private fun ArchiveCard(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
+                if (storeNames.isNotEmpty())
+                    Text(if (storeNames.size == 1) storeNames.single()
+                        else "Магазины: " + storeNames.joinToString(", "),
+                        color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Icon(
                 painterResource(R.drawable.ic_chevron_down),
@@ -340,6 +351,7 @@ private fun ArchiveCard(
                 names.forEachIndexed { index, name ->
                     ArchiveItemRow(
                         name = name,
+                        store = purchaseStoreName(decodePurchaseEvent(list.events[index]), stores),
                         impulsive = decodePurchaseEvent(list.events[index])?.impulsive == true,
                         checked = index !in skipped,
                         onToggle = { skipped = if (index in skipped) skipped - index else skipped + index },
@@ -401,7 +413,7 @@ private fun ArchiveCard(
 
 /** Товар в раскрытой карточке: нажатием отмечается, нужен ли он при повторе. */
 @Composable
-private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
+private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
     val p = LocalPalette.current
     val on = animateFloatAsState(if (checked) 1f else 0f, Motion.smooth(Motion.Quick), label = "archive-check")
     Row(
@@ -440,6 +452,7 @@ private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, o
         Column(Modifier.weight(1f)) {
             Text(name, color = if (checked) p.text else p.textSecondary,
                 fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            if (store != null) Text(store, color = p.textSecondary, fontSize = 12.sp)
             if (impulsive) Text("Импульсивная покупка", color = p.accent, fontSize = 12.sp)
         }
         IconButton(onClick = onInfo) {
@@ -450,7 +463,7 @@ private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, o
 
 @Composable
 private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map<String, String>, meId: String, showBuyers: Boolean,
-    onProduct: (Long) -> Unit, onDismiss: () -> Unit) {
+    stores: List<ShoppingStore>, onProduct: (Long) -> Unit, onDismiss: () -> Unit) {
     val p = LocalPalette.current
     val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
     val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
@@ -469,6 +482,9 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
             val amount = event?.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: quantity.toString()
             Text(if (price == null || total == null) amount
                 else "$amount × ${money(price)} = ${money(total)}", color = p.text, fontWeight = FontWeight.Bold)
+            purchaseStoreName(event, stores)?.let { label ->
+                Text("Магазин: $label", color = p.textSecondary)
+            }
             val buyerId = event?.buyer?.ifBlank { null } ?: list.buyerIds[index]
             if (showBuyers && buyerId.isNotBlank()) {
                 val buyer = if (buyerId == meId) stringResource(R.string.archive_buyer_you) else userNames[buyerId].orEmpty()
