@@ -216,7 +216,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
                                 onWeight = { weightItem = row.item },
-                                onBuy = { pendingPurchase = row.item },
+                                onBuy = {
+                                    if (row.item.productId > 0) viewModel.buy(row.item)
+                                    else pendingPurchase = row.item
+                                },
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
@@ -514,7 +517,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 SheetHeader("Выберите товар")
                 ProductSearch(lookupQuery, { lookupQuery = it })
                 LentaSuggestions(lookupQuery, Modifier.weight(1f), onSettings = {
-                    scanLookup = null; settingsTab = 1; addressRequest++; showSettings = true
+                    scanLookup = null; settingsTab = 2; addressRequest++; showSettings = true
                 }, onAdd = { product ->
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
