@@ -43,6 +43,8 @@ internal object BarcodeProductLookup {
                         runCatching { upcItemDb(code) }.getOrNull() else null },
                     async { if (BarcodeSource.OLEGON in sources)
                         runCatching { olegon(code) }.getOrNull() else null },
+                    async { if (BarcodeSource.DISAI in sources)
+                        runCatching { disai(code) }.getOrNull() else null },
                 ).awaitAll().filterNotNull()
             }.filter { usefulName(it.name, code) }
             val ranked = results.distinctBy {
@@ -147,6 +149,76 @@ internal object BarcodeProductLookup {
         if (!usefulName(name, code) || name.contains('<') || name.contains('>')) return null
         return BarcodeProductSuggestion(name.trim().take(200), "Olegon",
             score = quality(name, true, false))
+    }
+
+    /**
+     * DiSAI has publicly indexed product pages but no verified public JSON API.
+     * Read only the page's metadata, and reject generic templates/login/captcha.
+     * This is best-effort: a failed site must not block other providers.
+     */
+    private fun disai(code: String): BarcodeProductSuggestion? {
+        if (code.length != 13) return null
+        val url = "https://ru.disai.org/barcode/ean-13/$code"
+        val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 2500
+            readTimeout = 2500
+            instanceFollowRedirects = false
+            setRequestProperty("User-Agent", AGENT)
+            setRequestProperty("Accept", "text/html")
+        }
+        val html = try {
+            if (connection.responseCode != 200) return null
+            val contentType = connection.contentType.orEmpty().lowercase(Locale.ROOT)
+            if (!contentType.contains("text/html")) return null
+            val length = connection.contentLength
+            if (length > 160_000) return null
+            val bytes = connection.inputStream.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(4096)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    if (output.size() + count > 160_000) return null
+                    output.write(buffer, 0, count)
+                }
+                output.toByteArray()
+            }
+            val charsetName = Regex("charset=([^;]+)", RegexOption.IGNORE_CASE)
+                .find(contentType)?.groupValues?.getOrNull(1)?.trim()?.replace("\"", "")
+            val charset = runCatching { java.nio.charset.Charset.forName(charsetName ?: "UTF-8") }
+                .getOrDefault(Charsets.UTF_8)
+            String(bytes, charset)
+        } finally { connection.disconnect() }
+
+        val candidates = listOfNotNull(
+            Regex("""<meta\b[^>]*property\s*=\s*["']og:title["'][^>]*content\s*=\s*["']([^"']+)""",
+                RegexOption.IGNORE_CASE).find(html)?.groupValues?.getOrNull(1),
+            Regex("""<meta\b[^>]*content\s*=\s*["']([^"']+)["'][^>]*property\s*=\s*["']og:title""",
+                RegexOption.IGNORE_CASE).find(html)?.groupValues?.getOrNull(1),
+            Regex("""<h1\b[^>]*>(.*?)</h1>""",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(html)?.groupValues?.getOrNull(1),
+            Regex("""<title\b[^>]*>(.*?)</title>""",
+                setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(html)?.groupValues?.getOrNull(1),
+        )
+        for (candidate in candidates) {
+            val plain = android.text.Html.fromHtml(
+                candidate.replace(Regex("<[^>]+>"), " "), android.text.Html.FROM_HTML_MODE_LEGACY
+            ).toString().replace(Regex("\\s+"), " ").trim()
+            val title = plain
+                .replace(Regex("""\s*[-|–—]\s*(DiSAI|ДИСАЙ|База штрихкодов).*""",
+                    RegexOption.IGNORE_CASE), "")
+                .trim()
+            if (!usefulName(title, code)) continue
+            val generic = listOf("поиск по штрихкоду", "штрих код", "проверить штрихкод",
+                "информация о штрихкоде", "система disai", "база штрихкодов")
+            if (generic.any { title.contains(it, ignoreCase = true) } ||
+                title == code || title.contains("404")) continue
+            return BarcodeProductSuggestion(title.take(200), "DiSAI",
+                score = quality(title, true, false))
+        }
+        return null
     }
 
     private fun safeImageUrl(value: String): String? {
