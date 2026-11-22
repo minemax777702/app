@@ -31,7 +31,11 @@ internal fun expensePurchases(archive: List<ArchivedList>, bought: List<Shopping
             event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
                 ?: event?.productId?.let { "lenta:$it" } ?: "event:$eventId",
             event?.name ?: name, trip, event?.buyer?.ifBlank { buyer } ?: buyer,
-            event?.boughtAt ?: at, event?.quantity ?: quantity, event?.unitPrice, event?.priceType.orEmpty(), event?.impulsive == true, event?.weightGrams, event?.storeId.orEmpty())
+            event?.boughtAt ?: at, event?.quantity ?: quantity, event?.unitPrice, event?.priceType.orEmpty(), event?.impulsive == true, event?.weightGrams,
+            event?.storeId.orEmpty().ifBlank {
+                if (event?.productId != null && event.customProductId.isBlank())
+                    com.mok.buylist.data.lentaStoreId() else ""
+            })
     }
     archive.forEach { list ->
         list.names.forEachIndexed { index, name ->
