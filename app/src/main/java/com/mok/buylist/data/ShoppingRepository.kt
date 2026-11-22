@@ -90,6 +90,13 @@ class ShoppingRepository(
 
     private suspend fun addCustomToListInTransaction(product: CustomProduct, quantity: Int = 1): Boolean {
         archiveFinishedTrip()
+        if (product.barcode.isNotEmpty()) {
+            val linkedLenta = dao.getProductBarcodes().asSequence()
+                .filter { !it.deleted && it.code == product.barcode }
+                .map { it.productId }.toSet() +
+                dao.getLentaProducts().filter { it.ean == product.barcode }.map { it.id }
+            if (linkedLenta.isNotEmpty() && dao.getItems().any { it.productId in linkedLenta }) return false
+        }
         val key = customKey(product.id)
         var existing = dao.findByKey(key)
         if (existing?.deleted == true) {
@@ -157,6 +164,16 @@ class ShoppingRepository(
 
     suspend fun addProduct(product: LentaProduct, quantity: Int = 1): Boolean {
         if (product.id <= 0) return false
+        val productCodes = dao.getProductBarcodes().asSequence()
+            .filter { !it.deleted && it.productId == product.id }.map { it.code }.toSet() +
+            product.ean.takeIf { it.isNotBlank() }?.let(::setOf).orEmpty()
+        if (productCodes.isNotEmpty()) {
+            val linkedCustomIds = dao.getCustomProducts().filter {
+                !it.deleted && it.barcode in productCodes
+            }.mapTo(HashSet()) { it.id }
+            if (linkedCustomIds.isNotEmpty() &&
+                dao.getItems().any { it.customProductId in linkedCustomIds }) return false
+        }
         val name = normalizeName(product.name)
         if (name.isEmpty()) return false
         val key = "lenta:${product.id}"
