@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -58,7 +59,7 @@ internal fun CreateCustomProductAction(
 internal fun CustomProductCreationSheet(
     initialName: String = "",
     initialBarcode: String = "",
-    onCreate: (name: String, barcode: String, estimatedPriceKopecks: Long?, onResult: (Boolean) -> Unit) -> Unit,
+    onCreate: (name: String, barcode: String, estimatedPriceKopecks: Long?, isWeighted: Boolean, onResult: (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onCreated: () -> Unit,
 ) {
@@ -66,6 +67,7 @@ internal fun CustomProductCreationSheet(
     var name by remember(initialName) { mutableStateOf(initialName) }
     var barcode by remember(initialBarcode) { mutableStateOf(initialBarcode) }
     var price by remember { mutableStateOf("") }
+    var isWeighted by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var scanning by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
@@ -93,15 +95,17 @@ internal fun CustomProductCreationSheet(
                             contentDescription = "Сканировать штрихкод камерой", tint = p.accent)
                     }
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !isWeighted, onClick = { isWeighted = false },
+                        label = { Text("Штучный") })
+                    FilterChip(selected = isWeighted, onClick = { isWeighted = true },
+                        label = { Text("Весовой") })
+                }
                 SheetTextField(
                     price,
                     { price = it; error = null },
-                    "Ориентировочная цена, ₽ (необязательно)",
+                    if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                )
-                Text(
-                    "Цена сохраняется как ориентир. Фактическую стоимость можно указать при покупке.",
-                    color = p.textSecondary, fontSize = 12.sp,
                 )
                 error?.let { Text(it, color = p.error, fontSize = 13.sp) }
             }
@@ -114,7 +118,7 @@ internal fun CustomProductCreationSheet(
                         error = "Некорректный штрихкод"
                     } else {
                         saving = true
-                        onCreate(name.trim(), barcode, parsedPrice) { success ->
+                        onCreate(name.trim(), barcode, parsedPrice, isWeighted) { success ->
                             saving = false
                             if (success) onCreated()
                             else error = "Товар уже в списке или штрихкод неоднозначен"

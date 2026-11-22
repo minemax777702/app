@@ -13,6 +13,7 @@ data class CustomProduct(
     val updatedAt: Long,
     val deleted: Boolean = false,
     val estimatedPriceKopecks: Long? = null,
+    val isWeighted: Boolean = false,
 )
 
 /** One shared store directory; blank storeId on a purchase means unspecified. */

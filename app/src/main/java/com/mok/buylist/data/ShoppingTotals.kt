@@ -46,7 +46,7 @@ internal fun purchaseEvent(item: ShoppingItem, product: LentaProduct?, now: Long
     return encodePurchaseEvent(PurchaseEvent(UUID.randomUUID().toString(), item.productId.takeIf { it > 0 } ?: product?.id, item.name,
         priceOverride ?: product?.price?.let(::parsePriceKopecks), product?.priceType.orEmpty(), item.quantity,
         now, buyer, product?.address.orEmpty(), product?.channel.orEmpty(), product?.fetchedAt ?: 0, impulsive,
-        if (priceOverride == null) item.weightGrams else null, item.customProductId, storeId))
+        item.weightGrams, item.customProductId, storeId))
 }
 
 private fun encodePurchaseEvent(event: PurchaseEvent): String {

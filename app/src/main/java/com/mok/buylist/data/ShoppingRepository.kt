@@ -87,7 +87,7 @@ class ShoppingRepository(
      * are saved atomically and synced using the same updatedAt revision.
      */
     suspend fun updateCustomProductDetails(
-        id: String, rawName: String, estimatedPriceKopecks: Long?,
+        id: String, rawName: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
     ): String? = db.withTransaction {
         val name = normalizeName(rawName)
         if (name.isEmpty()) return@withTransaction "Введите название"
@@ -97,11 +97,17 @@ class ShoppingRepository(
             return@withTransaction "Некорректная цена"
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction "Товар не найден"
-        if (row.name == name && row.estimatedPriceKopecks == estimatedPriceKopecks)
+        if (row.name == name && row.estimatedPriceKopecks == estimatedPriceKopecks && row.isWeighted == isWeighted)
             return@withTransaction null
         val now = maxOf(System.currentTimeMillis(), row.updatedAt + 1)
         dao.upsertCustomProduct(row.copy(name = name,
-            estimatedPriceKopecks = estimatedPriceKopecks, updatedAt = now))
+            estimatedPriceKopecks = estimatedPriceKopecks, isWeighted = isWeighted, updatedAt = now))
+        if (row.isWeighted != isWeighted) {
+            dao.getItems().filter { it.customProductId == id && !it.deleted }.forEach { item ->
+                dao.updateItem(item.copy(weightGrams = if (isWeighted) item.weightGrams ?: 1000 else null,
+                    updatedAt = now))
+            }
+        }
         if (row.name != name) {
             dao.getItems().filter { it.customProductId == id && !it.deleted }.forEach { item ->
                 dao.updateItem(item.copy(name = name, updatedAt = now))
@@ -163,6 +169,7 @@ class ShoppingRepository(
         rawName: String,
         rawBarcode: String = "",
         estimatedPriceKopecks: Long? = null,
+        isWeighted: Boolean = false,
     ): Boolean {
         if (estimatedPriceKopecks != null && estimatedPriceKopecks < 0) return false
         val name = normalizeName(rawName).take(MAX_CUSTOM_PRODUCT_NAME_LENGTH)
@@ -179,9 +186,11 @@ class ShoppingRepository(
                     .none { alias -> alias.productId == it.id && alias.code == code && alias.deleted })) }
             if (matchedCustom.size == 1) {
                 val saved = matchedCustom.single()
-                if (estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks)
+                if ((estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks) ||
+                    (isWeighted && !saved.isWeighted))
                     dao.upsertCustomProduct(saved.copy(
-                        estimatedPriceKopecks = estimatedPriceKopecks,
+                        estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
+                        isWeighted = saved.isWeighted || isWeighted,
                         updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
                 return addCustomToList(saved)
             }
@@ -189,7 +198,7 @@ class ShoppingRepository(
             // Without a user-specific price reuse the known Lenta product.
             // With one, create a personal alias so the estimate has a durable home;
             // its barcode still resolves to the same shared product identity.
-            if (matchedLenta.size == 1 && estimatedPriceKopecks == null)
+            if (matchedLenta.size == 1 && estimatedPriceKopecks == null && !isWeighted)
                 return addProduct(matchedLenta.single().toProduct())
         }
         val existing = dao.getCustomProducts().filter { !it.deleted && nameKeyOf(it.name) == nameKeyOf(name) }
@@ -198,20 +207,24 @@ class ShoppingRepository(
             if (code.isNotEmpty() && saved.barcode.isNotEmpty() && saved.barcode != code) return false
             if (code.isNotEmpty() && saved.barcode.isEmpty()) {
                 val updated = saved.copy(barcode = code, updatedAt = System.currentTimeMillis(),
-                    estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks)
+                    estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
+                    isWeighted = saved.isWeighted || isWeighted)
                 dao.upsertCustomProduct(updated)
                 dao.upsertCustomProductBarcode(CustomProductBarcode(updated.id, code, updated.updatedAt))
                 return addCustomToList(updated)
             }
-            if (estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks) {
+            if ((estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks) ||
+                (isWeighted && !saved.isWeighted)) {
                 dao.upsertCustomProduct(saved.copy(
-                    estimatedPriceKopecks = estimatedPriceKopecks,
+                    estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
+                    isWeighted = saved.isWeighted || isWeighted,
                     updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
             }
             return addCustomToList(saved)
         }
         val product = CustomProduct(UUID.randomUUID().toString(), name, code,
-            System.currentTimeMillis(), estimatedPriceKopecks = estimatedPriceKopecks)
+            System.currentTimeMillis(), estimatedPriceKopecks = estimatedPriceKopecks,
+            isWeighted = isWeighted)
         return db.withTransaction {
             dao.upsertCustomProduct(product)
             if (code.isNotEmpty()) dao.upsertCustomProductBarcode(CustomProductBarcode(product.id, code, product.updatedAt))
@@ -258,8 +271,12 @@ class ShoppingRepository(
         when {
             existing == null -> dao.insertItem(ShoppingItem(name = product.name, nameKey = key,
                 customProductId = product.id, createdAt = now, authorId = profile.id,
-                quantity = quantity.coerceIn(1, 999)))
-            existing.deleted -> dao.revive(existing.id, product.name, now, profile.id, quantity.coerceIn(1, 999))
+                quantity = quantity.coerceIn(1, 999),
+                weightGrams = if (product.isWeighted) 1000 else null))
+            existing.deleted -> {
+                dao.revive(existing.id, product.name, now, profile.id, quantity.coerceIn(1, 999))
+                if (product.isWeighted) dao.setWeight(existing.id, 1000, now, profile.id)
+            }
             else -> return false
         }
         return true
@@ -342,7 +359,8 @@ class ShoppingRepository(
     }
 
     suspend fun buyScannedCustom(product: CustomProduct, priceOverride: Long? = null,
-        storeName: String = ""): ScannedPurchaseResult? {
+        storeName: String = "", weightGrams: Int? = null): ScannedPurchaseResult? {
+        if (product.isWeighted && weightGrams !in 1..999000) return null
         if (product.deleted) return null
         val normalizedStore = normalizeName(storeName).take(100)
         val result = db.withTransaction {
@@ -355,13 +373,15 @@ class ShoppingRepository(
             }
             val planned = findActiveIdentity(customKey(product.id))
             if (planned != null) {
-                dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                    purchaseEvent = purchaseEvent(planned, null, now, profile.id, priceOverride,
+                val weighed = if (product.isWeighted) planned.copy(weightGrams = weightGrams) else planned
+                dao.updateItem(weighed.copy(deleted = true, updatedAt = now, authorId = profile.id,
+                    purchaseEvent = purchaseEvent(weighed, null, now, profile.id, priceOverride,
                         storeId = storeId)))
                 return@withTransaction ScannedPurchaseResult(planned, false)
             }
             val base = ShoppingItem(name = product.name, customProductId = product.id,
-                createdAt = now, updatedAt = now, authorId = profile.id, deleted = true)
+                createdAt = now, updatedAt = now, authorId = profile.id, deleted = true,
+                weightGrams = weightGrams)
             val event = purchaseEvent(base, null, now, profile.id, priceOverride,
                 impulsive = true, storeId = storeId)
             val eventId = checkNotNull(decodePurchaseEvent(event)).id
@@ -400,7 +420,9 @@ class ShoppingRepository(
     }
 
     /** Товар куплен — убираем из списка (в историю он уже записан при добавлении). */
-    suspend fun buy(id: String, priceOverride: Long? = null, impulsive: Boolean = false, storeName: String = "") {
+    suspend fun buy(id: String, priceOverride: Long? = null, impulsive: Boolean = false,
+        storeName: String = "", weightGrams: Int? = null) {
+        if (weightGrams != null) require(weightGrams in 1..999000)
         db.withTransaction {
             val item = dao.findById(id) ?: return@withTransaction
             if (item.deleted) return@withTransaction
@@ -416,8 +438,9 @@ class ShoppingRepository(
                         .also { dao.upsertStore(it) }
                 store.id
             }
-            dao.updateItem(item.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                purchaseEvent = purchaseEvent(item, if (storeId.isNotEmpty()) null else product,
+            val boughtItem = if (weightGrams != null) item.copy(weightGrams = weightGrams) else item
+            dao.updateItem(boughtItem.copy(deleted = true, updatedAt = now, authorId = profile.id,
+                purchaseEvent = purchaseEvent(boughtItem, if (storeId.isNotEmpty()) null else product,
                     now, profile.id, priceOverride, impulsive, storeId)))
         }
         refreshWidget()
@@ -538,7 +561,9 @@ class ShoppingRepository(
             val id = event?.productId
             val product = id?.let(products::get)
             if (event?.customProductId?.let(custom::get)?.takeUnless { it.deleted } != null) {
-                addCustomToList(custom.getValue(event!!.customProductId), quantities.getOrElse(index) { 1 })
+                if (addCustomToList(custom.getValue(event!!.customProductId),
+                        quantities.getOrElse(index) { 1 }) && event.weightGrams != null)
+                    dao.findByKey(customKey(event.customProductId))?.let { setWeight(it.id, event.weightGrams) }
             } else if (product != null) {
                 if (addProduct(product.toProduct(), quantities.getOrElse(index) { 1 }) && event?.weightGrams != null)
                     dao.findByKey("lenta:$id")?.let { setWeight(it.id, event.weightGrams) }

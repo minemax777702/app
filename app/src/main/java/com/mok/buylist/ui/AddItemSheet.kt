@@ -88,7 +88,7 @@ fun AddItemSheet(
     customProducts: List<CustomProduct>,
     customBarcodes: List<CustomProductBarcode>,
     onAddCustom: (CustomProduct, (Boolean) -> Unit) -> Unit,
-    onCreateCustom: (String, String, Long?, (Boolean) -> Unit) -> Unit,
+    onCreateCustom: (String, String, Long?, Boolean, (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onAddressSettings: () -> Unit,
 ) {

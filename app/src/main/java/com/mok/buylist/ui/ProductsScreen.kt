@@ -142,6 +142,8 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                         Text(product.name, color = p.text, fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold)
                         val linkedKey = identities["custom:${product.id}"]
+                        if (product.isWeighted) Text("Весовой · ₽/кг",
+                            color = p.textSecondary, fontSize = 12.sp)
                         val codesCount = customBarcodeRows.count { it.productId == product.id && !it.deleted }
                         if (linkedKey?.startsWith("lenta:") == true || codesCount > 0) {
                             val info = listOfNotNull(

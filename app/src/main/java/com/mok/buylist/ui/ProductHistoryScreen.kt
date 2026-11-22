@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.foundation.text.KeyboardOptions
@@ -153,6 +154,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var ownDetailsMenuOpen by remember(productKey) { mutableStateOf(false) }
     var ownNameInput by remember(productKey) { mutableStateOf("") }
     var ownPriceInput by remember(productKey) { mutableStateOf("") }
+    var ownWeighted by remember(productKey) { mutableStateOf(false) }
     var ownDetailsError by remember(productKey) { mutableStateOf<String?>(null) }
     var savingOwnDetails by remember(productKey) { mutableStateOf(false) }
     var deleteOwnPending by remember(productKey) { mutableStateOf(false) }
@@ -302,7 +304,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     Text("Название", color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownNameInput,
                         { ownNameInput = it; ownDetailsError = null }, "Название товара")
-                    Text("Ориентировочная цена", color = p.textSecondary, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !ownWeighted, onClick = { ownWeighted = false },
+                            label = { Text("Штучный") })
+                        FilterChip(selected = ownWeighted, onClick = { ownWeighted = true },
+                            label = { Text("Весовой") })
+                    }
+                    Text(if (ownWeighted) "Цена за кг" else "Ориентировочная цена",
+                        color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownPriceInput,
                         { ownPriceInput = it; ownDetailsError = null }, "Цена, ₽ (необязательно)",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
@@ -319,7 +328,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     onClick = {
                         savingOwnDetails = true
                         viewModel.updateCustomProductDetails(
-                            ownProduct.id, ownNameInput, parsedPrice
+                            ownProduct.id, ownNameInput, parsedPrice, ownWeighted
                         ) { error ->
                             savingOwnDetails = false
                             if (error == null) editingOwnDetails = false
@@ -408,6 +417,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                         onClick = {
                                             ownDetailsMenuOpen = false
                                             ownNameInput = ownProduct.name
+                                            ownWeighted = ownProduct.isWeighted
                                             ownPriceInput = ownProduct.estimatedPriceKopecks?.let {
                                                 BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
                                             }.orEmpty()
@@ -431,7 +441,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }
                     }
                     if (ownProduct != null) {
-                        Text("Ориентировочная цена", color = p.textSecondary, fontSize = 13.sp)
+                        Text(if (ownProduct.isWeighted) "Ориентировочная цена за кг" else "Ориентировочная цена",
+                            color = p.textSecondary, fontSize = 13.sp)
                         Text(
                             ownProduct.estimatedPriceKopecks?.let(::historyMoney) ?: "Не указана",
                             color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold,

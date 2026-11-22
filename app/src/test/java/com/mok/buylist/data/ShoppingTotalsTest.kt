@@ -130,4 +130,15 @@ class ShoppingTotalsTest {
         assertEquals(PartialAmount(32_999L, 1, 1), archivedPurchaseTotal(archive))
     }
 
+    @Test fun weightedManualPriceRetainsWeightAndCalculatesExactTotal() {
+        val item = ShoppingItem(name = "Яблоки", weightGrams = 750)
+        val encoded = purchaseEvent(item, null, 1L, "buyer", priceOverride = 32999L)
+        val decoded = decodePurchaseEvent(encoded)!!
+        assertEquals(750, decoded.weightGrams)
+        assertEquals(24749L, priceForWeight(decoded.unitPrice!!, decoded.weightGrams!!))
+        assertEquals(PartialAmount(24749L, 1, 0),
+            calculateShoppingTotals(listOf(PricedLine(decoded.quantity, true,
+                decoded.unitPrice, decoded.weightGrams))).total)
+    }
+
 }

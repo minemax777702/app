@@ -38,7 +38,14 @@ class MultiCatalogSyncTest {
         assertEquals(merged, SyncMerge.merge(local, merged))
     }
 
-    @Test fun optionalEstimatedPriceSurvivesV11Sync() {
+    @Test fun weightedCustomProductSurvivesV12Sync() {
+        val weighted = product.copy(isWeighted = true, estimatedPriceKopecks = 32999L)
+        val snapshot = Snapshot(customProducts = listOf(weighted))
+        val decoded = SyncCodec.decode(SyncCodec.encode(snapshot))
+        assertEquals(weighted, decoded.customProducts.single())
+    }
+
+    @Test fun optionalEstimatedPriceSurvivesV12Sync() {
         val withPrice = product.copy(estimatedPriceKopecks = 11990L)
         val snapshot = Snapshot(customProducts = listOf(withPrice))
         val decoded = SyncCodec.decode(SyncCodec.encode(snapshot))

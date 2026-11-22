@@ -206,11 +206,11 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun updateCustomProductDetails(
-        id: String, name: String, estimatedPriceKopecks: Long?,
+        id: String, name: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
         onResult: (String?) -> Unit,
     ) {
         viewModelScope.launch {
-            onResult(repository.updateCustomProductDetails(id, name, estimatedPriceKopecks))
+            onResult(repository.updateCustomProductDetails(id, name, estimatedPriceKopecks, isWeighted))
         }
     }
 
@@ -228,19 +228,19 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.amendPurchase(eventId, unitPrice, storeName)) }
     }
 
-    fun addManualProduct(name: String, barcode: String, estimatedPriceKopecks: Long?,
+    fun addManualProduct(name: String, barcode: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
         onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode, estimatedPriceKopecks)) }
+        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode, estimatedPriceKopecks, isWeighted)) }
     }
 
     fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(repository.addCustomToList(product)) }
     }
 
-    fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String,
+    fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String, weightGrams: Int?,
         onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val result = repository.buyScannedCustom(product, price, storeName)
+            val result = repository.buyScannedCustom(product, price, storeName, weightGrams)
             if (result == null) { onResult(false); return@launch }
             showUndo(result.item, RowState.BOUGHT)
             onResult(true)
@@ -257,9 +257,10 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Куплено: товар остаётся в базе (для прогресса), но из списка уходит. */
-    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "") {
+    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "",
+        weightGrams: Int? = null) {
         showUndo(item, RowState.BOUGHT)
-        viewModelScope.launch { repository.buy(item.id, priceOverride, storeName = storeName) }
+        viewModelScope.launch { repository.buy(item.id, priceOverride, storeName = storeName, weightGrams = weightGrams) }
     }
 
     fun setQuantity(item: ShoppingItem, quantity: Int) {
