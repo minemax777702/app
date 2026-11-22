@@ -193,13 +193,8 @@ class ShoppingRepository(
         val existing = dao.getStoreProducts().firstOrNull {
             it.storeId == storeId && it.productKey == productKey
         }
-        if (existing?.deleted == false) return
-        dao.upsertStoreProduct(StoreProduct(
-            storeId = storeId, productKey = productKey,
-            priceKopecks = existing?.priceKopecks,
-            updatedAt = maxOf(at, (existing?.updatedAt ?: 0L) + 1),
-            deleted = false,
-        ))
+        linkForConfirmedPurchase(storeId, productKey, at, existing)
+            ?.let { dao.upsertStoreProduct(it) }
     }
 
     suspend fun removeStoreProduct(storeId: String, productKey: String): String? = db.withTransaction {
