@@ -84,7 +84,7 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
     var query by rememberSaveable { mutableStateOf("") }
     var shownCount by rememberSaveable(query) { mutableIntStateOf(5) }
     val products = remember(purchases, query) {
-        purchases.filter { it.productKey.startsWith("lenta:") }
+        purchases.filter { it.productKey.startsWith("lenta:") || it.productKey.startsWith("custom:") }
             .groupBy { it.productKey }.map { (_, rows) -> rows.maxBy { it.at } }
             .filter { nameKeyOf(it.name).contains(nameKeyOf(query)) }
             .sortedBy { nameKeyOf(it.name) }
@@ -122,6 +122,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val address by catalog.address.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
+    val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val ownProduct = customProducts.firstOrNull { "custom:${it.id}" == productKey }
     val barcodes = product?.let { item -> barcodeRows.filter { it.productId == item.id && !it.deleted }.map { it.code } }?.sorted().orEmpty()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
@@ -243,7 +246,18 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 HistoryCard {
-                    Text(product?.name ?: rows.firstOrNull()?.name ?: "Товар не найден", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(product?.name ?: ownProduct?.name ?: rows.firstOrNull()?.name ?: "Товар не найден", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (ownProduct != null) item {
+                HistoryCard {
+                    Text("Свой товар", color = p.textSecondary, fontSize = 13.sp)
+                    if (ownProduct.barcode.isNotBlank()) Text("Штрихкод: ${ownProduct.barcode}", color = p.text)
+                    SheetActionButton(onClick = {
+                        viewModel.addCustomProduct(ownProduct) { added ->
+                            activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                        }
+                    }) { Text("Добавить в список") }
                 }
             }
             if (product != null) item {
@@ -337,12 +351,27 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }
             }
+            val storePrices = rows.filter { it.unitPrice != null }.groupBy { it.storeId }.toList()
+                .sortedBy { (storeId, _) -> stores.firstOrNull { it.id == storeId }?.name ?: storeId }
+            if (storePrices.isNotEmpty()) item {
+                HistoryCard {
+                    Text("Последние цены по магазинам", color = p.text, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                    storePrices.forEach { (storeId, purchasesInStore) ->
+                        val latest = purchasesInStore.maxBy { it.at }
+                        val storeName = stores.firstOrNull { it.id == storeId }?.name
+                            ?: if (storeId.isBlank()) "Магазин не указан" else "Другой магазин"
+                        Text("$storeName · ${historyMoney(latest.unitPrice!!)}",
+                            color = p.text, fontSize = 14.sp)
+                    }
+                }
+            }
             item { Text("История покупок", Modifier.padding(top = 8.dp), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             items(rows.take(historyCount), key = { "event:${it.id}" }) { row ->
                 HistoryCard {
                     Text(formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)), color = p.text, fontWeight = FontWeight.Bold)
                     if (row.impulsive) Text("Импульсивная покупка", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     row.unitPrice?.let { Text("Цена: ${historyMoney(it)}", color = p.text) }
+                    stores.firstOrNull { it.id == row.storeId }?.let { Text("Магазин: ${it.name}", color = p.textSecondary) }
                     val amount = row.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: "Количество: ${row.quantity}"
                     Text(listOfNotNull(amount, row.total?.let { "Стоимость: ${historyMoney(it)}" }).joinToString(" · "), color = p.textSecondary)
                     if (row.buyer.isNotBlank()) Text("Покупатель: ${buyers[row.buyer] ?: row.buyer}", color = p.textSecondary)
