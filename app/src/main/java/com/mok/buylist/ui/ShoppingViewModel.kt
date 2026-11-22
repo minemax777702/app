@@ -198,6 +198,16 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.addCustomToList(product)) }
     }
 
+    fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String,
+        onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.buyScannedCustom(product, price, storeName)
+            if (result == null) { onResult(false); return@launch }
+            showUndo(result.item, RowState.BOUGHT)
+            onResult(true)
+        }
+    }
+
     fun buyScanned(product: com.mok.buylist.data.LentaProduct, price: Long?, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val result = repository.buyScanned(product, price)
