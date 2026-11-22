@@ -89,6 +89,62 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
             .filter { nameKeyOf(it.name).contains(nameKeyOf(query)) }
             .sortedBy { nameKeyOf(it.name) }
     }
+    if (editingName && ownProduct != null) {
+        AppSheet(onDismissRequest = { editingName = false }, containerColor = p.sheet,
+            title = { SheetHeader("Название товара") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SheetTextField(nameInput, { nameInput = it; nameError = null }, "Название")
+                    nameError?.let { Text(it, color = p.error) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = nameInput.isNotBlank(), onClick = {
+                    viewModel.editCustomProduct(ownProduct.id, nameInput) { error ->
+                        if (error == null) editingName = false else nameError = error
+                    }
+                }) { Text("Сохранить") }
+            })
+    }
+    if (deleteOwnPending && ownProduct != null) {
+        AppSheet(onDismissRequest = { deleteOwnPending = false }, containerColor = p.sheet,
+            title = { SheetHeader("Удалить свой товар?") },
+            text = { Text("Карточка исчезнет из каталога. Уже купленные товары и их цены сохранятся.", color = p.textSecondary) },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    viewModel.deleteCustomProduct(ownProduct.id) { deleted ->
+                        if (deleted) { deleteOwnPending = false; onBack() }
+                    }
+                }) { Text("Удалить") }
+            })
+    }
+    editingPurchase?.let { row ->
+        val parsed = com.mok.buylist.data.parsePriceKopecks(purchasePrice)
+        AppSheet(onDismissRequest = { editingPurchase = null }, containerColor = p.sheet,
+            title = { SheetHeader("Изменить покупку") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(row.name, color = p.text)
+                    SheetTextField(purchasePrice, { purchasePrice = it; purchaseError = null },
+                        "Цена за единицу, ₽ (необязательно)",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
+                    SheetTextField(purchaseStore, { purchaseStore = it; purchaseError = null },
+                        "Магазин (необязательно)")
+                    stores.filter { !it.deleted && (purchaseStore.isBlank() ||
+                        it.name.contains(purchaseStore, ignoreCase = true)) }.take(3).forEach { store ->
+                        TextButton(onClick = { purchaseStore = store.name }) { Text(store.name, color = p.accent) }
+                    }
+                    purchaseError?.let { Text(it, color = p.error) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = purchasePrice.isBlank() || parsed != null, onClick = {
+                    viewModel.amendPurchase(row.id, parsed, purchaseStore) { error ->
+                        if (error == null) editingPurchase = null else purchaseError = error
+                    }
+                }) { Text("Сохранить") }
+            })
+    }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("История продуктов", onBack)
@@ -124,8 +180,12 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val ownProduct = customProducts.firstOrNull { "custom:${it.id}" == productKey }
-    val barcodes = product?.let { item -> barcodeRows.filter { it.productId == item.id && !it.deleted }.map { it.code } }?.sorted().orEmpty()
+    val barcodes = if (product != null) barcodeRows.filter { it.productId == product.id && !it.deleted }
+        .map { it.code }.sorted() else customBarcodeRows.filter {
+            it.productId == ownProduct?.id && !it.deleted
+        }.map { it.code }.sorted()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     var editingBarcode by remember(productKey) { mutableStateOf<String?>(null) }
@@ -135,6 +195,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var barcodeEditorOpen by remember(productKey) { mutableStateOf(false) }
     var scanningBarcode by remember(productKey) { mutableStateOf(false) }
     var barcodeSaving by remember(productKey) { mutableStateOf(false) }
+    var editingName by remember(productKey) { mutableStateOf(false) }
+    var nameInput by remember(productKey) { mutableStateOf("") }
+    var nameError by remember(productKey) { mutableStateOf<String?>(null) }
+    var deleteOwnPending by remember(productKey) { mutableStateOf(false) }
+    var editingPurchase by remember(productKey) { mutableStateOf<ExpensePurchase?>(null) }
+    var purchasePrice by remember(productKey) { mutableStateOf("") }
+    var purchaseStore by remember(productKey) { mutableStateOf("") }
+    var purchaseError by remember(productKey) { mutableStateOf<String?>(null) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var openedTrip by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
@@ -171,7 +239,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             },
         )
     }
-    if (barcodeEditorOpen && !scanningBarcode && product != null) {
+    if (barcodeEditorOpen && !scanningBarcode && (product != null || ownProduct != null)) {
         AppSheet(
             onDismissRequest = { if (!barcodeSaving) barcodeEditorOpen = false },
             containerColor = p.sheet,
@@ -206,8 +274,23 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     scope.launch {
                         try {
                             val previous = editingBarcode
-                            val error = if (previous == null) catalog.addBarcode(product.id, barcodeInput)
+                            val error = if (product != null) {
+                                if (previous == null) catalog.addBarcode(product.id, barcodeInput)
                                 else catalog.editBarcode(product.id, previous, barcodeInput)
+                            } else {
+                                val customId = ownProduct?.id
+                                if (customId == null) "Товар не найден" else {
+                                    var result: String? = null
+                                    // Repository methods are exposed as callbacks through the ViewModel.
+                                    // The callback owns editor state rather than waiting in a coroutine.
+                                    viewModel.changeCustomBarcode(customId, previous, barcodeInput) { outcome ->
+                                        barcodeError = outcome
+                                        if (outcome == null) barcodeEditorOpen = false
+                                        barcodeSaving = false
+                                    }
+                                    return@launch
+                                }
+                            }
                             if (error == null) barcodeEditorOpen = false else barcodeError = error
                         } catch (_: Exception) {
                             barcodeError = "Не удалось сохранить штрихкод"
@@ -227,12 +310,19 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             text = { Text("Код $code перестанет находить этот товар. Удаление передастся при синхронизации.", color = p.textSecondary) },
             confirmButton = {
                 SheetActionButton(destructive = true, onClick = {
-                    val productId = product?.id ?: return@SheetActionButton
-                    scope.launch {
-                        val error = runCatching { catalog.removeBarcode(productId, code) }
-                            .getOrElse { "Не удалось удалить штрихкод" }
-                        deletingBarcode = null
-                        if (error != null) activity?.notifyUser(error)
+                    if (product != null) {
+                        scope.launch {
+                            val error = runCatching { catalog.removeBarcode(product.id, code) }
+                                .getOrElse { "Не удалось удалить штрихкод" }
+                            deletingBarcode = null
+                            if (error != null) activity?.notifyUser(error)
+                        }
+                    } else {
+                        val id = ownProduct?.id ?: return@SheetActionButton
+                        viewModel.changeCustomBarcode(id, code, null) { error ->
+                            deletingBarcode = null
+                            if (error != null) activity?.notifyUser(error)
+                        }
                     }
                 }) { Text("Удалить") }
             },
@@ -253,6 +343,16 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 HistoryCard {
                     Text("Свой товар", color = p.textSecondary, fontSize = 13.sp)
                     if (ownProduct.barcode.isNotBlank()) Text("Штрихкод: ${ownProduct.barcode}", color = p.text)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        TextButton(onClick = {
+                            nameInput = ownProduct.name
+                            nameError = null
+                            editingName = true
+                        }) { Text("Изменить название", color = p.accent) }
+                        TextButton(onClick = { deleteOwnPending = true }) {
+                            Text("Удалить", color = p.error)
+                        }
+                    }
                     SheetActionButton(onClick = {
                         viewModel.addCustomProduct(ownProduct) { added ->
                             activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
@@ -283,7 +383,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }
                 }
             }
-            if (product != null) item {
+            if (product != null || ownProduct != null) item {
                 HistoryCard {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween) {
@@ -311,7 +411,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         ) {
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                 Text(code, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                if (code == product.ean) Text("Код из Ленты", color = p.textSecondary, fontSize = 11.sp)
+                                if (code == product?.ean) Text("Код из Ленты", color = p.textSecondary, fontSize = 11.sp)
                             }
                             IconButton(onClick = {
                                 editingBarcode = code
@@ -375,6 +475,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     val amount = row.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: "Количество: ${row.quantity}"
                     Text(listOfNotNull(amount, row.total?.let { "Стоимость: ${historyMoney(it)}" }).joinToString(" · "), color = p.textSecondary)
                     if (row.buyer.isNotBlank()) Text("Покупатель: ${buyers[row.buyer] ?: row.buyer}", color = p.textSecondary)
+                    TextButton(onClick = {
+                        editingPurchase = row
+                        purchasePrice = row.unitPrice?.let {
+                            BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                        }.orEmpty()
+                        purchaseStore = stores.firstOrNull { it.id == row.storeId }?.name.orEmpty()
+                        purchaseError = null
+                    }) { Text("Изменить цену и магазин", color = p.accent) }
                 }
             }
             if (historyCount < rows.size) item {
