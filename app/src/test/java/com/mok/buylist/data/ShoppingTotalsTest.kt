@@ -123,9 +123,9 @@ class ShoppingTotalsTest {
         val remaining = purchaseEvent(ShoppingItem(name = "Хлеб"), null,
             101L, "", priceOverride = 50_000L)
         val archive = ArchivedList(completedAt = 101L, itemCount = 2,
-            items = "Кофе\\nЯйца".replace("\\\\n", "\\n"),
-            quantities = "1\\n1".replace("\\\\n", "\\n"),
-            purchaseEvents = "$priced\\n$withoutPrice".replace("\\\\n", "\\n"),
+            items = listOf("Кофе", "Яйца").joinToString("\n"),
+            quantities = listOf(1, 1).joinToString("\n"),
+            purchaseEvents = listOf(priced, withoutPrice).joinToString("\n"),
             remainingEvents = "v1|$remaining")
         assertEquals(PartialAmount(32_999L, 1, 1), archivedPurchaseTotal(archive))
     }
