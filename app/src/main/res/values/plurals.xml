@@ -1,0 +1,14 @@
+<resources>
+    <plurals name="archive_items">
+        <item quantity="one">%d товар</item>
+        <item quantity="few">%d товара</item>
+        <item quantity="many">%d товаров</item>
+        <item quantity="other">%d товара</item>
+    </plurals>
+    <plurals name="add_preview">
+        <item quantity="one">Добавится %1$d товар: %2$s</item>
+        <item quantity="few">Добавятся %1$d товара: %2$s</item>
+        <item quantity="many">Добавятся %1$d товаров: %2$s</item>
+        <item quantity="other">Добавятся %1$d товара: %2$s</item>
+    </plurals>
+</resources>

@@ -1,0 +1,7 @@
+<resources>
+    <!-- Системная тема DayNight: светлая/тёмная выбирается автоматически. Весь UI рисует Compose. -->
+    <style name="Theme.ShoppingList" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+</resources>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Контурная версия для тематических иконок Android 13+ -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M41,31h26a5,5 0 0 1 5,5v36a5,5 0 0 1 -5,5h-26a5,5 0 0 1 -5,-5v-36a5,5 0 0 1 5,-5z"
+        android:strokeColor="#000000"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2.6" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M47,26.5h14a3,3 0 0 1 3,3v3.5h-20v-3.5a3,3 0 0 1 3,-3z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M39.5,45l2.6,2.6l5,-5.6M53,44.5h14M53,56.5h14M53,68.5h9M39.8,56.5a3.2,3.2 0 1,0 6.4,0a3.2,3.2 0 1,0 -6.4,0M39.8,68.5a3.2,3.2 0 1,0 6.4,0a3.2,3.2 0 1,0 -6.4,0"
+        android:strokeColor="#000000"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2.4" />
+</vector>

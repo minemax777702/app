@@ -1,0 +1,509 @@
+package com.mok.buylist.ui
+
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.IconButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mok.buylist.lentaCatalog
+import com.mok.buylist.data.decodePurchaseEvent
+import com.mok.buylist.R
+import com.mok.buylist.data.AppUser
+import com.mok.buylist.data.ArchivedList
+import com.mok.buylist.data.tripMinutes
+import com.mok.buylist.ui.theme.LocalPalette
+import com.mok.buylist.ui.theme.Motion
+import java.time.ZoneId
+
+/** Сколько названий показывать в свёрнутой карточке. */
+private const val PREVIEW_ITEMS = 3
+
+@Composable
+fun ArchiveScreen(
+    archive: List<ArchivedList>,
+    onBack: () -> Unit,
+    onOpenStats: (() -> Unit)?,
+    /** Какие товары вернуть в текущий список. */
+    onRepeat: (names: List<String>, quantities: List<Int>, events: List<String>) -> Unit,
+    onDelete: (ArchivedList) -> Unit,
+    /** Известные пользователи: по ним подписывается, кто купил. Пока человек один, подписи не нужны. */
+    users: List<AppUser>,
+    meId: String,
+    initiallyExpandedId: Long? = null,
+    viewModel: ShoppingViewModel,
+) {
+    val p = LocalPalette.current
+    var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
+    var pendingDelete by remember { mutableStateOf<ArchivedList?>(null) }
+    var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
+    var selectedProduct by rememberSaveable { mutableStateOf<Long?>(null) }
+    val allArchive by viewModel.archive.collectAsStateWithLifecycle()
+    val bought by viewModel.bought.collectAsStateWithLifecycle()
+    val now = remember { System.currentTimeMillis() }
+    val userNames = remember(users) { users.associate { it.id to it.name } }
+    val multiUser = users.size > 1
+    if (selectedProduct != null) {
+        ProductDetailsScreen("lenta:$selectedProduct", remember(allArchive, bought) { expensePurchases(allArchive, bought) },
+            users, viewModel, onBack = { selectedProduct = null })
+        return
+    }
+    Column(Modifier.fillMaxSize().background(p.background)) {
+        SubScreenHeader(stringResource(R.string.archive_title), onBack) {
+            if (archive.isNotEmpty() && onOpenStats != null) {
+                HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
+            }
+        }
+        if (archive.isEmpty()) {
+            EmptyArchive(Modifier.weight(1f))
+        } else {
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 16.dp,
+                    bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                ),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(archive, key = { it.id }) { list ->
+                    ArchiveCard(
+                        list = list,
+                        now = now,
+                        expanded = expandedId == list.id,
+                        onToggle = { expandedId = if (expandedId == list.id) null else list.id },
+                        onRepeat = onRepeat,
+                        onDelete = { pendingDelete = list },
+                        onInfo = { index -> details = list to index },
+                        buyers = remember(list) { listBuyers(list) },
+                        userNames = userNames,
+                        meId = meId,
+                        showBuyers = multiUser,
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = Motion.smooth(),
+                            placementSpec = Motion.settle(),
+                            fadeOutSpec = Motion.smooth(Motion.Quick),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    details?.let { (list, index) ->
+        ArchiveProductDetails(list, index, userNames, meId, multiUser,
+            onProduct = { id -> details = null; selectedProduct = id }) { details = null }
+    }
+
+    pendingDelete?.let { list ->
+        AppSheet(
+            onDismissRequest = { pendingDelete = null },
+            containerColor = p.sheet,
+            title = { Text(stringResource(R.string.archive_delete_title), color = p.text, fontWeight = FontWeight.ExtraBold) },
+            text = { Text(stringResource(R.string.archive_delete_text), color = p.textSecondary) },
+            confirmButton = {
+                SheetActionButton(onClick = { onDelete(list); pendingDelete = null }, destructive = true) {
+                    Text(stringResource(R.string.archive_delete), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+            dismissButton = {
+                SheetActionButton(onClick = { pendingDelete = null }) {
+                    Text(stringResource(R.string.cancel), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                }
+            },
+        )
+    }
+}
+
+/** «32 мин», «1 ч 05 мин», «2 ч». */
+@Composable
+internal fun durationText(minutes: Int): String = when {
+    minutes < 60 -> stringResource(R.string.duration_minutes, minutes)
+    minutes % 60 == 0 -> stringResource(R.string.duration_hours, minutes / 60)
+    else -> stringResource(R.string.duration_hours_minutes, minutes / 60, minutes % 60)
+}
+
+/** Шапка вложенного экрана: «назад», заголовок и кнопки справа. */
+@Composable
+internal fun SubScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
+    val p = LocalPalette.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
+            .background(p.header)
+            .drawBehind {
+                drawCircle(
+                    color = Color.White.copy(alpha = if (p.isDark) 0.07f else 0.1f),
+                    radius = 110.dp.toPx(),
+                    center = Offset(size.width - 50.dp.toPx(), 20.dp.toPx()),
+                )
+            }
+            .statusBarsPadding()
+            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 28.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HeaderButton(R.drawable.ic_back, stringResource(R.string.archive_back), onBack)
+        Spacer(Modifier.width(14.dp))
+        Text(
+            title,
+            Modifier.weight(1f),
+            color = p.onHeader,
+            fontSize = 26.sp,
+            lineHeight = 32.sp,
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.3).sp,
+        )
+        trailing()
+    }
+}
+
+@Composable
+internal fun HeaderButton(icon: Int, description: String, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Box(
+        Modifier
+            .size(48.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.16f))
+            .clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = description, Modifier.size(24.dp), tint = p.onHeader)
+    }
+}
+
+@Composable
+private fun ArchiveCard(
+    list: ArchivedList,
+    now: Long,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onRepeat: (names: List<String>, quantities: List<Int>, events: List<String>) -> Unit,
+    onDelete: () -> Unit,
+    onInfo: (Int) -> Unit,
+    /** Кто купил: один человек подписывается на самом списке, несколько — на товарах. */
+    buyers: ListBuyers,
+    userNames: Map<String, String>,
+    meId: String,
+    showBuyers: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val p = LocalPalette.current
+    val names = list.names
+    val youLabel = stringResource(R.string.archive_buyer_you)
+    fun buyerLabel(id: String): String = when {
+        id.isEmpty() -> ""
+        id == meId -> youLabel
+        else -> userNames[id].orEmpty()
+    }
+    // Подпись на карточке: имя, если всё купил один; «Аня + Борис», если покупали вместе.
+    val listLabel = if (!showBuyers) null else when (buyers) {
+        is ListBuyers.One -> buyerLabel(buyers.id).ifEmpty { null }
+        is ListBuyers.Mixed -> buyers.ids.map { buyerLabel(it) }.filter { it.isNotEmpty() }.distinct().joinToString(" + ").ifEmpty { null }
+        ListBuyers.Unknown -> null
+    }
+    // Какие товары не нужны при повторе. Свернули карточку — выбор сбрасывается, снова всё отмечено.
+    var skipped by remember(list.id, expanded) { mutableStateOf(emptySet<Int>()) }
+    val chosenIndices = names.indices.filter { it !in skipped }
+    val chosen = chosenIndices.map { names[it] }
+    val today = stringResource(R.string.archive_today)
+    val yesterday = stringResource(R.string.archive_yesterday)
+    val locale = LocalConfiguration.current.locales[0]
+    val date = remember(list.completedAt, now, today, yesterday, locale) {
+        formatArchiveDate(list.completedAt, now, ZoneId.systemDefault(), today, yesterday, locale)
+    }
+    val arrow = animateFloatAsState(if (expanded) 180f else 0f, Motion.smooth(), label = "archive-arrow")
+    Column(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(p.card)
+            .clickable(role = Role.Button, onClick = onToggle)
+            .animateContentSize(Motion.smooth())
+            .padding(start = 18.dp, end = 10.dp, top = 14.dp, bottom = 14.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(date, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    if (listLabel != null) {
+                        Text(
+                            listLabel,
+                            Modifier
+                                .clip(CircleShape)
+                                .background(p.chipBg)
+                                .padding(horizontal = 10.dp, vertical = 3.dp),
+                            color = p.chipText,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                // «5 товаров · 32 мин». Времени нет у старых записей и у походов из одной покупки.
+                val summary = listOfNotNull(
+                    pluralStringResource(R.plurals.archive_items, list.itemCount, list.itemCount),
+                ).joinToString(" · ")
+                Text(
+                    summary,
+                    color = p.textSecondary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            Icon(
+                painterResource(R.drawable.ic_chevron_down),
+                contentDescription = null,
+                Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value },
+                tint = p.iconMuted,
+            )
+            Spacer(Modifier.width(8.dp))
+        }
+
+        val boughtLines = names.indices.map { index ->
+            val event = decodePurchaseEvent(list.events[index])
+            com.mok.buylist.data.PricedLine(list.counts[index], true, event?.unitPrice, event?.weightGrams)
+        }
+        val remainingLines = list.remaining.map { com.mok.buylist.data.PricedLine(it.quantity, false, it.unitPrice, it.weightGrams) }
+        val amounts = com.mok.buylist.data.calculateShoppingTotals(boughtLines + remainingLines)
+        if (expanded) {
+            val total = if (list.hasRemainingSnapshot) amounts.total else amounts.total.copy(unknown = amounts.total.unknown + 1)
+            if (total.known > 0) Text("Стоимость: ${formatAmount(total)}", Modifier.padding(top = 8.dp), color = p.textSecondary)
+        }
+
+        if (!expanded) {
+            val preview = names.take(PREVIEW_ITEMS).joinToString(", ") +
+                if (names.size > PREVIEW_ITEMS) ", " + stringResource(R.string.archive_more, names.size - PREVIEW_ITEMS) else ""
+            Text(
+                preview,
+                Modifier.padding(top = 6.dp, end = 8.dp),
+                color = p.textSecondary,
+                fontSize = 15.sp,
+                lineHeight = 21.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+
+        if (expanded) {
+            Column(Modifier.padding(top = 10.dp, end = 8.dp)) {
+                names.forEachIndexed { index, name ->
+                    ArchiveItemRow(
+                        name = name,
+                        impulsive = decodePurchaseEvent(list.events[index])?.impulsive == true,
+                        checked = index !in skipped,
+                        onToggle = { skipped = if (index in skipped) skipped - index else skipped + index },
+                        onInfo = { onInfo(index) },
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.chipBorder.copy(alpha = 0.6f)))
+                Row(
+                    Modifier.fillMaxWidth().padding(top = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    // Главное действие — широкая зелёная кнопка со значком; удаление — отдельная тихая кнопка-значок,
+                    // чтобы по ней нельзя было промахнуться рядом с главной.
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .height(52.dp)
+                            .clip(CircleShape)
+                            .background(p.accent.copy(alpha = if (chosen.isEmpty()) 0.38f else 1f))
+                            .clickable(enabled = chosen.isNotEmpty(), role = Role.Button) { onRepeat(chosen, chosenIndices.map { list.counts[it] }, chosenIndices.map { list.events[it] }) }
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, Modifier.size(20.dp), tint = p.onAccent)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            stringResource(R.string.archive_repeat),
+                            modifier = Modifier.weight(1f, fill = false),
+                            color = p.onAccent,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (chosen.isNotEmpty() && chosen.size != names.size) {
+                            Text(" (${chosen.size})", color = p.onAccent, fontSize = 16.sp,
+                                fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
+                        }
+                    }
+                    val deleteLabel = stringResource(R.string.archive_delete)
+                    Box(
+                        Modifier
+                            .size(52.dp)
+                            .clip(CircleShape)
+                            .background(p.error.copy(alpha = if (p.isDark) 0.16f else 0.1f))
+                            .clickable(role = Role.Button, onClickLabel = deleteLabel, onClick = onDelete),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(painterResource(R.drawable.ic_trash), contentDescription = deleteLabel, Modifier.size(22.dp), tint = p.error)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Товар в раскрытой карточке: нажатием отмечается, нужен ли он при повторе. */
+@Composable
+private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
+    val p = LocalPalette.current
+    val on = animateFloatAsState(if (checked) 1f else 0f, Motion.smooth(Motion.Quick), label = "archive-check")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() })
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { alpha = 1f - on.value }
+                    .border(2.dp, p.ring, CircleShape),
+            )
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val scale = 0.6f + 0.4f * on.value
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = on.value
+                    }
+                    .clip(CircleShape)
+                    .background(p.accent),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_check), contentDescription = null, Modifier.size(15.dp), tint = p.onAccent)
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(name, color = if (checked) p.text else p.textSecondary,
+                fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            if (impulsive) Text("Импульсивная покупка", color = p.accent, fontSize = 12.sp)
+        }
+        IconButton(onClick = onInfo) {
+            Icon(painterResource(R.drawable.ic_info), contentDescription = "Информация о товаре: $name", tint = p.iconMuted, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+@Composable
+private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map<String, String>, meId: String, showBuyers: Boolean,
+    onProduct: (Long) -> Unit, onDismiss: () -> Unit) {
+    val p = LocalPalette.current
+    val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
+    val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
+    val image = products.firstOrNull { it.id == event?.productId }?.image.orEmpty()
+    val price = event?.unitPrice
+    val total = price?.let { if (event.weightGrams != null) com.mok.buylist.data.priceForWeight(it, event.weightGrams)
+        else runCatching { Math.multiplyExact(it, event.quantity.toLong()) }.getOrNull() }
+    fun money(value: Long): String = java.text.NumberFormat.getNumberInstance(java.util.Locale.forLanguageTag("ru-RU"))
+        .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
+        .format(java.math.BigDecimal.valueOf(value, 2)) + " ₽"
+    AppSheet(onDismissRequest = onDismiss, containerColor = p.sheet,
+        title = { Text(event?.name ?: list.names[index], color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LentaImage(image, Modifier.size(120.dp))
+            val quantity = event?.quantity ?: list.counts[index]
+            val amount = event?.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: quantity.toString()
+            Text(if (price == null || total == null) amount
+                else "$amount × ${money(price)} = ${money(total)}", color = p.text, fontWeight = FontWeight.Bold)
+            val buyerId = event?.buyer?.ifBlank { null } ?: list.buyerIds[index]
+            if (showBuyers && buyerId.isNotBlank()) {
+                val buyer = if (buyerId == meId) stringResource(R.string.archive_buyer_you) else userNames[buyerId].orEmpty()
+                if (buyer.isNotBlank()) Text("Покупатель: $buyer", color = p.textSecondary)
+            }
+        } },
+        confirmButton = {
+            event?.productId?.let { id -> SheetActionButton(onClick = { onProduct(id) }) { Text("Информация о товаре") } }
+        },
+    )
+}
+
+@Composable
+private fun EmptyArchive(modifier: Modifier = Modifier) {
+    val p = LocalPalette.current
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+    ) {
+        Box(
+            Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_history), contentDescription = null, Modifier.size(64.dp), tint = p.accent)
+        }
+        Text(
+            stringResource(R.string.archive_empty_title),
+            color = p.text,
+            fontSize = 22.sp,
+            lineHeight = 28.sp,
+            fontWeight = FontWeight.ExtraBold,
+        )
+    }
+}
