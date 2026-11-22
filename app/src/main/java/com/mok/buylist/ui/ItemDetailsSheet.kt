@@ -58,6 +58,7 @@ internal fun ItemDetailsSheet(
     onDismiss: () -> Unit,
 ) {
     val p = LocalPalette.current
+    val context = androidx.compose.ui.platform.LocalContext.current
     val own = customProducts.firstOrNull { it.id == item.customProductId && !it.deleted }
     val livePrice = product?.takeIf {
         address.isNotBlank() && it.address == address && it.channel == "locc"
@@ -90,7 +91,8 @@ internal fun ItemDetailsSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                LentaImage(product?.image.orEmpty(), Modifier.size(88.dp))
+                if (own != null) CustomProductImage(own.id, Modifier.size(88.dp))
+                else LentaImage(product?.image.orEmpty(), Modifier.size(88.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     Text(item.name, color = p.text, fontSize = 17.sp,
                         fontWeight = FontWeight.Bold, lineHeight = 23.sp,
@@ -106,6 +108,16 @@ internal fun ItemDetailsSheet(
                 }
             }
 
+            if (own != null) {
+                CustomProductImageActions(own.id, codes.firstOrNull().orEmpty())
+                androidx.compose.runtime.LaunchedEffect(own.id, codes.firstOrNull()) {
+                    CustomProductPreviews.fetch(
+                        context = context,
+                        id = own.id,
+                        barcode = codes.firstOrNull().orEmpty(),
+                    )
+                }
+            }
             val catalogPrice = livePrice?.price?.takeIf { it.isNotBlank() && it != "null" }
             val lowest = cheapestShopPrice(shopPrices)
             val displayPrice = lowest?.priceKopecks?.let(::unitMoney)
