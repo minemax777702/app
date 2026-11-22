@@ -8,6 +8,7 @@ import com.mok.buylist.data.ShoppingRepository
 import com.mok.buylist.data.UserProfile
 import com.mok.buylist.data.LentaCatalog
 import com.mok.buylist.ui.theme.ThemeSettings
+import com.mok.buylist.ui.BarcodeSourceSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -27,6 +28,7 @@ class ShoppingApp : Application() {
         ShoppingRepository(this, database, userProfile)
     }
     val themeSettings: ThemeSettings by lazy { ThemeSettings(this) }
+    val barcodeSourceSettings: BarcodeSourceSettings by lazy { BarcodeSourceSettings(this) }
     val lentaCatalog: LentaCatalog by lazy { LentaCatalog(this, database, appScope) }
 
 }
@@ -45,3 +47,6 @@ val Context.lentaCatalog: LentaCatalog
 
 val Context.nearbySync: NearbySync
     get() = (applicationContext as ShoppingApp).nearbySync
+
+val Context.barcodeSourceSettings: BarcodeSourceSettings
+    get() = (applicationContext as ShoppingApp).barcodeSourceSettings
