@@ -361,7 +361,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     pendingPurchase?.let { item ->
         val ownProduct = customProducts.firstOrNull { it.id == item.customProductId }
         val suggestedPrice = if (item.productId > 0)
-            lentaById[item.productId]?.price?.let(com.mok.buylist.data::parsePriceKopecks)
+            lentaById[item.productId]?.price?.let { com.mok.buylist.data.parsePriceKopecks(it) }
         else ownProduct?.estimatedPriceKopecks
         val isLenta = item.productId > 0
         val isWeighted = ownProduct?.isWeighted == true || item.weightGrams != null
