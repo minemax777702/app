@@ -34,3 +34,6 @@ fun customKey(id: String): String = "custom:$id"
 fun stableStoreId(name: String): String = java.util.UUID.nameUUIDFromBytes(
     "buylist:store:${nameKeyOf(name)}".toByteArray(Charsets.UTF_8)
 ).toString()
+
+/** Reserved non-editable directory entry for the Lenta catalog. */
+fun lentaStoreId(): String = stableStoreId("Лента")
