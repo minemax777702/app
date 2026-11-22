@@ -50,6 +50,12 @@ class ShoppingRepository(
     private val profile: UserProfile,
 ) {
     private val dao = db.shoppingDao()
+    private val previewScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private fun fetchPreview(id: String, barcode: String) {
+        if (barcode.isNotBlank()) previewScope.launch {
+            com.mok.buylist.ui.CustomProductPreviews.fetch(context, id, barcode)
+        }
+    }
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
     fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores().map { rows ->
@@ -156,7 +162,7 @@ class ShoppingRepository(
         dao.upsertStoreProduct(StoreProduct(storeId, customKey(product.id), storePrice,
             maxOf(now, (earlier?.updatedAt ?: 0L) + 1)))
         product.id
-    }
+    }.also { id -> if (id != null) fetchPreview(id, rawBarcode.trim()) }
 
     suspend fun saveStoreProduct(storeId: String, productKey: String, price: Long?): String? =
         db.withTransaction {
@@ -366,6 +372,7 @@ class ShoppingRepository(
                     isWeighted = saved.isWeighted || isWeighted)
                 dao.upsertCustomProduct(updated)
                 dao.upsertCustomProductBarcode(CustomProductBarcode(updated.id, code, updated.updatedAt))
+                fetchPreview(updated.id, code)
                 return addCustomToList(updated)
             }
             if ((estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks) ||
@@ -385,7 +392,9 @@ class ShoppingRepository(
             dao.upsertCustomProduct(product)
             if (code.isNotEmpty()) dao.upsertCustomProductBarcode(CustomProductBarcode(product.id, code, product.updatedAt))
             addCustomToListInTransaction(product)
-        }.also { if (it) refreshWidget() }
+        }.also {
+            if (it) { refreshWidget(); fetchPreview(product.id, code) }
+        }
     }
 
     /** Find an active item by shared product identity, regardless of its source catalog. */
