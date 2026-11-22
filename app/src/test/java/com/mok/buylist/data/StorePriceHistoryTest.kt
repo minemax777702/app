@@ -50,6 +50,22 @@ class StorePriceHistoryTest {
             events, "custom:eggs", "kb", excludedEventId = "current"))
     }
 
+    @Test fun archivedLentaPurchasesWithoutStoreUseBuiltinShop() {
+        val event = purchase("legacy", "", 12900, 100, productId = 42)
+        assertEquals("Лента", purchaseStoreName(event, emptyList()))
+        assertEquals(12900L, lastStorePurchasePrice(
+            listOf(event), "lenta:42", lentaStoreId()))
+        assertNull(lastStorePurchasePrice(listOf(event), "lenta:42", "other"))
+    }
+
+    @Test fun renamedStoreKeepsIdInOldPurchaseHistory() {
+        val store = ShoppingStore("stable-id", "Новый магазин", updatedAt = 500)
+        val event = purchase("event", store.id, 11900L, 100, customId = "eggs")
+        assertEquals("Новый магазин", purchaseStoreName(event, listOf(store)))
+        val deleted = store.copy(deleted = true, updatedAt = 600)
+        assertEquals("Новый магазин", purchaseStoreName(event, listOf(deleted)))
+    }
+
     @Test fun weightedPriceIsPerKilogramNotTotalAndOtherProductsDoNotLeak() {
         val events = listOf(
             purchase("a", "kb", 32999, 100, customId = "apples", grams = 750),
