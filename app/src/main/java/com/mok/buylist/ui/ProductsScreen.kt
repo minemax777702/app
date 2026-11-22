@@ -141,7 +141,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     .clickable(role = Role.Button) { onProductClick("custom:${product.id}") }
                     .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    LentaImage("", Modifier.size(42.dp))
+                    CustomProductImage(product.id, Modifier.size(42.dp))
                     androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
                     Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                         Text(product.name, color = p.text, fontSize = 16.sp,
