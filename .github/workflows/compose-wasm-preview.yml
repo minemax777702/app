@@ -4,9 +4,6 @@ on:
   pull_request:
     paths:
       - "ui-preview/**"
-      - "ui-preview/settings.gradle.kts"
-
-
       - ".github/workflows/compose-wasm-preview.yml"
   workflow_dispatch:
 
