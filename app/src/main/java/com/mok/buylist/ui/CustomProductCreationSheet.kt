@@ -19,6 +19,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mok.buylist.lentaCatalog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +74,9 @@ internal fun CustomProductCreationSheet(
     onCreated: () -> Unit,
 ) {
     val p = LocalPalette.current
+    val catalog = LocalContext.current.lentaCatalog
+    val localProducts by catalog.products.collectAsStateWithLifecycle()
+    val localCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
     var name by remember(initialName) { mutableStateOf(initialName) }
     var barcode by remember(initialBarcode) { mutableStateOf(initialBarcode) }
     var price by remember { mutableStateOf("") }
@@ -85,17 +91,38 @@ internal fun CustomProductCreationSheet(
     var lookedUpCode by remember { mutableStateOf("") }
     var nameEdited by remember(initialName) { mutableStateOf(initialName.isNotBlank()) }
 
-    LaunchedEffect(barcode) {
+    val localSuggestions = remember(barcode, localProducts, localCodes) {
+        if (!validProductBarcode(barcode)) emptyList() else {
+            localProducts.asSequence().filter { product ->
+                product.ean == barcode || localCodes.any { row ->
+                    row.productId == product.id && row.code == barcode && !row.deleted
+                }
+            }.map { product ->
+                BarcodeProductSuggestion(product.name, "Локальная база Ленты",
+                    product.image.takeIf { it.isNotBlank() }, score = 100)
+            }.filter { BarcodeProductLookup.usefulName(it.name, barcode) }
+                .distinctBy { it.name.lowercase() }.take(3).toList()
+        }
+    }
+    val shownSuggestions = remember(localSuggestions, suggestions) {
+        (localSuggestions + suggestions).distinctBy { it.name.lowercase().trim() }
+            .sortedByDescending { it.score }.take(3)
+    }
+
+    LaunchedEffect(barcode, localSuggestions) {
         suggestions = emptyList()
         lookedUpCode = ""
         if (!validProductBarcode(barcode)) return@LaunchedEffect
+        if (name.isBlank() && !nameEdited && localSuggestions.isNotEmpty())
+            name = localSuggestions.first().name
         delay(650)
         lookupBusy = true
         try {
             val found = BarcodeProductLookup.lookup(barcode)
             suggestions = found
             lookedUpCode = barcode
-            if (name.isBlank() && !nameEdited && found.isNotEmpty()) name = found.first().name
+            if (name.isBlank() && !nameEdited && found.isNotEmpty())
+                name = found.first().name
         } finally { lookupBusy = false }
     }
 
@@ -128,9 +155,10 @@ internal fun CustomProductCreationSheet(
                             color = p.accent)
                         Text("Ищем название по штрихкоду…", color = p.textSecondary, fontSize = 12.sp)
                     }
-                } else if (suggestions.isNotEmpty()) {
+                }
+                if (shownSuggestions.isNotEmpty()) {
                     Text("Найденные названия", color = p.textSecondary, fontSize = 12.sp)
-                    suggestions.take(3).forEach { suggestion ->
+                    shownSuggestions.forEach { suggestion ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                             .background(p.field)
                             .clickable { name = suggestion.name; nameEdited = true }
@@ -146,7 +174,7 @@ internal fun CustomProductCreationSheet(
                                 tint = p.accent, modifier = Modifier.size(18.dp))
                         }
                     }
-                } else if (lookedUpCode == barcode && barcode.isNotBlank()) {
+                } else if (!lookupBusy && lookedUpCode == barcode && barcode.isNotBlank()) {
                     Text("Название не найдено — его можно ввести вручную",
                         color = p.textSecondary, fontSize = 12.sp)
                 }
