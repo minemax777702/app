@@ -68,6 +68,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val products by catalog.products.collectAsStateWithLifecycle()
+    val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(batch) {
         val result = batch
@@ -84,7 +85,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var scannedOnlineCode by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<LentaProduct?>(null) }
     var shownCount by rememberSaveable(query) { mutableStateOf(20) }
-    val rows = remember(products, query) {
+    val rows = remember(products, query, barcodeRows) {
         val key = nameKeyOf(query)
         products.filter { key.isEmpty() || nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
             catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) ||
