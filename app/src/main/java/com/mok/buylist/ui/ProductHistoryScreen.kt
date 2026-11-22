@@ -12,6 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Text
@@ -22,12 +24,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mok.buylist.R
 import com.mok.buylist.data.AppUser
 import com.mok.buylist.data.nameKeyOf
 import com.mok.buylist.ui.theme.LocalPalette
@@ -177,16 +181,20 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         hint = "EAN-8, UPC-A или EAN-13",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = barcodeError != null,
-                    )
-                    TextButton(
-                        onClick = {
-                            barcodeEditorOpen = false
-                            scanningBarcode = true
+                        trailingAction = {
+                            IconButton(
+                                onClick = {
+                                    barcodeEditorOpen = false
+                                    scanningBarcode = true
+                                },
+                                enabled = !barcodeSaving,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_camera),
+                                    contentDescription = "Сканировать камерой", tint = p.accent)
+                            }
                         },
-                        enabled = !barcodeSaving,
-                    ) { Text("Сканировать камерой", color = p.accent, fontWeight = FontWeight.SemiBold) }
+                    )
                     barcodeError?.let { Text(it, color = p.error, fontSize = 13.sp) }
-                    Text("Проверьте распознанный код перед сохранением.", color = p.textSecondary, fontSize = 13.sp)
                 }
             },
             confirmButton = {
@@ -263,29 +271,49 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             }
             if (product != null) item {
                 HistoryCard {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Штрихкоды товара", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        TextButton(onClick = {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Штрихкоды товара", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text("Сохранено: ${barcodes.size}", color = p.textSecondary, fontSize = 12.sp)
+                        }
+                        IconButton(onClick = {
                             editingBarcode = null
                             barcodeInput = ""
                             barcodeError = null
                             barcodeEditorOpen = true
-                        }) { Text("Добавить") }
+                        }, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(p.chipBg)) {
+                            Icon(painterResource(R.drawable.ic_plus), contentDescription = "Добавить штрихкод",
+                                tint = p.accent, modifier = Modifier.size(22.dp))
+                        }
                     }
-                    if (barcodes.isEmpty()) Text("Нет сохранённых штрихкодов", color = p.textSecondary)
+                    if (barcodes.isEmpty()) Text("Штрихкоды ещё не добавлены", color = p.textSecondary, fontSize = 14.sp)
                     barcodes.forEach { code ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Column(Modifier.weight(1f)) {
-                                Text(code, color = p.text)
-                                if (code == product.ean) Text("Текущий в Ленте", color = p.textSecondary, fontSize = 12.sp)
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.field)
+                                .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(code, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                                if (code == product.ean) Text("Код из Ленты", color = p.textSecondary, fontSize = 11.sp)
                             }
-                            TextButton(onClick = {
+                            IconButton(onClick = {
                                 editingBarcode = code
                                 barcodeInput = code
                                 barcodeError = null
                                 barcodeEditorOpen = true
-                            }) { Text("Изменить") }
-                            TextButton(onClick = { deletingBarcode = code }) { Text("Удалить") }
+                            }) {
+                                Icon(painterResource(R.drawable.ic_edit),
+                                    contentDescription = "Изменить штрихкод $code", tint = p.accent,
+                                    modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { deletingBarcode = code }) {
+                                Icon(painterResource(R.drawable.ic_trash),
+                                    contentDescription = "Удалить штрихкод $code", tint = p.iconMuted,
+                                    modifier = Modifier.size(20.dp))
+                            }
                         }
                     }
                 }
