@@ -36,6 +36,9 @@ interface ShoppingDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertProductBarcode(row: StoredProductBarcode)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertProductBarcode(row: StoredProductBarcode)
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertProductBarcodes(rows: List<StoredProductBarcode>)
 
