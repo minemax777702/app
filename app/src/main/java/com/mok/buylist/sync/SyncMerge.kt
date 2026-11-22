@@ -58,6 +58,19 @@ object SyncMerge {
             compareBy<com.mok.buylist.data.StoredLentaProduct> { it.updatedAt }.thenBy { it.toString() },
         )
 
+        val activeProductIds = products.mapTo(HashSet()) { it.id }
+        // Подтверждённые коды объединяются по паре (productId, code).
+        // Один код у двух товаров остаётся неоднозначным и требует выбора в UI.
+        val productBarcodes = (a.productBarcodes + b.productBarcodes +
+            products.mapNotNull { p ->
+                p.ean.takeIf { it.isNotBlank() }?.let {
+                    com.mok.buylist.data.StoredProductBarcode(p.id, it)
+                }
+            }).filter { it.productId in activeProductIds &&
+            it.code.length in setOf(8, 12, 13) && it.code.all(Char::isDigit) }
+            .distinctBy { it.productId to it.code }
+            .sortedWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.productId }.thenBy { it.code })
+
         val hidden = pick(
             a.hidden + b.hidden, TombKind.HIDDEN, { it.key }, { it.at },
             compareBy<SyncHidden> { it.at },
@@ -95,6 +108,7 @@ object SyncMerge {
             archives = archives,
             tombs = keptTombs.sortedWith(compareBy<SyncTomb> { it.kind.code }.thenBy { it.key }),
             products = products,
+            productBarcodes = productBarcodes,
         )
     }
 
