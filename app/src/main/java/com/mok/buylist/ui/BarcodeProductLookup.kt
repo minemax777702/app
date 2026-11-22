@@ -2,6 +2,9 @@ package com.mok.buylist.ui
 
 import com.mok.buylist.data.validProductBarcode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -21,22 +24,41 @@ internal object BarcodeProductLookup {
     private const val AGENT = "BuyList-Android/1.0 (barcode suggestions)"
     private val cache = mutableMapOf<String, List<BarcodeProductSuggestion>>()
 
+    private val upcRecent = ArrayDeque<Long>()
+
     suspend fun lookup(code: String, force: Boolean = false): List<BarcodeProductSuggestion> =
         withContext(Dispatchers.IO) {
             if (!validProductBarcode(code)) return@withContext emptyList()
             if (!force) synchronized(cache) { cache[code] }?.let { return@withContext it }
-            // One failed provider must not prevent suggestions from the others.
-            val results = listOfNotNull(
-                runCatching { openFoodFacts(code) }.getOrNull(),
-                runCatching { upcItemDb(code) }.getOrNull(),
-                runCatching { olegon(code) }.getOrNull(),
-            ).filter { usefulName(it.name, code) }
-            val ranked = results.distinctBy { it.name.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ").trim() }
-                .sortedWith(compareByDescending<BarcodeProductSuggestion> { it.score }
-                    .thenByDescending { it.name.length })
-            synchronized(cache) { cache[code] = ranked }
+            // Query the providers concurrently. Slow or unavailable Olegon must not
+            // delay an already available Open Food Facts / UPCitemdb response.
+            val results = coroutineScope {
+                listOf(
+                    async { runCatching { openFoodFacts(code) }.getOrNull() },
+                    async { runCatching { upcItemDb(code) }.getOrNull() },
+                    async { runCatching { olegon(code) }.getOrNull() },
+                ).awaitAll().filterNotNull()
+            }.filter { usefulName(it.name, code) }
+            val ranked = results.distinctBy {
+                it.name.lowercase(Locale.ROOT).replace(Regex("\\s+"), " ").trim()
+            }.sortedWith(compareByDescending<BarcodeProductSuggestion> { it.score }
+                .thenByDescending { it.name.length })
+            // Do not cache empty responses: API outages, rate limits and temporary
+            // network errors must remain recoverable on the next attempt.
+            if (ranked.isNotEmpty()) synchronized(cache) { cache[code] = ranked }
             ranked
         }
+
+    private fun allowedUpcRequest(): Boolean = synchronized(upcRecent) {
+        val now = System.currentTimeMillis()
+        while (upcRecent.isNotEmpty() && now - upcRecent.first() >= 60_000L) {
+            upcRecent.removeFirst()
+        }
+        if (upcRecent.size >= 5) false else {
+            upcRecent.addLast(now)
+            true
+        }
+    }
 
     private fun request(url: String, limit: Int = 120_000): String? {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
@@ -82,6 +104,7 @@ internal object BarcodeProductLookup {
     }
 
     private fun upcItemDb(code: String): BarcodeProductSuggestion? {
+        if (!allowedUpcRequest()) return null
         val body = request("https://api.upcitemdb.com/prod/trial/lookup?upc=$code") ?: return null
         val item = JSONObject(body).optJSONArray("items")?.optJSONObject(0) ?: return null
         val name = item.optString("title").trim()
