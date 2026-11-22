@@ -16,6 +16,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.lentaStoreId
 import com.mok.buylist.ui.theme.LocalPalette
 import java.math.BigDecimal
 import java.text.NumberFormat
@@ -31,7 +33,7 @@ private fun money(value: Long): String = NumberFormat.getNumberInstance(Locale.f
     .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(BigDecimal.valueOf(value, 2)) + " ₽"
 
 @Composable
-internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, period: ExpensePeriod, onProductClick: (String) -> Unit, onPeriodChange: (ExpensePeriod) -> Unit) {
+internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, period: ExpensePeriod, stores: List<ShoppingStore> = emptyList(), onProductClick: (String) -> Unit, onPeriodChange: (ExpensePeriod) -> Unit) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val today = remember { LocalDate.now(zone) }
@@ -39,20 +41,31 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     val mine = remember(all, userId) { all.filter { userId == null || it.buyer == userId } }
     val start = periodStart(period, today)
     val selected = remember(mine, start, today) { mine.filter { !expenseDate(it, zone).isAfter(today) && (start == null || !expenseDate(it, zone).isBefore(start)) } }
-    val allTotal = exactExpenseSum(mine)
-    val selectedTotal = exactExpenseSum(selected)
-    val selectedTrips = selected.map { it.trip }.distinct().size
+    val allCoverage = remember(mine) { purchaseCoverage(mine) }
+    val coverage = remember(selected) { purchaseCoverage(selected) }
+    val pricedTrips = selected.filter { it.total != null }.map { it.trip }.distinct().size
+    var showMoreStores by rememberSaveable { mutableStateOf(false) }
+    var showMoreProducts by rememberSaveable { mutableStateOf(false) }
+    var showMoreImpulse by rememberSaveable { mutableStateOf(false) }
 
     PanelCard {
         Text("Расходы", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ExpensePeriod.entries.forEach { option -> Choice(option.title, option == period) { onPeriodChange(option) } }
         }
-        if (allTotal != null || selectedTotal != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (allTotal != null) ExpenseMetric("За всё время", money(allTotal), Modifier.weight(1f))
-            if (selectedTotal != null) ExpenseMetric("За период", money(selectedTotal), Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ExpenseMetric("За период", if (coverage.priced > 0) money(coverage.amount) else "—",
+                Modifier.weight(1f))
+            ExpenseMetric("За всё время",
+                if (allCoverage.priced > 0) money(allCoverage.amount) else "—",
+                Modifier.weight(1f))
         }
-        if (selectedTotal != null && selectedTrips > 0) ExpenseMetric("Средний чек", money(selectedTotal / selectedTrips), Modifier.fillMaxWidth())
+        if (pricedTrips > 0) ExpenseMetric("Средний чек по покупкам с ценой",
+            money(coverage.amount / pricedTrips), Modifier.fillMaxWidth())
+        if (coverage.unpriced > 0) Text(
+            "Без цены: ${coverage.unpriced} из ${coverage.purchases} покупок. Они учитываются в количестве, но не в расходах.",
+            color = p.textSecondary, fontSize = 12.sp)
+
     }
 
     val impulsive = mine.filter { it.impulsive }
