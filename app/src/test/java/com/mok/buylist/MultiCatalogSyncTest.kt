@@ -1,5 +1,6 @@
 package com.mok.buylist
 
+import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.sync.Snapshot
@@ -15,7 +16,7 @@ class MultiCatalogSyncTest {
     private val product = CustomProduct("product-1", "Яйца С1 10 шт", "4601234567893", 100L)
     private val store = ShoppingStore("store-1", "Красное и Белое", updatedAt = 100L)
 
-    @Test fun customCatalogAndStoresSurviveV9WireFormat() {
+    @Test fun customCatalogAndStoresSurviveV10WireFormat() {
         val snapshot = Snapshot(
             customProducts = listOf(product),
             stores = listOf(store),
@@ -45,4 +46,15 @@ class MultiCatalogSyncTest {
         assertEquals(2, merged.customProducts.size)
         assertFalse(merged.customProducts.any { it.deleted })
     }
+    @Test fun multipleAliasesSurviveSyncAndDeletionTombstonesWin() {
+        val barcode = CustomProductBarcode(product.id, "4607078115610", 100)
+        val snapshot = Snapshot(customProducts = listOf(product), customProductBarcodes = listOf(barcode))
+        assertEquals(snapshot, SyncCodec.decode(SyncCodec.encode(snapshot)))
+        val deleted = snapshot.copy(customProductBarcodes = listOf(barcode.copy(deleted = true, updatedAt = 200)))
+        val merged = SyncMerge.merge(snapshot, deleted)
+        assertTrue(merged.customProductBarcodes.single().deleted)
+        assertEquals(merged, SyncMerge.merge(merged, snapshot))
+        assertEquals(merged, SyncMerge.merge(snapshot, merged))
+    }
 }
+
