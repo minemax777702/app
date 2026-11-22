@@ -87,6 +87,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val rows = remember(products, query) {
         val key = nameKeyOf(query)
         products.filter { key.isEmpty() || nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) || it.ean.contains(key) ||
+            catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) } ||
             com.mok.buylist.sync.possibleVariableBarcodeMatch(it.ean, key) }
             .sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
     }
@@ -142,7 +143,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 LentaSuggestions(onlineQuery, Modifier.weight(1f), onAdd = { product ->
                     scope.launch {
                         val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedOnlineCode == onlineQuery) product.copy(ean = onlineQuery) else product
-                        catalog.save(chosen)
+                        catalog.save(chosen, scannedOnlineCode?.takeIf { it == onlineQuery })
                         adding = false
                         activity?.notifyUser("Товар сохранён")
                     }
