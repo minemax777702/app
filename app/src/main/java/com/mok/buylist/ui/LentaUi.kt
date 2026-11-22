@@ -56,6 +56,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier, onAdd: (Lenta
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
+    val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val ready by catalog.ready.collectAsStateWithLifecycle()
     val p = LocalPalette.current
     val trimmed = query.trim()
@@ -66,7 +67,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier, onAdd: (Lenta
     LaunchedEffect(state.failed) {
         if (state.failed) activity?.notifyUser("Не удалось выполнить поиск в Ленте")
     }
-    LaunchedEffect(trimmed, address, saved, onlineOnly, ready) {
+    LaunchedEffect(trimmed, address, saved, barcodeRows, onlineOnly, ready) {
         if (ready) controller.update(trimmed, address, saved, onlineOnly)
     }
     Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
