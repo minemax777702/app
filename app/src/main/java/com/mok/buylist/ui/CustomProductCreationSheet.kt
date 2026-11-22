@@ -206,13 +206,14 @@ internal fun CustomProductCreationSheet(
                         }
                     }) { Text("Повторить поиск", color = p.accent) }
                 }
-                if (validProductBarcode(barcode) && BarcodeSource.GS1_RUSSIA in enabledSources) {
+                if (validProductBarcode(barcode) && barcode.length == 13 &&
+                    BarcodeSource.DISAI in enabledSources) {
                     TextButton(onClick = {
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(
-                            "https://search.gs1ru.org/gtin/$barcode"))
+                            "https://ru.disai.org/barcode/ean-13/$barcode"))
                         runCatching { context.startActivity(intent) }
                     }) {
-                        Text("Проверить GTIN в GS1 Россия", color = p.accent)
+                        Text("Посмотреть товар в DiSAI", color = p.accent)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
