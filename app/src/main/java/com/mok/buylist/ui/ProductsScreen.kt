@@ -72,6 +72,9 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
+    val archive by viewModel.archive.collectAsStateWithLifecycle()
+    val bought by viewModel.bought.collectAsStateWithLifecycle()
+    val knownPurchases = remember(archive, bought) { expensePurchases(archive, bought) }
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
@@ -143,36 +146,24 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                         Text(product.name, color = p.text, fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold)
-                        val linkedKey = identities["custom:${product.id}"]
                         if (product.isWeighted) Text("Весовой · ₽/кг",
                             color = p.textSecondary, fontSize = 12.sp)
-                        val codesCount = customBarcodeRows.count { it.productId == product.id && !it.deleted }
-                        if (linkedKey?.startsWith("lenta:") == true || codesCount > 0) {
-                            val info = listOfNotNull(
-                                if (linkedKey?.startsWith("lenta:") == true) "Есть в Ленте" else null,
-                                if (codesCount > 0) "Штрихкодов: $codesCount" else null,
-                            ).joinToString(" · ")
-                            Text(info, color = p.textSecondary, fontSize = 12.sp)
-                        }
-                        val assigned = storeLinks.filter {
-                            !it.deleted && it.productKey == "custom:${product.id}"
-                        }
-                        if (assigned.isNotEmpty()) {
-                            Text(assigned.take(2).joinToString(" · ") { linked ->
-                                val shop = stores.firstOrNull { it.id == linked.storeId }?.name
-                                    ?: "Магазин"
-                                shop + (linked.priceKopecks?.let { price ->
-                                    ": " + java.math.BigDecimal.valueOf(price, 2)
-                                        .stripTrailingZeros().toPlainString() + " ₽"
-                                } ?: "")
-                            } + if (assigned.size > 2) " · ещё ${assigned.size - 2}" else "",
-                                color = p.textSecondary, fontSize = 12.sp)
-                        }
-                        product.estimatedPriceKopecks?.let { kopecks ->
+                        val shopPrices = productShopPrices(
+                            "custom:${product.id}", stores, storeLinks, knownPurchases, identities)
+                        if (shopPrices.isNotEmpty()) Text(
+                            shopPrices.joinToString(" · ") { it.storeName },
+                            color = p.textSecondary, fontSize = 12.sp,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        val cheapest = cheapestShopPrice(shopPrices)
+                        val bestPrice = cheapest?.priceKopecks ?: product.estimatedPriceKopecks
+                        if (bestPrice != null) {
                             Text(
-                                "Ориентир: ${java.math.BigDecimal.valueOf(kopecks, 2).stripTrailingZeros().toPlainString()} ₽",
-                                color = p.textSecondary, fontSize = 12.sp,
-                            )
+                                (if (cheapest != null) "От " else "Ориентир: ") +
+                                    java.math.BigDecimal.valueOf(bestPrice, 2)
+                                        .stripTrailingZeros().toPlainString() + " ₽" +
+                                    if (cheapest != null) " · ${cheapest.storeName}" else "",
+                                color = p.accent, fontSize = 13.sp,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     IconButton(onClick = { viewModel.addCustomProduct(product) { added ->
