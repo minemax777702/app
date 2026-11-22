@@ -48,7 +48,7 @@
 
 ## Технические сведения
 
-- Kotlin: версия из `gradle/libs.versions.toml`, сейчас 2.4.21.
+- Kotlin: 2.4.21 (зафиксирован в `ui-preview/build.gradle.kts`).
 - Compose Multiplatform: 1.12.2.
 - Используется Kotlin/Wasm с поддержкой WasmGC; необходим современный браузер.
 - Код предпросмотра: `ui-preview/src/commonMain/kotlin/com/mok/buylist/preview/PreviewApplication.kt`.
