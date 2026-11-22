@@ -70,6 +70,8 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val scope = rememberCoroutineScope()
     val products by catalog.products.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
@@ -152,6 +154,20 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                             ).joinToString(" · ")
                             Text(info, color = p.textSecondary, fontSize = 12.sp)
                         }
+                        val assigned = storeLinks.filter {
+                            !it.deleted && it.productKey == "custom:${product.id}"
+                        }
+                        if (assigned.isNotEmpty()) {
+                            Text(assigned.take(2).joinToString(" · ") { linked ->
+                                val shop = stores.firstOrNull { it.id == linked.storeId }?.name
+                                    ?: "Магазин"
+                                shop + (linked.priceKopecks?.let { price ->
+                                    ": " + java.math.BigDecimal.valueOf(price, 2)
+                                        .stripTrailingZeros().toPlainString() + " ₽"
+                                } ?: "")
+                            } + if (assigned.size > 2) " · ещё ${assigned.size - 2}" else "",
+                                color = p.textSecondary, fontSize = 12.sp)
+                        }
                         product.estimatedPriceKopecks?.let { kopecks ->
                             Text(
                                 "Ориентир: ${java.math.BigDecimal.valueOf(kopecks, 2).stripTrailingZeros().toPlainString()} ₽",
@@ -177,7 +193,20 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     LentaImage(product.image, Modifier.size(42.dp))
                     androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-                    Text(product.name, Modifier.weight(1f).padding(vertical = 12.dp), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
+                        Text(product.name, color = p.text, fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold, maxLines = 2,
+                            overflow = TextOverflow.Ellipsis)
+                        val linked = storeLinks.filter { !it.deleted &&
+                            it.productKey == "lenta:${product.id}" }
+                        if (linked.isNotEmpty()) Text(linked.take(2).joinToString(" · ") { row ->
+                            val shop = stores.firstOrNull { it.id == row.storeId }?.name ?: "Магазин"
+                            shop + (row.priceKopecks?.let { price ->
+                                ": " + java.math.BigDecimal.valueOf(price, 2)
+                                    .stripTrailingZeros().toPlainString() + " ₽"
+                            } ?: "")
+                        }, color = p.textSecondary, fontSize = 12.sp)
+                    }
                     IconButton(onClick = { onAdd(product) }) {
                         Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent, modifier = Modifier.size(20.dp))
                     }
