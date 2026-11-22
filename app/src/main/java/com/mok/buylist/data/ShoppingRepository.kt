@@ -136,11 +136,20 @@ class ShoppingRepository(
             val matchedCustom = dao.getCustomProducts().filter { !it.deleted &&
                 (it.id in customIds || (it.barcode == code && dao.getCustomProductBarcodes()
                     .none { alias -> alias.productId == it.id && alias.code == code && alias.deleted })) }
-            if (matchedLenta.size + matchedCustom.size == 1) {
-                return matchedLenta.singleOrNull()?.let { addProduct(it.toProduct()) }
-                    ?: addCustomToList(matchedCustom.single())
+            if (matchedCustom.size == 1) {
+                val saved = matchedCustom.single()
+                if (estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks)
+                    dao.upsertCustomProduct(saved.copy(
+                        estimatedPriceKopecks = estimatedPriceKopecks,
+                        updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
+                return addCustomToList(saved)
             }
-            if (matchedLenta.isNotEmpty() || matchedCustom.isNotEmpty()) return false
+            if (matchedCustom.size > 1 || matchedLenta.size > 1) return false
+            // Without a user-specific price reuse the known Lenta product.
+            // With one, create a personal alias so the estimate has a durable home;
+            // its barcode still resolves to the same shared product identity.
+            if (matchedLenta.size == 1 && estimatedPriceKopecks == null)
+                return addProduct(matchedLenta.single().toProduct())
         }
         val existing = dao.getCustomProducts().filter { !it.deleted && nameKeyOf(it.name) == nameKeyOf(name) }
         if (existing.size == 1) {
