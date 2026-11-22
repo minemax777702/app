@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.SecondaryTabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,7 +43,7 @@ fun SettingsScreen(
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
         if (!syncActive) SubScreenHeader("Настройки", onBack)
-        TabRow(selectedTabIndex = activeTab, containerColor = p.background, contentColor = p.accent) {
+        SecondaryTabRow(selectedTabIndex = activeTab, containerColor = p.background, contentColor = p.accent) {
             listOf("Товары и магазины", "Настройки").forEachIndexed { index, title ->
                 Tab(selected = activeTab == index, onClick = { onTab(index) }, enabled = !syncActive, text = { Text(title) })
             }

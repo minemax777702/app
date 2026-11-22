@@ -711,11 +711,11 @@ class ShoppingRepository(
             val id = event?.productId
             val product = id?.let(products::get)
             if (event?.customProductId?.let(custom::get)?.takeUnless { it.deleted } != null) {
-                if (addCustomToList(custom.getValue(event!!.customProductId),
+                if (addCustomToList(custom.getValue(event.customProductId),
                         quantities.getOrElse(index) { 1 }) && event.weightGrams != null)
                     dao.findByKey(customKey(event.customProductId))?.let { setWeight(it.id, event.weightGrams) }
             } else if (product != null) {
-                if (addProduct(product.toProduct(), quantities.getOrElse(index) { 1 }) && event?.weightGrams != null)
+                if (addProduct(product.toProduct(), quantities.getOrElse(index) { 1 }) && event.weightGrams != null
                     dao.findByKey("lenta:$id")?.let { setWeight(it.id, event.weightGrams) }
             }
             else if (id != null) {
