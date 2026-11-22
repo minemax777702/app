@@ -363,7 +363,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
-        val matches = lentaProducts.filter { com.mok.buylist.sync.barcodeMatches(it.ean, code) }
+        val matches = lentaProducts.filter { context.lentaCatalog.matchesBarcode(it, code) }
         if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) && matches.size == 1) {
             viewModel.buyScanned(matches.single(), null) { done ->
                 activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
@@ -384,7 +384,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
                     scope.launch {
-                        context.lentaCatalog.save(chosen)
+                        context.lentaCatalog.save(chosen, code)
                         if (com.mok.buylist.sync.isVariableMeasureBarcode(code)) pendingWeight = code to chosen
                         else viewModel.buyScanned(chosen, null) { done ->
                             activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
