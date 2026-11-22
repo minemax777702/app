@@ -198,7 +198,7 @@ fun AddItemSheet(
                 onAdd = { product ->
                     scope.launch {
                         val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
-                        saveLenta(chosen)
+                        saveLenta(chosen, scannedCode?.takeIf { it == text })
                         onAdd(chosen) { added ->
                             activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                             if (added) { text = ""; scannedCode = null; onQueryChange("") }
