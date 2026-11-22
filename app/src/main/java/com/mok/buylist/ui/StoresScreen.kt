@@ -49,7 +49,6 @@ private data class StoreProductLine(
     val purchasedAt: Long?,
     val price: Long?,
     val weighted: Boolean,
-    val source: String,
 )
 
 /** Stores are a persistent directory. Prices are derived from immutable purchase events. */
@@ -176,14 +175,14 @@ internal fun StoresScreen(
                         val latest = purchases.maxBy { it.at }
                         val known = purchases.filter { it.unitPrice != null }.maxByOrNull { it.at }
                         StoreProductLine(key, latest.name, latest.at, known?.unitPrice,
-                            known?.weightGrams != null, "Последняя покупка")
+                            known?.weightGrams != null)
                     }
                 val historyKeys = history.mapTo(HashSet()) { it.key }
                 val fromLenta = if (store.id == lentaStoreId()) lenta.filter { item ->
                     "lenta:${item.id}" !in historyKeys
                 }.map { item ->
                     StoreProductLine("lenta:${item.id}", item.name, null,
-                        parsePriceKopecks(item.price), false, "Цена каталога")
+                        parsePriceKopecks(item.price), false)
                 } else emptyList()
                 val knownKeys = (history + fromLenta).mapTo(HashSet()) { it.key }
                 val linked = storeLinks.filter { !it.deleted && it.storeId == store.id }
@@ -192,12 +191,12 @@ internal fun StoresScreen(
                         val catalogProduct = lenta.firstOrNull { "lenta:${it.id}" == link.productKey }
                         if (match == null && catalogProduct == null) null
                         else StoreProductLine(link.productKey, match?.name ?: catalogProduct!!.name,
-                            null, link.priceKopecks, match?.isWeighted == true, "Добавлен в магазин")
+                            null, link.priceKopecks, match?.isWeighted == true)
                     }
                 val additions = linked.filter { it.key !in knownKeys }
                 val updatedHistory = history.map { line ->
                     val manual = linked.firstOrNull { it.key == line.key }
-                    if (manual != null && manual.price != null) line.copy(price = manual.price, source = "Цена магазина")
+                    if (manual != null && manual.price != null) line.copy(price = manual.price)
                     else line
                 }
                 (updatedHistory + fromLenta + additions).sortedWith(
@@ -208,7 +207,8 @@ internal fun StoresScreen(
             val visibleEntries = remember(entries, productQuery) {
                 entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
             }
-            SheetTextField(productQuery, { productQuery = it }, "Поиск товаров")
+            SheetTextField(productQuery, { productQuery = it }, "Поиск товаров",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -239,7 +239,7 @@ internal fun StoresScreen(
                                         java.time.Instant.ofEpochMilli(at).atZone(
                                             java.time.ZoneId.systemDefault()).toLocalDate()
                                             .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-                                } ?: entry.source, color = p.textSecondary, fontSize = 12.sp)
+                                } ?: "", color = p.textSecondary, fontSize = 12.sp)
                             }
                             Text(entry.price?.let {
                                 BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
