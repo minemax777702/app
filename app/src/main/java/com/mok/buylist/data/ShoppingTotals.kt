@@ -38,13 +38,14 @@ internal data class PurchaseEvent(
     val id: String, val productId: Long?, val name: String, val unitPrice: Long?,
     val priceType: String, val quantity: Int, val boughtAt: Long, val buyer: String,
     val address: String, val channel: String, val fetchedAt: Long, val impulsive: Boolean = false, val weightGrams: Int? = null,
+    val customProductId: String = "", val storeId: String = "",
 )
 
-internal fun purchaseEvent(item: ShoppingItem, product: LentaProduct?, now: Long, buyer: String, priceOverride: Long? = null, impulsive: Boolean = false): String {
+internal fun purchaseEvent(item: ShoppingItem, product: LentaProduct?, now: Long, buyer: String, priceOverride: Long? = null, impulsive: Boolean = false, storeId: String = ""): String {
     return encodePurchaseEvent(PurchaseEvent(UUID.randomUUID().toString(), item.productId.takeIf { it > 0 } ?: product?.id, item.name,
         priceOverride ?: product?.price?.let(::parsePriceKopecks), product?.priceType.orEmpty(), item.quantity,
         now, buyer, product?.address.orEmpty(), product?.channel.orEmpty(), product?.fetchedAt ?: 0, impulsive,
-        if (priceOverride == null) item.weightGrams else null))
+        if (priceOverride == null) item.weightGrams else null, item.customProductId, storeId))
 }
 
 private fun encodePurchaseEvent(event: PurchaseEvent): String {
@@ -57,6 +58,8 @@ private fun encodePurchaseEvent(event: PurchaseEvent): String {
         out.writeLong(event.fetchedAt)
         out.writeBoolean(event.impulsive)
         out.writeInt(event.weightGrams ?: -1)
+        out.writeUTF(event.customProductId)
+        out.writeUTF(event.storeId)
     }
     return Base64.getEncoder().encodeToString(bytes.toByteArray())
 }
@@ -66,7 +69,9 @@ internal fun decodePurchaseEvent(encoded: String): PurchaseEvent? = runCatching 
         PurchaseEvent(input.readUTF(), input.readLong().takeIf { it > 0 }, input.readUTF(),
             input.readLong().takeIf { it >= 0 }, input.readUTF(), input.readInt(), input.readLong(),
             input.readUTF(), input.readUTF(), input.readUTF(), input.readLong(), if (input.available() > 0) input.readBoolean() else false,
-            if (input.available() >= 4) input.readInt().takeIf { it in 1..999000 } else null)
+            if (input.available() >= 4) input.readInt().takeIf { it in 1..999000 } else null,
+            if (input.available() > 0) input.readUTF() else "",
+            if (input.available() > 0) input.readUTF() else "")
     }
 }.getOrNull()
 
