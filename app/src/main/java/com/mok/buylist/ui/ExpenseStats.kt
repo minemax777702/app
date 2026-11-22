@@ -11,6 +11,7 @@ internal data class ExpensePurchase(
     val id: String, val productKey: String, val name: String, val trip: String,
     val buyer: String, val at: Long, val quantity: Int, val unitPrice: Long?, val priceType: String = "", val impulsive: Boolean = false,
     val weightGrams: Int? = null,
+    val storeId: String = "",
 ) {
     val total: Long? get() = unitPrice?.let { price ->
         if (weightGrams != null) com.mok.buylist.data.priceForWeight(price, weightGrams)
@@ -27,9 +28,10 @@ internal fun expensePurchases(archive: List<ArchivedList>, bought: List<Shopping
         val event = decodePurchaseEvent(encoded)
         val eventId = event?.id?.takeIf { it.isNotBlank() } ?: fallbackId
         purchases += ExpensePurchase(eventId,
-            event?.productId?.let { "lenta:$it" } ?: "event:$eventId",
+            event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
+                ?: event?.productId?.let { "lenta:$it" } ?: "event:$eventId",
             event?.name ?: name, trip, event?.buyer?.ifBlank { buyer } ?: buyer,
-            event?.boughtAt ?: at, event?.quantity ?: quantity, event?.unitPrice, event?.priceType.orEmpty(), event?.impulsive == true, event?.weightGrams)
+            event?.boughtAt ?: at, event?.quantity ?: quantity, event?.unitPrice, event?.priceType.orEmpty(), event?.impulsive == true, event?.weightGrams, event?.storeId.orEmpty())
     }
     archive.forEach { list ->
         list.names.forEachIndexed { index, name ->
@@ -89,3 +91,35 @@ internal fun archiveForPeriod(archive: List<ArchivedList>, start: LocalDate?, to
             purchaseEvents = indices.joinToString("\n") { list.events[it] },
         )
     }
+
+/**
+ * When one custom product's barcode resolves to exactly one Lenta identity, show a
+ * shared price history. Ambiguous barcode collisions remain separate.
+ *
+ * This is a read-only projection: neither catalog, nor purchase events are rewritten.
+ */
+internal fun mergeCatalogPriceHistory(
+    purchases: List<ExpensePurchase>,
+    customProducts: List<com.mok.buylist.data.CustomProduct>,
+    lentaProducts: List<com.mok.buylist.data.LentaProduct>,
+    barcodes: List<com.mok.buylist.data.StoredProductBarcode>,
+): List<ExpensePurchase> {
+    val codesByLentaId = HashMap<String, MutableSet<Long>>()
+    lentaProducts.forEach { item ->
+        item.ean.takeIf { it.length in setOf(8, 12, 13) && it.all(Char::isDigit) }?.let { code ->
+            codesByLentaId.getOrPut(code) { HashSet() }.add(item.id)
+        }
+    }
+    barcodes.filterNot { it.deleted }.forEach { row ->
+        codesByLentaId.getOrPut(row.code) { HashSet() }.add(row.productId)
+    }
+    val aliases = customProducts.filter { !it.deleted && it.barcode.isNotBlank() }.mapNotNull { custom ->
+        codesByLentaId[custom.barcode]?.singleOrNull()?.let { id ->
+            "custom:${custom.id}" to "lenta:$id"
+        }
+    }.toMap()
+    return purchases.map { purchase ->
+        val canonical = aliases[purchase.productKey]
+        if (canonical == null) purchase else purchase.copy(productKey = canonical)
+    }
+}
