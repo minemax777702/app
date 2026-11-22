@@ -117,7 +117,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val address by catalog.address.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
-    val barcodes = product?.let { catalog.barcodeAliases(it.id) + it.ean.trim() }?.filter { it.isNotBlank() }?.sorted().orEmpty()
+    val barcodes = product?.let { catalog.barcodeAliases(it.id) }?.filter { it.isNotBlank() }?.sorted().orEmpty()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     var editingBarcode by remember(productKey) { mutableStateOf<String?>(null) }
@@ -166,8 +166,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        val error = editingBarcode?.let { catalog.editBarcode(product.id, it, barcodeInput) }
-                            ?: catalog.addBarcode(product.id, barcodeInput)
+                        val error = if (editingBarcode == null) catalog.addBarcode(product.id, barcodeInput)
+                            else catalog.editBarcode(product.id, editingBarcode!!, barcodeInput)
                         if (error == null) barcodeEditorOpen = false else barcodeError = error
                     }
                 }) { Text("Сохранить") }
