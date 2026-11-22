@@ -16,6 +16,8 @@ import com.mok.buylist.sync.FrameCodec
 import com.mok.buylist.sync.QrDecoder
 import com.mok.buylist.sync.QrEncoder
 import com.mok.buylist.sync.QrMatrix
+import com.mok.buylist.data.StoredProductBarcode
+import com.mok.buylist.data.StoredLentaProduct
 import com.mok.buylist.sync.Snapshot
 import com.mok.buylist.sync.SyncArchive
 import com.mok.buylist.sync.SyncCodec
@@ -88,6 +90,18 @@ class SyncProtocolTest {
     fun snapshotRoundTrips() {
         val snapshot = sampleSnapshot()
         assertEquals(snapshot, SyncCodec.decode(SyncCodec.encode(snapshot)))
+    }
+
+    @Test fun multipleBarcodesSurviveSyncAndBackup() {
+        val snapshot = Snapshot(
+            products = listOf(StoredLentaProduct(7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 0)),
+            productBarcodes = listOf(
+                StoredProductBarcode(7, "4607078115610"),
+                StoredProductBarcode(7, "4607078115627"),
+            ),
+        )
+        assertEquals(snapshot, SyncCodec.decode(SyncCodec.encode(snapshot)))
+        assertEquals(snapshot, BackupCodec.decode(BackupCodec.encode(BackupContents("u", "Тест", snapshot))).snapshot)
     }
 
     @Test fun remainingSnapshotSurvivesSyncAndMerge() {
