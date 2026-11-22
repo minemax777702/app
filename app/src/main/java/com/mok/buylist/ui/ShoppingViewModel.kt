@@ -223,6 +223,17 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.changeCustomBarcode(id, previous, value)) }
     }
 
+    fun createStore(name: String, onResult: (ShoppingStore?) -> Unit) {
+        viewModelScope.launch { onResult(repository.createStore(name)) }
+    }
+
+    fun latestStorePrice(productKey: String, storeId: String,
+        excludedEventId: String? = null, onResult: (Long?) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.latestStorePrice(productKey, storeId, excludedEventId))
+        }
+    }
+
     fun amendPurchase(eventId: String, unitPrice: Long?, storeName: String,
         onResult: (String?) -> Unit) {
         viewModelScope.launch { onResult(repository.amendPurchase(eventId, unitPrice, storeName)) }

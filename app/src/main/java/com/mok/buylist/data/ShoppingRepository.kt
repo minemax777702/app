@@ -53,6 +53,29 @@ class ShoppingRepository(
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
     fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores()
 
+    /** A store is created explicitly, never as a side effect of typing in checkout. */
+    suspend fun createStore(rawName: String): ShoppingStore? = db.withTransaction {
+        val name = normalizeName(rawName)
+        if (name.isBlank() || name.length > 100) return@withTransaction null
+        dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(name) }
+            ?.let { return@withTransaction it }
+        val now = System.currentTimeMillis()
+        ShoppingStore(stableStoreId(name), name, updatedAt = now).also { dao.upsertStore(it) }
+    }
+
+    /** Read from live purchases and archived receipts; no catalog or estimated prices. */
+    suspend fun latestStorePrice(productKey: String, storeId: String,
+        excludedEventId: String? = null): Long? {
+        if (productKey.isBlank() || storeId.isBlank()) return null
+        val aliases = sharedCatalogIdentities(
+            dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+            dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val receipts = dao.getBought().mapNotNull { decodePurchaseEvent(it.purchaseEvent) } +
+            dao.getArchives().flatMap { archive -> archive.events.mapNotNull(::decodePurchaseEvent) }
+        return lastStorePurchasePrice(receipts, productKey, storeId, aliases, excludedEventId)
+    }
+
+
     fun observeCustomBarcodes(): Flow<List<CustomProductBarcode>> = dao.observeCustomProductBarcodes()
 
     suspend fun editCustomProduct(id: String, rawName: String): String? = db.withTransaction {

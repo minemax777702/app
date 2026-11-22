@@ -367,7 +367,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
             }.orEmpty())
         }
-        var storeName by remember(item.id) { mutableStateOf("") }
+        var selectedStore by remember(item.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
         var weightText by remember(item.id) {
             mutableStateOf(java.math.BigDecimal.valueOf(
                 (item.weightGrams ?: 1000).toLong(), 3).stripTrailingZeros().toPlainString())
@@ -390,25 +390,27 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
-                    SheetTextField(storeName, { storeName = it }, "Магазин")
-                    val suggestions = if (storeName.isBlank()) emptyList() else
-                        stores.filter { !it.deleted &&
-                            it.name.contains(storeName, ignoreCase = true) }.take(2)
-                    if (suggestions.isNotEmpty()) {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            suggestions.take(2).forEach { store ->
-                                androidx.compose.material3.TextButton(onClick = { storeName = store.name }) {
-                                    Text(store.name, color = p.accent, maxLines = 1)
-                                }
+                    StoreSelectField(stores, selectedStore, onSelected = { store ->
+                        selectedStore = store
+                        if (store != null) {
+                            val key = when {
+                                item.customProductId.isNotBlank() -> "custom:${item.customProductId}"
+                                item.productId > 0 -> "lenta:${item.productId}"
+                                else -> ""
+                            }
+                            if (key.isNotBlank()) viewModel.latestStorePrice(key, store.id) { known ->
+                                if (selectedStore?.id == store.id && known != null)
+                                    price = java.math.BigDecimal.valueOf(known, 2)
+                                        .stripTrailingZeros().toPlainString()
                             }
                         }
-                    }
+                    }, onCreate = viewModel::createStore)
                 }
             },
             confirmButton = {
                 SheetActionButton(enabled = (price.isBlank() || priceValue != null) &&
                     (!isWeighted || weightGrams != null), onClick = {
-                    viewModel.buy(item, priceValue, storeName, weightGrams)
+                    viewModel.buy(item, priceValue, selectedStore?.name.orEmpty(), weightGrams)
                     pendingPurchase = null
                 }) { Text("Куплено") }
             },
@@ -455,7 +457,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
             }.orEmpty())
         }
-        var storeName by remember(product.id) { mutableStateOf("") }
+        var selectedStore by remember(product.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
         var weightText by remember(product.id) { mutableStateOf("1") }
         val weightGrams = if (product.isWeighted)
             com.mok.buylist.data.parseWeightGrams(weightText) else null
@@ -472,13 +474,20 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         if (product.isWeighted) "Цена за кг, ₽" else "Цена, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
-                    SheetTextField(storeName, { storeName = it }, "Магазин")
+                    StoreSelectField(stores, selectedStore, onSelected = { store ->
+                        selectedStore = store
+                        if (store != null) viewModel.latestStorePrice("custom:${product.id}", store.id) { known ->
+                            if (selectedStore?.id == store.id && known != null)
+                                price = java.math.BigDecimal.valueOf(known, 2)
+                                    .stripTrailingZeros().toPlainString()
+                        }
+                    }, onCreate = viewModel::createStore)
                 }
             },
             confirmButton = {
                 SheetActionButton(enabled = (price.isBlank() || priceValue != null) &&
                     (!product.isWeighted || weightGrams != null), onClick = {
-                    viewModel.buyScannedCustom(product, priceValue, storeName, weightGrams) { done ->
+                    viewModel.buyScannedCustom(product, priceValue, selectedStore?.name.orEmpty(), weightGrams) { done ->
                         activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
                     }
                     scannedCustom = null

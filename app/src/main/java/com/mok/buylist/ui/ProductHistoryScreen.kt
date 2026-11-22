@@ -160,7 +160,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var deleteOwnPending by remember(productKey) { mutableStateOf(false) }
     var editingPurchase by remember(productKey) { mutableStateOf<ExpensePurchase?>(null) }
     var purchasePrice by remember(productKey) { mutableStateOf("") }
-    var purchaseStore by remember(productKey) { mutableStateOf("") }
+    var purchaseStore by remember(productKey) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
     var purchaseError by remember(productKey) { mutableStateOf<String?>(null) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
@@ -359,18 +359,23 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     SheetTextField(purchasePrice, { purchasePrice = it; purchaseError = null },
                         "Цена за единицу, ₽ (необязательно)",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    SheetTextField(purchaseStore, { purchaseStore = it; purchaseError = null },
-                        "Магазин (необязательно)")
-                    stores.filter { !it.deleted && (purchaseStore.isBlank() ||
-                        it.name.contains(purchaseStore, ignoreCase = true)) }.take(3).forEach { store ->
-                        TextButton(onClick = { purchaseStore = store.name }) { Text(store.name, color = p.accent) }
-                    }
+                    StoreSelectField(stores, purchaseStore, onSelected = { store ->
+                        purchaseStore = store
+                        purchaseError = null
+                        if (store != null) viewModel.latestStorePrice(
+                            row.productKey, store.id, row.id
+                        ) { known ->
+                            if (purchaseStore?.id == store.id && known != null)
+                                purchasePrice = BigDecimal.valueOf(known, 2)
+                                    .stripTrailingZeros().toPlainString()
+                        }
+                    }, onCreate = viewModel::createStore)
                     purchaseError?.let { Text(it, color = p.error) }
                 }
             },
             confirmButton = {
                 SheetActionButton(enabled = purchasePrice.isBlank() || parsed != null, onClick = {
-                    viewModel.amendPurchase(row.id, parsed, purchaseStore) { error ->
+                    viewModel.amendPurchase(row.id, parsed, purchaseStore?.name.orEmpty()) { error ->
                         if (error == null) editingPurchase = null else purchaseError = error
                     }
                 }) { Text("Сохранить") }
@@ -587,7 +592,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         purchasePrice = row.unitPrice?.let {
                             BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
                         }.orEmpty()
-                        purchaseStore = stores.firstOrNull { it.id == row.storeId }?.name.orEmpty()
+                        purchaseStore = stores.firstOrNull { it.id == row.storeId }
                         purchaseError = null
                     }) { Text("Изменить цену и магазин", color = p.accent) }
                 }
