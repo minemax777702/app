@@ -60,8 +60,12 @@ class ShoppingRepository(
         if (name.isEmpty()) return@withTransaction "Введите название"
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction "Товар не найден"
-        dao.upsertCustomProduct(row.copy(name = name,
-            updatedAt = maxOf(System.currentTimeMillis(), row.updatedAt + 1)))
+        val now = maxOf(System.currentTimeMillis(), row.updatedAt + 1)
+        dao.upsertCustomProduct(row.copy(name = name, updatedAt = now))
+        // Keep the planned shopping list label consistent with the catalog.
+        dao.getItems().filter { it.customProductId == id }.forEach { item ->
+            dao.updateItem(item.copy(name = name, updatedAt = now))
+        }
         null
     }
 
@@ -153,13 +157,13 @@ class ShoppingRepository(
         }.also { if (it) refreshWidget() }
     }
 
-    /** True if the current list already contains any catalog alias of this product. */
-    private suspend fun hasActiveIdentity(key: String): Boolean {
+    /** Find an active item by shared product identity, regardless of its source catalog. */
+    private suspend fun findActiveIdentity(key: String): ShoppingItem? {
         val identities = sharedCatalogIdentities(
             dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
             dao.getProductBarcodes(), dao.getCustomProductBarcodes())
         val wanted = identities[key] ?: key
-        return dao.getItems().any { item ->
+        return dao.getItems().firstOrNull { item ->
             val itemKey = when {
                 item.customProductId.isNotBlank() -> customKey(item.customProductId)
                 item.productId > 0 -> "lenta:${item.productId}"
@@ -168,6 +172,9 @@ class ShoppingRepository(
             (identities[itemKey] ?: itemKey) == wanted
         }
     }
+
+    private suspend fun hasActiveIdentity(key: String): Boolean =
+        findActiveIdentity(key) != null
 
     suspend fun addCustomToList(product: CustomProduct, quantity: Int = 1): Boolean {
         if (product.deleted) return false
@@ -284,7 +291,7 @@ class ShoppingRepository(
                         .also { dao.upsertStore(it) }
                 store.id
             }
-            val planned = dao.findByKey(customKey(product.id))?.takeUnless { it.deleted }
+            val planned = findActiveIdentity(customKey(product.id))
             if (planned != null) {
                 dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
                     purchaseEvent = purchaseEvent(planned, null, now, profile.id, priceOverride,
@@ -313,7 +320,7 @@ class ShoppingRepository(
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
             }
-            val planned = dao.getItems().firstOrNull { it.productId == product.id }
+            val planned = findActiveIdentity("lenta:${product.id}")
             if (planned != null) {
                 dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
                     purchaseEvent = purchaseEvent(planned, current, now, profile.id, priceOverride)))
