@@ -207,8 +207,9 @@ internal fun StoresScreen(
             val visibleEntries = remember(entries, productQuery) {
                 entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
             }
-            SheetTextField(productQuery, { productQuery = it }, "Поиск товаров",
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp))
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                SheetTextField(productQuery, { productQuery = it }, "Поиск товаров")
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
