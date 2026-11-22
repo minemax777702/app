@@ -1,0 +1,36 @@
+name: Compose Wasm UI Preview
+
+on:
+  pull_request:
+    paths:
+      - "ui-preview/**"
+      - "settings.gradle.kts"
+      - "build.gradle.kts"
+      - "gradle/libs.versions.toml"
+      - ".github/workflows/compose-wasm-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build browser preview
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :ui-preview:wasmJsBrowserDistribution --stacktrace --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compose-wasm-preview
+          path: ui-preview/build/dist/wasmJs/productionExecutable/
+          if-no-files-found: error
+          retention-days: 7
