@@ -84,6 +84,7 @@ internal fun StoresScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
     var choosingProduct by remember { mutableStateOf(false) }
+    var creatingStoreProduct by remember { mutableStateOf(false) }
     var chosenProductKey by remember { mutableStateOf<String?>(null) }
     var choiceQuery by remember { mutableStateOf("") }
     var linkPrice by remember { mutableStateOf("") }
@@ -285,6 +286,14 @@ internal fun StoresScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (chosen == null) {
                         SheetTextField(choiceQuery, { choiceQuery = it }, "Найти товар в базе")
+                        TextButton(onClick = {
+                            choosingProduct = false
+                            creatingStoreProduct = true
+                        }) {
+                            Icon(painterResource(R.drawable.ic_plus), contentDescription = null,
+                                tint = p.accent, modifier = Modifier.size(18.dp))
+                            Text("Создать новый товар", color = p.accent)
+                        }
                         androidx.compose.foundation.lazy.LazyColumn(
                             Modifier.fillMaxWidth().heightIn(max = 270.dp),
                         ) {
@@ -327,6 +336,16 @@ internal fun StoresScreen(
             },
         )
     }
+    if (creatingStoreProduct && store != null) {
+        CustomProductCreationSheet(
+            onCreate = { name, barcode, price, weighted, onResult ->
+                viewModel.createCustomForStore(store.id, name, barcode, price, weighted, onResult)
+            },
+            onDismiss = { creatingStoreProduct = false },
+            onCreated = { creatingStoreProduct = false },
+        )
+    }
+
     if (removingLink != null && store != null) {
         val key = removingLink!!
         AppSheet(
