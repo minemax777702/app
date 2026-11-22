@@ -204,7 +204,17 @@ object SyncMerge {
                 val ordinal = occurrences.getOrDefault(legacyKey, 0)
                 occurrences[legacyKey] = ordinal + 1
                 val key = if (purchaseId != null) "purchase:$purchaseId"
-                    else "legacy:$legacyKey:$ordinal"
+                    else {
+                        // When an older copy has lost the buyer, it represents the
+                        // same legacy purchase as the corresponding known-buyer row.
+                        // Keep separate keys for purchases with distinct known buyers.
+                        val exact = "legacy:$legacyKey:$ordinal"
+                        val anonymous = "legacy:${nameKeyOf(name)}::$ordinal"
+                        if (buyer.isBlank()) {
+                            events.keys.firstOrNull { it.startsWith("legacy:${nameKeyOf(name)}:") &&
+                                it.endsWith(":$ordinal") } ?: anonymous
+                        } else if (anonymous in events) anonymous else exact
+                    }
                 val candidate = Entry(name, buyer, archive.quantities.getOrElse(index) { 1 }, event)
                 val old = events[key]
                 // Известного покупателя нельзя затирать пустым полем автора.
