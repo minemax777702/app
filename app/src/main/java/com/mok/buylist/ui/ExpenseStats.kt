@@ -105,27 +105,10 @@ internal fun mergeCatalogPriceHistory(
     barcodes: List<com.mok.buylist.data.StoredProductBarcode>,
     customBarcodes: List<com.mok.buylist.data.CustomProductBarcode> = emptyList(),
 ): List<ExpensePurchase> {
-    val codesByLentaId = HashMap<String, MutableSet<Long>>()
-    lentaProducts.forEach { item ->
-        item.ean.takeIf { it.length in setOf(8, 12, 13) && it.all(Char::isDigit) }?.let { code ->
-            codesByLentaId.getOrPut(code) { HashSet() }.add(item.id)
-        }
-    }
-    barcodes.filterNot { it.deleted }.forEach { row ->
-        codesByLentaId.getOrPut(row.code) { HashSet() }.add(row.productId)
-    }
-    val aliases = customProducts.filterNot { it.deleted }.mapNotNull { custom ->
-        val codes = customBarcodes.filter { !it.deleted && it.productId == custom.id }
-            .mapTo(HashSet()) { it.code }
-        if (customBarcodes.none { it.productId == custom.id && it.code == custom.barcode && it.deleted } &&
-            custom.barcode.isNotBlank()) codes += custom.barcode
-        val matching = codes.flatMap { codesByLentaId[it].orEmpty() }.toSet()
-        matching.singleOrNull()?.let { id ->
-            "custom:${custom.id}" to "lenta:$id"
-        }
-    }.toMap()
+    val canonical = com.mok.buylist.data.sharedCatalogIdentities(
+        lentaProducts, customProducts, barcodes, customBarcodes)
     return purchases.map { purchase ->
-        val canonical = aliases[purchase.productKey]
-        if (canonical == null) purchase else purchase.copy(productKey = canonical)
+        val sharedKey = canonical[purchase.productKey] ?: purchase.productKey
+        if (sharedKey == purchase.productKey) purchase else purchase.copy(productKey = sharedKey)
     }
 }
