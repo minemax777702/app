@@ -56,7 +56,7 @@ jobs:
           import re
 
           source = Path("app/src/main/java/com/mok/buylist/data/AppDatabase.kt").read_text()
-          match = re.search(r"@Database\\s*\\([\\s\\S]*?version\\s*=\\s*(\\d+)", source)
+          match = re.search(r"@Database\s*\([\s\S]*?version\s*=\s*(\d+)", source)
           if match is None:
               raise SystemExit("Could not determine Room database version")
           version = match.group(1)
