@@ -10,6 +10,19 @@ import org.junit.Test
 class LentaSearchControllerTest {
     private fun product(id: Long, name: String) = LentaProduct(id, name, "", "", "1", "card", "", "address", storeId = 7)
 
+    @Test fun savedProductCanBeFoundByConfirmedOldBarcode() = runBlocking {
+        val requests = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            emptyList()
+        }, this) { id -> if (id == 7L) setOf("4607078115610") else emptySet() }
+        val saved = product(7, "Молоко").copy(ean = "4607078115627")
+        controller.update("4607078115610", "address", listOf(saved), false)
+        delay(550)
+        assertEquals(listOf(7L), controller.state.value.local.map { it.id })
+        assertEquals(emptyList<Int>(), requests)
+    }
+
     @Test fun pagesContainingOnlySavedProductsAreSkipped() = runBlocking {
         val requests = mutableListOf<Int>()
         val controller = LentaSearchController({ _, _, page, _ ->
