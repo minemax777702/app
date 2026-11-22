@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 import com.mok.buylist.data.StoredLentaProduct
+import com.mok.buylist.data.StoredProductBarcode
 
 class SyncFormatException(message: String) : Exception(message)
 
@@ -96,7 +97,7 @@ internal class ByteReader(private val data: ByteArray) {
 
 /** Двоичный формат сообщений. Сообщение сжимается deflate: названия в архиве и истории часто повторяются. */
 object SyncCodec {
-    private const val VERSION = 6
+    private const val VERSION = 7
     private const val MAX_UNPACKED_BYTES = 16 * 1024 * 1024
 
     fun encode(snapshot: Snapshot): ByteArray = deflate(write(snapshot))
@@ -134,6 +135,8 @@ object SyncCodec {
             w.long(p.priceKopecks ?: -1); w.string(p.priceType); w.string(p.ean)
             w.string(p.address); w.long(p.storeId); w.string(p.channel); w.long(p.fetchedAt); w.long(p.updatedAt)
         }
+        w.int(s.productBarcodes.size)
+        for (barcode in s.productBarcodes) { w.long(barcode.productId); w.string(barcode.code) }
         return w.toByteArray()
     }
 
@@ -177,7 +180,12 @@ object SyncCodec {
             StoredLentaProduct(r.long(), r.string(), r.string(), r.string(), r.long().takeIf { it >= 0 },
                 r.string(), r.string(), r.string(), r.long(), r.string(), r.long(), r.long())
         } else emptyList()
-        return Snapshot(users, items, history, hidden, archives, tombs, products)
+        val barcodes = if (version >= 7) List(r.count()) {
+            StoredProductBarcode(r.long(), r.string())
+        } else products.mapNotNull { p ->
+            p.ean.takeIf { it.isNotBlank() }?.let { StoredProductBarcode(p.id, it) }
+        }
+        return Snapshot(users, items, history, hidden, archives, tombs, products, barcodes)
     }
 
     /** uid — 32 шестнадцатеричных символа: храним 16 байтами; нестандартный — строкой. */
