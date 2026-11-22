@@ -36,7 +36,7 @@ class CatalogIdentityTest {
         val ids = sharedCatalogIdentities(lenta, custom, emptyList(), aliases)
         assertEquals("lenta:11", ids["lenta:11"])
         assertEquals("lenta:12", ids["lenta:12"])
-        assertEquals("lenta:11", ids["custom:own"])
+        assertEquals("custom:own", ids["custom:own"])
         assertEquals(ids, sharedCatalogIdentities(lenta.reversed(), custom, emptyList(), aliases.reversed()))
     }
 
