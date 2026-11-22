@@ -126,15 +126,24 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     val impulsive = selected.filter { it.impulsive }
     if (impulsive.isNotEmpty()) PanelCard {
         Text("Импульсивные покупки", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        val total = exactExpenseSum(impulsive)
-        Text(listOfNotNull(impulsive.size.toString(), total?.let(::money)).joinToString(" · "),
+        val impulseCoverage = purchaseCoverage(impulsive)
+        Text(impulseCoverage.purchases.toString() + " покупок" +
+            if (impulseCoverage.priced > 0) " · " + money(impulseCoverage.amount) else "",
             color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         val date = DateTimeFormatter.ofPattern("dd.MM.yyyy")
-        impulsive.groupBy { it.trip }.values.sortedByDescending { rows -> rows.maxOf { it.at } }.forEach { rows ->
+        val groups = impulsive.groupBy { it.trip }.values
+            .sortedByDescending { rows -> rows.maxOf { it.at } }
+        (if (showMoreImpulse) groups.take(15) else groups.take(3)).forEach { rows ->
             val name = if (rows.first().trip == "active") "Текущий список" else date.format(expenseDate(rows.maxBy { it.at }, zone))
-            val amount = exactExpenseSum(rows)
-            Text(listOfNotNull(name, rows.size.toString(), amount?.let(::money)).joinToString(" · "), color = p.textSecondary, fontSize = 14.sp)
+            val priced = rows.filter { it.total != null }
+            Text(listOfNotNull(name, rows.size.toString(),
+                priced.takeIf { it.isNotEmpty() }?.let { money(expenseSum(it)) })
+                .joinToString(" · "), color = p.textSecondary, fontSize = 14.sp)
         }
+        if (groups.size > 3) Text(
+            if (showMoreImpulse) "Свернуть" else "Показать ещё",
+            Modifier.clickable { showMoreImpulse = !showMoreImpulse }.padding(vertical = 8.dp),
+            color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 
     PanelCard {
@@ -164,7 +173,10 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         }.toList().asReversed()
         val bucketSize = ((dates.size + 6) / 7).coerceAtLeast(1)
         val buckets = dates.chunked(bucketSize)
-        val totals = buckets.map { bucket -> exactExpenseSum(bucket.flatMap { allGrouped[it].orEmpty() }) }
+        val totals = buckets.map { bucket ->
+            val priced = bucket.flatMap { allGrouped[it].orEmpty() }.filter { it.total != null }
+            if (priced.isEmpty()) null else expenseSum(priced)
+        }
         val peak = totals.filterNotNull().maxOrNull() ?: 0
         if (totals.none { it != null }) Text("Нет данных за период", color = p.textSecondary)
         if (totals.any { it != null }) {
