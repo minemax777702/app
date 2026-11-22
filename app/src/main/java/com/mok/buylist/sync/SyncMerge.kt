@@ -103,6 +103,18 @@ object SyncMerge {
             }
         }
 
+        // Persist tombstoned records to avoid resurrection during offline sync.
+        val customProducts = (a.customProducts + b.customProducts)
+            .groupBy { it.id }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.CustomProduct> { it.updatedAt }
+                    .thenBy { it.deleted }.thenBy { it.toString() })
+            }.sortedBy { it.id }
+        val stores = (a.stores + b.stores)
+            .groupBy { it.id }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.ShoppingStore> { it.updatedAt }
+                    .thenBy { it.deleted }.thenBy { it.toString() })
+            }.sortedBy { it.id }
+
         return Snapshot(
             users = users,
             items = items,
@@ -112,6 +124,8 @@ object SyncMerge {
             tombs = keptTombs.sortedWith(compareBy<SyncTomb> { it.kind.code }.thenBy { it.key }),
             products = products,
             productBarcodes = productBarcodes,
+            customProducts = customProducts,
+            stores = stores,
         )
     }
 
