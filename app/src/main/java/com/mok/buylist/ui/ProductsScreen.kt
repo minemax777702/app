@@ -87,6 +87,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var scanningOnline by remember { mutableStateOf(false) }
     var scannedOnlineCode by remember { mutableStateOf<String?>(null) }
     var pendingDelete by remember { mutableStateOf<LentaProduct?>(null) }
+    var pendingCustomDelete by remember { mutableStateOf<com.mok.buylist.data.CustomProduct?>(null) }
     var createCustom by remember { mutableStateOf(false) }
     var customName by remember { mutableStateOf("") }
     var customBarcode by remember { mutableStateOf("") }
@@ -159,7 +160,12 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     IconButton(onClick = { viewModel.addCustomProduct(product) { added ->
                         activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                     } }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent)
+                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent,
+                            modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = { pendingCustomDelete = product }) {
+                        Icon(painterResource(R.drawable.ic_trash), "Удалить свой товар",
+                            tint = p.iconMuted, modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -222,6 +228,25 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         if (scanningOnline) { onlineQuery = code; scannedOnlineCode = code } else query = code
         scanning = false; scanningOnline = false
     })
+    pendingCustomDelete?.let { product ->
+        AppSheet(
+            onDismissRequest = { pendingCustomDelete = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Удалить товар?") },
+            text = {
+                Text("«${product.name}» исчезнет из базы продуктов. История покупок сохранится.",
+                    color = p.textSecondary)
+            },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    viewModel.deleteCustomProduct(product.id) { deleted ->
+                        pendingCustomDelete = null
+                        if (!deleted) activity?.notifyUser("Не удалось удалить товар")
+                    }
+                }) { Text("Удалить") }
+            },
+        )
+    }
     pendingDelete?.let { product ->
         AppSheet(onDismissRequest = { pendingDelete = null }, containerColor = p.sheet,
             title = { Text(product.name, color = p.text, fontWeight = FontWeight.ExtraBold) },
