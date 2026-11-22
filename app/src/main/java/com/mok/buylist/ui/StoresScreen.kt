@@ -231,14 +231,8 @@ internal fun StoresScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            androidx.compose.foundation.layout.Box(
-                                Modifier.size(46.dp).background(p.field, RoundedCornerShape(14.dp)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Icon(painterResource(R.drawable.ic_product_placeholder),
-                                    contentDescription = null, tint = p.iconMuted,
-                                    modifier = Modifier.size(24.dp))
-                            }
+                            val catalogItem = lenta.firstOrNull { "lenta:${it.id}" == entry.key }
+                            LentaImage(catalogItem?.image.orEmpty(), Modifier.size(46.dp))
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text(entry.name, color = p.text, fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold, lineHeight = 20.sp,
