@@ -39,6 +39,7 @@ internal data class PurchaseEvent(
     val priceType: String, val quantity: Int, val boughtAt: Long, val buyer: String,
     val address: String, val channel: String, val fetchedAt: Long, val impulsive: Boolean = false, val weightGrams: Int? = null,
     val customProductId: String = "", val storeId: String = "",
+    val revisedAt: Long = 0,
 )
 
 internal fun purchaseEvent(item: ShoppingItem, product: LentaProduct?, now: Long, buyer: String, priceOverride: Long? = null, impulsive: Boolean = false, storeId: String = ""): String {
@@ -60,6 +61,7 @@ private fun encodePurchaseEvent(event: PurchaseEvent): String {
         out.writeInt(event.weightGrams ?: -1)
         out.writeUTF(event.customProductId)
         out.writeUTF(event.storeId)
+        out.writeLong(event.revisedAt)
     }
     return Base64.getEncoder().encodeToString(bytes.toByteArray())
 }
@@ -71,9 +73,18 @@ internal fun decodePurchaseEvent(encoded: String): PurchaseEvent? = runCatching 
             input.readUTF(), input.readUTF(), input.readUTF(), input.readLong(), if (input.available() > 0) input.readBoolean() else false,
             if (input.available() >= 4) input.readInt().takeIf { it in 1..999000 } else null,
             if (input.available() > 0) input.readUTF() else "",
-            if (input.available() > 0) input.readUTF() else "")
+            if (input.available() > 0) input.readUTF() else "",
+            if (input.available() >= 8) input.readLong() else 0) 
     }
 }.getOrNull()
+
+/** Preserve immutable event ID and purchase time when correcting the paid price or shop. */
+internal fun amendPurchaseEvent(encoded: String, unitPrice: Long?, storeId: String, revisedAt: Long): String? {
+    if (unitPrice != null && unitPrice < 0) return null
+    val event = decodePurchaseEvent(encoded) ?: return null
+    return encodePurchaseEvent(event.copy(unitPrice = unitPrice, storeId = storeId,
+        revisedAt = maxOf(revisedAt, event.revisedAt + 1)))
+}
 
 internal fun reassignPurchaseEvent(encoded: String, old: String, new: String): String {
     val event = decodePurchaseEvent(encoded) ?: return encoded
