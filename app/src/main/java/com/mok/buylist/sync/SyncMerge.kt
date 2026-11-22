@@ -232,8 +232,11 @@ object SyncMerge {
                 if (old == null ||
                     (candidate.buyer.isNotEmpty() && old.buyer.isEmpty()) ||
                     (candidate.buyer.isNotEmpty() == old.buyer.isNotEmpty() &&
-                        (candidate.event.length > old.event.length ||
-                            (candidate.event.length == old.event.length && candidate.toString() > old.toString())))) {
+                        ((decodePurchaseEvent(candidate.event)?.revisedAt ?: 0) >
+                            (decodePurchaseEvent(old.event)?.revisedAt ?: 0) ||
+                            ((decodePurchaseEvent(candidate.event)?.revisedAt ?: 0) ==
+                                (decodePurchaseEvent(old.event)?.revisedAt ?: 0) &&
+                                candidate.toString() > old.toString())))) {
                     events[key] = candidate
                 }
             }
