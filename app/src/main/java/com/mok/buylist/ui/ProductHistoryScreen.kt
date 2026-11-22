@@ -11,9 +11,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -126,6 +126,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var barcodeError by remember(productKey) { mutableStateOf<String?>(null) }
     var deletingBarcode by remember(productKey) { mutableStateOf<String?>(null) }
     var barcodeEditorOpen by remember(productKey) { mutableStateOf(false) }
+    var scanningBarcode by remember(productKey) { mutableStateOf(false) }
+    var barcodeSaving by remember(productKey) { mutableStateOf(false) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var openedTrip by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
@@ -148,50 +150,78 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             meId = profile?.id.orEmpty(), initiallyExpandedId = trip.id, viewModel = viewModel)
         return
     }
-    if (barcodeEditorOpen && product != null) {
-        AlertDialog(
-            onDismissRequest = { barcodeEditorOpen = false },
-            title = { Text(if (editingBarcode == null) "Добавить штрихкод" else "Изменить штрихкод") },
+    if (scanningBarcode) {
+        BarcodeScannerSheet(
+            onDismiss = {
+                scanningBarcode = false
+                barcodeEditorOpen = true
+            },
+            onCode = { code ->
+                scanningBarcode = false
+                barcodeEditorOpen = true
+                barcodeInput = code
+                barcodeError = null
+            },
+        )
+    }
+    if (barcodeEditorOpen && !scanningBarcode && product != null) {
+        AppSheet(
+            onDismissRequest = { if (!barcodeSaving) barcodeEditorOpen = false },
+            containerColor = p.sheet,
+            title = { SheetHeader(if (editingBarcode == null) "Добавить штрихкод" else "Изменить штрихкод") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SheetTextField(
                         value = barcodeInput,
                         onValueChange = { barcodeInput = it.filter(Char::isDigit).take(13); barcodeError = null },
-                        label = { Text("EAN-8, UPC-A или EAN-13") },
-                        singleLine = true,
+                        hint = "EAN-8, UPC-A или EAN-13",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = barcodeError != null,
                     )
-                    barcodeError?.let { Text(it, color = androidx.compose.material3.MaterialTheme.colorScheme.error) }
+                    SheetActionButton(onClick = {
+                        barcodeEditorOpen = false
+                        scanningBarcode = true
+                    }, enabled = !barcodeSaving) { Text("Сканировать камерой") }
+                    barcodeError?.let { Text(it, color = p.error, fontSize = 13.sp) }
+                    Text("Проверьте распознанный код перед сохранением.", color = p.textSecondary, fontSize = 13.sp)
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                SheetActionButton(enabled = !barcodeSaving && barcodeInput.isNotBlank(), onClick = {
+                    barcodeSaving = true
                     scope.launch {
-                        val error = if (editingBarcode == null) catalog.addBarcode(product.id, barcodeInput)
-                            else catalog.editBarcode(product.id, editingBarcode!!, barcodeInput)
-                        if (error == null) barcodeEditorOpen = false else barcodeError = error
+                        try {
+                            val previous = editingBarcode
+                            val error = if (previous == null) catalog.addBarcode(product.id, barcodeInput)
+                                else catalog.editBarcode(product.id, previous, barcodeInput)
+                            if (error == null) barcodeEditorOpen = false else barcodeError = error
+                        } catch (_: Exception) {
+                            barcodeError = "Не удалось сохранить штрихкод"
+                        } finally {
+                            barcodeSaving = false
+                        }
                     }
                 }) { Text("Сохранить") }
             },
-            dismissButton = { TextButton(onClick = { barcodeEditorOpen = false }) { Text("Отмена") } },
         )
     }
     deletingBarcode?.let { code ->
-        AlertDialog(
+        AppSheet(
             onDismissRequest = { deletingBarcode = null },
-            title = { Text("Удалить штрихкод?") },
-            text = { Text("Код $code перестанет находить этот товар. Удаление передастся при синхронизации.") },
+            containerColor = p.sheet,
+            title = { SheetHeader("Удалить штрихкод?") },
+            text = { Text("Код $code перестанет находить этот товар. Удаление передастся при синхронизации.", color = p.textSecondary) },
             confirmButton = {
-                TextButton(onClick = {
-                    val productId = product?.id ?: return@TextButton
+                SheetActionButton(destructive = true, onClick = {
+                    val productId = product?.id ?: return@SheetActionButton
                     scope.launch {
-                        val error = catalog.removeBarcode(productId, code)
+                        val error = runCatching { catalog.removeBarcode(productId, code) }
+                            .getOrElse { "Не удалось удалить штрихкод" }
                         deletingBarcode = null
                         if (error != null) activity?.notifyUser(error)
                     }
                 }) { Text("Удалить") }
             },
-            dismissButton = { TextButton(onClick = { deletingBarcode = null }) { Text("Отмена") } },
         )
     }
     BackHandler(onBack = onBack)
