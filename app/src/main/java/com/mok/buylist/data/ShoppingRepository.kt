@@ -81,14 +81,14 @@ class ShoppingRepository(
         }.also { if (it) refreshWidget() }
     }
 
-    suspend fun addCustomToList(product: CustomProduct): Boolean {
+    suspend fun addCustomToList(product: CustomProduct, quantity: Int = 1): Boolean {
         if (product.deleted) return false
-        val added = db.withTransaction { addCustomToListInTransaction(product) }
+        val added = db.withTransaction { addCustomToListInTransaction(product, quantity) }
         if (added) refreshWidget()
         return added
     }
 
-    private suspend fun addCustomToListInTransaction(product: CustomProduct): Boolean {
+    private suspend fun addCustomToListInTransaction(product: CustomProduct, quantity: Int = 1): Boolean {
         archiveFinishedTrip()
         val key = customKey(product.id)
         var existing = dao.findByKey(key)
@@ -99,8 +99,9 @@ class ShoppingRepository(
         val now = System.currentTimeMillis()
         when {
             existing == null -> dao.insertItem(ShoppingItem(name = product.name, nameKey = key,
-                customProductId = product.id, createdAt = now, authorId = profile.id))
-            existing.deleted -> dao.revive(existing.id, product.name, now, profile.id, 1)
+                customProductId = product.id, createdAt = now, authorId = profile.id,
+                quantity = quantity.coerceIn(1, 999)))
+            existing.deleted -> dao.revive(existing.id, product.name, now, profile.id, quantity.coerceIn(1, 999))
             else -> return false
         }
         return true
@@ -341,7 +342,7 @@ class ShoppingRepository(
             val id = event?.productId
             val product = id?.let(products::get)
             if (event?.customProductId?.let(custom::get)?.takeUnless { it.deleted } != null) {
-                addCustomToList(custom.getValue(event!!.customProductId))
+                addCustomToList(custom.getValue(event!!.customProductId), quantities.getOrElse(index) { 1 })
             } else if (product != null) {
                 if (addProduct(product.toProduct(), quantities.getOrElse(index) { 1 }) && event?.weightGrams != null)
                     dao.findByKey("lenta:$id")?.let { setWeight(it.id, event.weightGrams) }
