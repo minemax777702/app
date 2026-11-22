@@ -53,11 +53,20 @@ internal fun sharedCatalogIdentities(
     }
     customBarcodes.filterNot { it.deleted }.forEach { assign(it.code, "custom:${it.productId}") }
 
+    // A custom entry with codes associated with more than one distinct Lenta
+    // product is an unresolved conflict. Do not arbitrarily choose a winner.
+    val conflictingCustoms = custom.filterNot { it.deleted }.mapNotNull { product ->
+        val key = "custom:${product.id}"
+        val linked = associations.values.filter { key in it }
+            .flatMap { members -> members.filter { it.startsWith("lenta:") } }.toSet()
+        if (linked.size > 1) key else null
+    }.toSet()
+
     associations.values.forEach { keys ->
         // A code used by multiple distinct external catalog entries cannot
         // identify a single physical product reliably.
         if (keys.count { it.startsWith("lenta:") } > 1) return@forEach
-        val ordered = keys.sorted()
+        val ordered = keys.filterNot { it in conflictingCustoms }.sorted()
         for (key in ordered.drop(1)) join(ordered.first(), key)
     }
     val grouped = nodes.groupBy(::root)
