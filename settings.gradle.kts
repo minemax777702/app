@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Список покупок"
 include(":app")
+include(":ui-preview")
