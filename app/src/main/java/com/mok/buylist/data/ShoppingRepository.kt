@@ -102,6 +102,12 @@ class ShoppingRepository(
         val aliases = sharedCatalogIdentities(
             dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
             dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val canonical = aliases[productKey] ?: productKey
+        val configured = dao.getStoreProducts().filter { !it.deleted &&
+            it.storeId == storeId && it.priceKopecks != null &&
+            (aliases[it.productKey] ?: it.productKey) == canonical }
+            .maxByOrNull { it.updatedAt }?.priceKopecks
+        if (configured != null) return configured
         val receipts = dao.getBought().mapNotNull { decodePurchaseEvent(it.purchaseEvent) } +
             dao.getArchives().flatMap { archive -> archive.events.mapNotNull(::decodePurchaseEvent) }
         return lastStorePurchasePrice(receipts, productKey, storeId, aliases, excludedEventId)
