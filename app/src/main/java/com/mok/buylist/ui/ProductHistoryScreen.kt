@@ -92,14 +92,6 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
             .filter { nameKeyOf(it.name).contains(nameKeyOf(query)) }
             .sortedBy { nameKeyOf(it.name) }
     }
-    LaunchedEffect(ownProduct?.id, barcodes.firstOrNull()) {
-        val own = ownProduct
-        if (own != null) CustomProductPreviews.fetch(
-            context = catalogContext,
-            id = own.id,
-            barcode = barcodes.firstOrNull() ?: own.barcode,
-        )
-    }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("История продуктов", onBack)
@@ -463,6 +455,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }) { Text("Сохранить") }
             })
+    }
+    LaunchedEffect(ownProduct?.id, barcodes.firstOrNull()) {
+        val own = ownProduct
+        if (own != null) CustomProductPreviews.fetch(
+            context = catalogContext,
+            id = own.id,
+            barcode = barcodes.firstOrNull() ?: own.barcode,
+        )
     }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
