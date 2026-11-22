@@ -155,8 +155,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val days = remember(rows, zone) { rows.map { expenseDate(it, zone) }.distinct() }
     val interval = remember(days) { averagePurchaseInterval(days) }
     var pricePeriod by rememberSaveable { mutableStateOf(PricePeriod.MONTH) }
+    var priceStoreFilter by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
     val today = LocalDate.now(zone)
-    val periodRows = remember(rows, pricePeriod, today, zone) { pricesForPeriod(rows, pricePeriod, today, zone) }
+    val pricedRows = remember(rows, priceStoreFilter) {
+        if (priceStoreFilter == null) rows else rows.filter { it.storeId == priceStoreFilter }
+    }
+    val periodRows = remember(pricedRows, pricePeriod, today, zone) {
+        pricesForPeriod(pricedRows, pricePeriod, today, zone)
+    }
     val summaries = remember(periodRows) { priceSummaries(periodRows) }
     val points = remember(periodRows) { periodRows.filter { it.unitPrice != null }.sortedBy { it.at } }
     val formatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm") }
@@ -443,6 +449,15 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         PricePeriod.entries.forEach { option ->
                             HistoryChoice(option.title, option == pricePeriod) { pricePeriod = option }
+                        }
+                    }
+                    Row(Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        HistoryChoice("Все магазины", priceStoreFilter == null) { priceStoreFilter = null }
+                        rows.map { it.storeId }.distinct().forEach { storeId ->
+                            val storeLabel = stores.firstOrNull { it.id == storeId }?.name
+                                ?: if (storeId.isBlank()) "Без магазина" else "Другой магазин"
+                            HistoryChoice(storeLabel, priceStoreFilter == storeId) { priceStoreFilter = storeId }
                         }
                     }
                     if (summaries.isEmpty()) Text("Известных цен за период нет", color = p.textSecondary)
