@@ -126,6 +126,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val ownProduct = customProducts.firstOrNull { "custom:${it.id}" == productKey }
     val identities = remember(products, customProducts, barcodeRows, customBarcodeRows) {
@@ -136,6 +137,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val rows = remember(purchases, sharedKey, identities) {
         purchases.filter { (identities[it.productKey] ?: it.productKey) == sharedKey }
             .sortedByDescending { it.at }
+    }
+    val shopPrices = remember(sharedKey, stores, storeLinks, rows, identities) {
+        productShopPrices(productKey, stores, storeLinks, rows, identities)
     }
     val barcodes = if (product != null) barcodeRows.filter { it.productId == product.id && !it.deleted }
         .map { it.code }.sorted() else customBarcodeRows.filter {
@@ -158,6 +162,12 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var ownDetailsError by remember(productKey) { mutableStateOf<String?>(null) }
     var savingOwnDetails by remember(productKey) { mutableStateOf(false) }
     var deleteOwnPending by remember(productKey) { mutableStateOf(false) }
+    var editingStoreLink by remember(productKey) { mutableStateOf(false) }
+    var linkedStore by remember(productKey) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+    var linkedPrice by remember(productKey) { mutableStateOf("") }
+    var linkError by remember(productKey) { mutableStateOf<String?>(null) }
+    var savingLink by remember(productKey) { mutableStateOf(false) }
+    var pendingLinkRemoval by remember(productKey) { mutableStateOf<String?>(null) }
     var editingPurchase by remember(productKey) { mutableStateOf<ExpensePurchase?>(null) }
     var purchasePrice by remember(productKey) { mutableStateOf("") }
     var purchaseStore by remember(productKey) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
@@ -338,6 +348,59 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             },
         )
     }
+    if (editingStoreLink) {
+        val price = if (linkedPrice.isBlank()) null
+            else com.mok.buylist.data.parsePriceKopecks(linkedPrice)
+        AppSheet(
+            onDismissRequest = { if (!savingLink) editingStoreLink = false },
+            containerColor = p.sheet,
+            title = { SheetHeader("Товар в магазине") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StoreSelectField(
+                        stores.filterNot { it.id == com.mok.buylist.data.lentaStoreId() },
+                        linkedStore,
+                        onSelected = { linkedStore = it; linkError = null },
+                        onCreate = viewModel::createStore,
+                    )
+                    SheetTextField(linkedPrice, { linkedPrice = it; linkError = null },
+                        "Цена, ₽")
+                    linkError?.let { Text(it, color = p.error, fontSize = 13.sp) }
+                }
+            },
+            confirmButton = {
+                SheetActionButton(
+                    enabled = !savingLink && linkedStore != null &&
+                        (linkedPrice.isBlank() || price != null),
+                    onClick = {
+                        val shop = linkedStore ?: return@SheetActionButton
+                        savingLink = true
+                        viewModel.saveStoreProduct(shop.id, productKey, price) { message ->
+                            savingLink = false
+                            if (message == null) editingStoreLink = false
+                            else linkError = message
+                        }
+                    },
+                ) { Text("Сохранить") }
+            },
+        )
+    }
+    pendingLinkRemoval?.let { shopId ->
+        AppSheet(
+            onDismissRequest = { pendingLinkRemoval = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Убрать товар из магазина?") },
+            text = { Text("Покупки останутся в истории.", color = p.textSecondary) },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    viewModel.removeStoreProduct(shopId, productKey) { result ->
+                        pendingLinkRemoval = null
+                        if (result != null) activity?.notifyUser(result)
+                    }
+                }) { Text("Убрать") }
+            },
+        )
+    }
     if (deleteOwnPending && ownProduct != null) {
         AppSheet(onDismissRequest = { deleteOwnPending = false }, containerColor = p.sheet,
             title = { SheetHeader("Удалить свой товар?") },
@@ -486,6 +549,65 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         androidx.compose.material3.TextButton(onClick = { viewModel.refreshPrice(product.id) }, enabled = message != "Загрузка") {
                             Text(if (message == "Загрузка") "Обновление…" else "Обновить цену")
                         }
+                }
+            }
+            if (product != null || ownProduct != null) item {
+                HistoryCard {
+                    Row(Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Магазины и цены", color = p.text,
+                            fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f))
+                        IconButton(onClick = {
+                            linkedStore = null
+                            linkedPrice = ""
+                            linkError = null
+                            editingStoreLink = true
+                        }) {
+                            Icon(painterResource(R.drawable.ic_plus),
+                                contentDescription = "Добавить магазин к товару",
+                                tint = p.accent)
+                        }
+                    }
+                    if (shopPrices.isEmpty()) Text("Магазины пока не добавлены",
+                        color = p.textSecondary, fontSize = 13.sp)
+                    shopPrices.forEach { shopPrice ->
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                .background(p.field)
+                                .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(shopPrice.storeName, color = p.text,
+                                    fontWeight = FontWeight.SemiBold)
+                                Text(shopPrice.priceKopecks?.let(::historyMoney) ?: "Цена не указана",
+                                    color = p.textSecondary, fontSize = 13.sp)
+                            }
+                            if (shopPrice.storeId != com.mok.buylist.data.lentaStoreId()) {
+                                IconButton(onClick = {
+                                    linkedStore = stores.firstOrNull { it.id == shopPrice.storeId }
+                                    linkedPrice = shopPrice.priceKopecks?.let {
+                                        BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                                    }.orEmpty()
+                                    linkError = null
+                                    editingStoreLink = true
+                                }) {
+                                    Icon(painterResource(R.drawable.ic_edit),
+                                        contentDescription = "Изменить цену магазина",
+                                        tint = p.accent, modifier = Modifier.size(19.dp))
+                                }
+                                if (storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&
+                                    (identities[it.productKey] ?: it.productKey) == sharedKey })
+                                    IconButton(onClick = { pendingLinkRemoval = shopPrice.storeId }) {
+                                        Icon(painterResource(R.drawable.ic_trash),
+                                            contentDescription = "Убрать привязку к магазину",
+                                            tint = p.iconMuted, modifier = Modifier.size(19.dp))
+                                    }
+                            }
+                        }
+                    }
                 }
             }
             if (product != null || ownProduct != null) item {
