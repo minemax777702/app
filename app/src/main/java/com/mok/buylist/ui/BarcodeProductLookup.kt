@@ -23,20 +23,26 @@ internal data class BarcodeProductSuggestion(
 internal object BarcodeProductLookup {
     private const val AGENT = "BuyList-Android/1.0 (barcode suggestions)"
     private val cache = mutableMapOf<String, List<BarcodeProductSuggestion>>()
+    private val defaultSources = BarcodeSource.entries.toSet()
 
     private val upcRecent = ArrayDeque<Long>()
 
-    suspend fun lookup(code: String, force: Boolean = false): List<BarcodeProductSuggestion> =
+    suspend fun lookup(code: String, force: Boolean = false,
+        sources: Set<BarcodeSource> = defaultSources): List<BarcodeProductSuggestion> =
         withContext(Dispatchers.IO) {
             if (!validProductBarcode(code)) return@withContext emptyList()
-            if (!force) synchronized(cache) { cache[code] }?.let { return@withContext it }
+            val key = code + "|" + sources.map { it.name }.sorted().joinToString(",")
+            if (!force) synchronized(cache) { cache[key] }?.let { return@withContext it }
             // Query the providers concurrently. Slow or unavailable Olegon must not
             // delay an already available Open Food Facts / UPCitemdb response.
             val results = coroutineScope {
                 listOf(
-                    async { runCatching { openFoodFacts(code) }.getOrNull() },
-                    async { runCatching { upcItemDb(code) }.getOrNull() },
-                    async { runCatching { olegon(code) }.getOrNull() },
+                    async { if (BarcodeSource.OPEN_FOOD_FACTS in sources)
+                        runCatching { openFoodFacts(code) }.getOrNull() else null },
+                    async { if (BarcodeSource.UPCITEMDB in sources)
+                        runCatching { upcItemDb(code) }.getOrNull() else null },
+                    async { if (BarcodeSource.OLEGON in sources)
+                        runCatching { olegon(code) }.getOrNull() else null },
                 ).awaitAll().filterNotNull()
             }.filter { usefulName(it.name, code) }
             val ranked = results.distinctBy {
@@ -45,7 +51,7 @@ internal object BarcodeProductLookup {
                 .thenByDescending { it.name.length })
             // Do not cache empty responses: API outages, rate limits and temporary
             // network errors must remain recoverable on the next attempt.
-            if (ranked.isNotEmpty()) synchronized(cache) { cache[code] = ranked }
+            if (ranked.isNotEmpty()) synchronized(cache) { cache[key] = ranked }
             ranked
         }
 
