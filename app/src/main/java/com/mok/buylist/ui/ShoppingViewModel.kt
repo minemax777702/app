@@ -7,6 +7,8 @@ import com.mok.buylist.data.AppUser
 import com.mok.buylist.data.ArchivedList
 import com.mok.buylist.data.Profile
 import com.mok.buylist.data.ShoppingItem
+import com.mok.buylist.data.CustomProduct
+import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.nameKeyOf
 import com.mok.buylist.repository
 import com.mok.buylist.userProfile
@@ -88,6 +90,12 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
             Progress(bought = bought, total = bought + (active?.size ?: 0))
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Progress(0, 0))
+
+    val customProducts: StateFlow<List<CustomProduct>> = repository.observeCustomProducts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val stores: StateFlow<List<ShoppingStore>> = repository.observeStores()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val archive: StateFlow<List<ArchivedList>> = repository.observeArchive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -182,6 +190,14 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.addProduct(product)) }
     }
 
+    fun addManualProduct(name: String, barcode: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode)) }
+    }
+
+    fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.addCustomToList(product)) }
+    }
+
     fun buyScanned(product: com.mok.buylist.data.LentaProduct, price: Long?, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val result = repository.buyScanned(product, price)
@@ -192,9 +208,9 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Куплено: товар остаётся в базе (для прогресса), но из списка уходит. */
-    fun buy(item: ShoppingItem, priceOverride: Long? = null) {
+    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "") {
         showUndo(item, RowState.BOUGHT)
-        viewModelScope.launch { repository.buy(item.id, priceOverride) }
+        viewModelScope.launch { repository.buy(item.id, priceOverride, storeName = storeName) }
     }
 
     fun setQuantity(item: ShoppingItem, quantity: Int) {
