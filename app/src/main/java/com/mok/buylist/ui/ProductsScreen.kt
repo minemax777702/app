@@ -216,6 +216,9 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             initialName = customName,
             initialBarcode = customBarcode,
             onCreate = viewModel::addManualProduct,
+            onChooseLenta = { product, onResult ->
+                viewModel.addProduct(product) { added -> onResult(added) }
+            },
             onDismiss = { createCustom = false },
             onCreated = {
                 createCustom = false
