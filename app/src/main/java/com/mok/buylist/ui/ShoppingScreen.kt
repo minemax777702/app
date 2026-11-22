@@ -359,7 +359,13 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         )
     }
     pendingPurchase?.let { item ->
-        var price by remember(item.id) { mutableStateOf("") }
+        val suggestedPrice = customProducts.firstOrNull { it.id == item.customProductId }
+            ?.estimatedPriceKopecks
+        var price by remember(item.id) {
+            mutableStateOf(suggestedPrice?.let {
+                java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+            }.orEmpty())
+        }
         var storeName by remember(item.id) { mutableStateOf("") }
         val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
         AppSheet(
@@ -369,6 +375,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(item.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                    if (suggestedPrice != null) Text(
+                        "Ориентировочная цена подставлена — проверьте фактическую сумму.",
+                        color = p.textSecondary, fontSize = 12.sp,
+                    )
                     SheetTextField(price, { price = it }, "Цена за единицу, ₽ (необязательно)",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))

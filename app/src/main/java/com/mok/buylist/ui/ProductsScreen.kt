@@ -143,6 +143,12 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                             "Связан с товаром Ленты" else "Свой товар"
                         Text("$meta · ${customBarcodeRows.count { it.productId == product.id && !it.deleted }} штрихкодов",
                             color = p.textSecondary, fontSize = 12.sp)
+                        product.estimatedPriceKopecks?.let { kopecks ->
+                            Text(
+                                "Ориентир: ${java.math.BigDecimal.valueOf(kopecks, 2).stripTrailingZeros().toPlainString()} ₽",
+                                color = p.textSecondary, fontSize = 12.sp,
+                            )
+                        }
                     }
                     IconButton(onClick = { viewModel.addCustomProduct(product) { added ->
                         activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")

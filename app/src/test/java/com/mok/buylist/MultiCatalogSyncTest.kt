@@ -38,6 +38,16 @@ class MultiCatalogSyncTest {
         assertEquals(merged, SyncMerge.merge(local, merged))
     }
 
+    @Test fun optionalEstimatedPriceSurvivesV11Sync() {
+        val withPrice = product.copy(estimatedPriceKopecks = 11990L)
+        val snapshot = Snapshot(customProducts = listOf(withPrice))
+        val decoded = SyncCodec.decode(SyncCodec.encode(snapshot))
+        assertEquals(11990L, decoded.customProducts.single().estimatedPriceKopecks)
+        val noPrice = Snapshot(customProducts = listOf(product))
+        assertEquals(null, SyncCodec.decode(SyncCodec.encode(noPrice))
+            .customProducts.single().estimatedPriceKopecks)
+    }
+
     @Test fun unrelatedCatalogsAreNotMergedBySimilarName() {
         val a = CustomProduct("uuid-a", "Молоко 1 л", "", 10L)
         val b = CustomProduct("uuid-b", "Молоко 1 литр", "", 20L)

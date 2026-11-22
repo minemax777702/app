@@ -355,6 +355,10 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             if (ownProduct != null) item {
                 HistoryCard {
                     Text("Свой товар", color = p.textSecondary, fontSize = 13.sp)
+                    ownProduct.estimatedPriceKopecks?.let { kopecks ->
+                        Text("Ориентировочная цена: ${BigDecimal.valueOf(kopecks, 2).stripTrailingZeros().toPlainString()} ₽",
+                            color = p.textSecondary, fontSize = 13.sp)
+                    }
                     if (barcodes.isNotEmpty()) Text("Штрихкодов: ${barcodes.size}", color = p.text)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TextButton(onClick = {
