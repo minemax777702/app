@@ -235,6 +235,13 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.deleteStore(id)) }
     }
 
+    fun createCustomForStore(storeId: String, name: String, barcode: String,
+        storePrice: Long?, isWeighted: Boolean, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.createCustomForStore(storeId, name, barcode, storePrice, isWeighted) != null)
+        }
+    }
+
     fun saveStoreProduct(storeId: String, productKey: String, price: Long?,
         onResult: (String?) -> Unit) {
         viewModelScope.launch { onResult(repository.saveStoreProduct(storeId, productKey, price)) }
