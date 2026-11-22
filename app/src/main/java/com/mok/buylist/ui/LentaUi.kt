@@ -60,7 +60,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier, onAdd: (Lenta
     val p = LocalPalette.current
     val trimmed = query.trim()
     val scope = rememberCoroutineScope()
-    val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope) }
+    val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     LaunchedEffect(state.failed) {
