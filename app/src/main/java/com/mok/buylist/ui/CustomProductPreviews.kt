@@ -82,52 +82,46 @@ internal object CustomProductPreviews {
         saved
     }
     suspend fun fetch(context: Context, id: String, barcode: String, force: Boolean = false): Boolean {
-        if (!validProductBarcode(barcode) || barcode.length !in setOf(8, 12, 13)) return false
+        if (!validProductBarcode(barcode)) return false
         val token = id + ":" + barcode
         synchronized(requested) {
             if (!force && (token in requested || file(context, id).exists())) return false
             requested.add(token)
         }
         return withContext(Dispatchers.IO) {
-            val bytes = runCatching {
-                val url = URL("https://world.openfoodfacts.org/api/v2/product/" + barcode +
-                    ".json?fields=image_front_url,image_url")
-                val conn = (url.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 3000; readTimeout = 3000
-                    setRequestProperty("User-Agent", "BuyList-Android/1.0 (product preview)")
-                }
-                val json = try {
-                    if (conn.responseCode != 200) return@runCatching null
-                    JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
-                } finally { conn.disconnect() }
-                val product = json.optJSONObject("product") ?: return@runCatching null
-                val image = product.optString("image_front_url").ifBlank { product.optString("image_url") }
-                val photoUrl = URL(image)
-                if (photoUrl.protocol != "https" || photoUrl.host != "images.openfoodfacts.org")
-                    return@runCatching null
-                val photo = (photoUrl.openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 3000; readTimeout = 3000; instanceFollowRedirects = false
-                    setRequestProperty("User-Agent", "BuyList-Android/1.0 (product preview)")
-                }
-                try {
-                    if (photo.responseCode != 200) return@runCatching null
-                    val output = ByteArrayOutputStream()
-                    photo.inputStream.use { input ->
-                        val buffer = ByteArray(8192)
-                        while (true) {
-                            val n = input.read(buffer)
-                            if (n < 0) break
-                            if (output.size() + n > 4_000_000) return@runCatching null
-                            output.write(buffer, 0, n)
-                        }
+            val suggestions = BarcodeProductLookup.lookup(barcode)
+            for (suggestion in suggestions) {
+                val url = suggestion.imageUrl ?: continue
+                val bytes = runCatching {
+                    val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 3000
+                        readTimeout = 3000
+                        instanceFollowRedirects = false
+                        setRequestProperty("User-Agent", "BuyList-Android/1.0 (product preview)")
                     }
-                    output.toByteArray()
-                } finally { photo.disconnect() }
-            }.getOrNull() ?: return@withContext false
-            if (!force && file(context, id).exists()) return@withContext false
-            val saved = save(context, id, bytes)
-            if (saved) withContext(Dispatchers.Main) { revisions[id] = version(id) + 1 }
-            saved
+                    try {
+                        if (connection.responseCode != 200) return@runCatching null
+                        val output = ByteArrayOutputStream()
+                        connection.inputStream.use { input ->
+                            val buffer = ByteArray(8192)
+                            while (true) {
+                                val n = input.read(buffer)
+                                if (n < 0) break
+                                if (output.size() + n > 4_000_000) return@runCatching null
+                                output.write(buffer, 0, n)
+                            }
+                        }
+                        output.toByteArray()
+                    } finally { connection.disconnect() }
+                }.getOrNull() ?: continue
+                // Never overwrite a photo from the gallery during automatic lookup.
+                if (!force && file(context, id).exists()) return@withContext false
+                if (save(context, id, bytes)) {
+                    withContext(Dispatchers.Main) { revisions[id] = version(id) + 1 }
+                    return@withContext true
+                }
+            }
+            false
         }
     }
 }
