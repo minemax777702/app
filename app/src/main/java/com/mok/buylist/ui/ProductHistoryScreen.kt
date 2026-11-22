@@ -114,10 +114,11 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val rows = remember(purchases, productKey) { purchases.filter { it.productKey == productKey }.sortedByDescending { it.at } }
     val catalog = LocalContext.current.lentaCatalog
     val products by catalog.products.collectAsStateWithLifecycle()
+    val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val address by catalog.address.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     val product = products.firstOrNull { "lenta:${it.id}" == productKey }
-    val barcodes = product?.let { catalog.barcodeAliases(it.id) }?.filter { it.isNotBlank() }?.sorted().orEmpty()
+    val barcodes = product?.let { item -> barcodeRows.filter { it.productId == item.id && !it.deleted }.map { it.code } }?.sorted().orEmpty()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     var editingBarcode by remember(productKey) { mutableStateOf<String?>(null) }
