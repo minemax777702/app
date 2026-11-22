@@ -116,6 +116,48 @@ class ShoppingRepository(
 
     fun observeStoreProducts(): Flow<List<StoreProduct>> = dao.observeStoreProducts()
 
+    /**
+     * Create a catalog entry directly inside a store. It must not add a planned
+     * shopping-list item; catalog management and shopping are separate actions.
+     */
+    suspend fun createCustomForStore(
+        storeId: String, rawName: String, rawBarcode: String,
+        storePrice: Long?, isWeighted: Boolean,
+    ): String? = db.withTransaction {
+        val name = normalizeName(rawName)
+        val barcode = rawBarcode.trim()
+        if (name.isBlank() || name.length > MAX_CUSTOM_PRODUCT_NAME_LENGTH)
+            return@withTransaction null
+        if (barcode.isNotEmpty() && !validProductBarcode(barcode)) return@withTransaction null
+        if (storePrice != null && storePrice < 0) return@withTransaction null
+        if (storeId == lentaStoreId() ||
+            dao.getStores().none { it.id == storeId && !it.deleted })
+            return@withTransaction null
+        val matching = if (barcode.isBlank()) emptyList() else {
+            val aliases = dao.getCustomProductBarcodes()
+                .filter { !it.deleted && it.code == barcode }.mapTo(HashSet()) { it.productId }
+            dao.getCustomProducts().filter {
+                !it.deleted && (it.id in aliases ||
+                    (it.barcode == barcode && dao.getCustomProductBarcodes().none { row ->
+                        row.productId == it.id && row.code == barcode && row.deleted
+                    }))
+            }
+        }
+        if (matching.size > 1) return@withTransaction null
+        val now = System.currentTimeMillis()
+        val product = matching.singleOrNull() ?: CustomProduct(
+            id = UUID.randomUUID().toString(), name = name, barcode = barcode,
+            updatedAt = now, isWeighted = isWeighted)
+                .also { dao.upsertCustomProduct(it) }
+        if (barcode.isNotBlank() && matching.isEmpty())
+            dao.upsertCustomProductBarcode(CustomProductBarcode(product.id, barcode, now))
+        val earlier = dao.getStoreProducts().firstOrNull {
+            it.storeId == storeId && it.productKey == customKey(product.id) }
+        dao.upsertStoreProduct(StoreProduct(storeId, customKey(product.id), storePrice,
+            maxOf(now, (earlier?.updatedAt ?: 0L) + 1)))
+        product.id
+    }
+
     suspend fun saveStoreProduct(storeId: String, productKey: String, price: Long?): String? =
         db.withTransaction {
             if (storeId.isBlank() || productKey.isBlank()) return@withTransaction "Выберите магазин и товар"
