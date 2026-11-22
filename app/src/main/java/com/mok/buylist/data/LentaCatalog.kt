@@ -57,16 +57,57 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     fun barcodeAliases(id: Long): Set<String> =
-        _barcodeRows.value.asSequence().filter { it.productId == id }.map { it.code }.toSet()
+        _barcodeRows.value.asSequence().filter { it.productId == id && !it.deleted }.map { it.code }.toSet()
 
     fun matchesBarcode(product: LentaProduct, scanned: String): Boolean =
-        com.mok.buylist.sync.barcodeMatches(product.ean, scanned) ||
-            barcodeAliases(product.id).any { com.mok.buylist.sync.barcodeMatches(it, scanned) }
+        barcodeAliases(product.id).any { com.mok.buylist.sync.barcodeMatches(it, scanned) }
 
     private suspend fun rememberBarcode(id: Long, code: String?) {
         val barcode = code?.trim().orEmpty()
         if (barcode.length !in setOf(8, 12, 13) || !barcode.all(Char::isDigit)) return
         dao.insertProductBarcode(StoredProductBarcode(id, barcode))
+    }
+
+    /** Возвращает текст ошибки или null после успешного сохранения. */
+    suspend fun addBarcode(id: Long, raw: String): String? = db.withTransaction {
+        val code = raw.trim()
+        if (!validProductBarcode(code)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
+        if (dao.getLentaProducts().none { it.id == id }) return@withTransaction "Товар удалён"
+        val records = dao.getProductBarcodes()
+        if (records.any { it.productId != id && !it.deleted &&
+                com.mok.buylist.sync.barcodeMatches(it.code, code) }) {
+            return@withTransaction "Штрихкод уже привязан к другому товару"
+        }
+        if (records.any { it.productId == id && !it.deleted && it.code == code }) {
+            return@withTransaction "Этот штрихкод уже добавлен"
+        }
+        dao.upsertProductBarcode(StoredProductBarcode(id, code, System.currentTimeMillis(), false))
+        null
+    }
+
+    suspend fun removeBarcode(id: Long, code: String): String? = db.withTransaction {
+        val current = dao.getProductBarcodes().firstOrNull {
+            it.productId == id && it.code == code && !it.deleted
+        } ?: return@withTransaction "Штрихкод не найден"
+        dao.upsertProductBarcode(current.copy(updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1), deleted = true))
+        null
+    }
+
+    suspend fun editBarcode(id: Long, previous: String, replacement: String): String? = db.withTransaction {
+        val next = replacement.trim()
+        if (previous == next) return@withTransaction null
+        if (!validProductBarcode(next)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
+        val records = dao.getProductBarcodes()
+        val current = records.firstOrNull { it.productId == id && it.code == previous && !it.deleted }
+            ?: return@withTransaction "Исходный штрихкод не найден"
+        if (records.any { !it.deleted && (it.productId != id || it.code != previous) &&
+                com.mok.buylist.sync.barcodeMatches(it.code, next) }) {
+            return@withTransaction "Этот штрихкод уже используется"
+        }
+        val now = System.currentTimeMillis()
+        dao.upsertProductBarcode(current.copy(updatedAt = maxOf(now, current.updatedAt + 1), deleted = true))
+        dao.upsertProductBarcode(StoredProductBarcode(id, next, now, false))
+        null
     }
 
     fun setAddress(value: String) {
