@@ -440,7 +440,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             rows?.any { it.item.customProductId == custom.id && it.state == RowState.ACTIVE }
         } == true
         if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) &&
-            ownMatches.size == 1 && (matches.isEmpty() || customAlreadyPlanned)) {
+            ownMatches.size == 1 && (matches.isEmpty() || customAlreadyPlanned || ownMatches.single().isWeighted)) {
             scannedCustom = ownMatches.single()
         } else if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) && matches.size == 1) {
             viewModel.buyScanned(matches.single(), null) { done ->
