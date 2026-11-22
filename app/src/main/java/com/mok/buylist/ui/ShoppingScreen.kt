@@ -133,6 +133,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val customBarcodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val totals by viewModel.totals.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
@@ -216,7 +217,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
                                 onWeight = { weightItem = row.item },
-                                onBuy = { pendingPurchase = row.item },
+                                onBuy = {
+                                    if (row.item.productId > 0) viewModel.buy(row.item)
+                                    else pendingPurchase = row.item
+                                },
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
@@ -355,7 +359,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onAddCustom = viewModel::addCustomProduct,
             onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
-            onAddressSettings = { showAdd = false; settingsTab = 2; addressRequest++; showSettings = true },
+            onAddressSettings = { showAdd = false; settingsTab = 1; addressRequest++; showSettings = true },
         )
     }
     pendingPurchase?.let { item ->
@@ -528,7 +532,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 SheetHeader("Выберите товар")
                 ProductSearch(lookupQuery, { lookupQuery = it })
                 LentaSuggestions(lookupQuery, Modifier.weight(1f), onSettings = {
-                    scanLookup = null; settingsTab = 2; addressRequest++; showSettings = true
+                    scanLookup = null; settingsTab = 1; addressRequest++; showSettings = true
                 }, onAdd = { product ->
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
@@ -569,7 +573,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     detailsRow?.let { selected ->
         ItemDetailsSheet(selected.item, lentaById[selected.item.productId], lentaAddress,
             refresh?.takeIf { it.first == selected.item.productId }?.second,
-            onRefresh = { viewModel.refreshPrice(selected.item.productId) }) { detailsRow = null }
+            onRefresh = { viewModel.refreshPrice(selected.item.productId) },
+            customProducts = customProducts,
+            customBarcodes = customBarcodes,
+            storeLinks = storeLinks,
+            stores = stores,
+            archive = archive,
+            bought = bought,
+        ) { detailsRow = null }
     }
     if (showTheme) {
         ThemeSheet(
