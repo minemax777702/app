@@ -87,8 +87,6 @@ class ShoppingRepository(
         if (previous == code) return@withTransaction null
         if (code.isNotEmpty()) {
             val used = rows.any { !it.deleted && it.code == code && it.productId != id }
-            val usedLenta = dao.getProductBarcodes().any { !it.deleted && it.code == code } ||
-                dao.getLentaProducts().any { it.ean == code }
             // Cross-source duplicates are allowed and become an alias for one
             // shared product. Within one catalog the same code must be unique.
             if (used) return@withTransaction "Штрихкод уже занят другим своим товаром"
@@ -155,6 +153,22 @@ class ShoppingRepository(
         }.also { if (it) refreshWidget() }
     }
 
+    /** True if the current list already contains any catalog alias of this product. */
+    private suspend fun hasActiveIdentity(key: String): Boolean {
+        val identities = sharedCatalogIdentities(
+            dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+            dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val wanted = identities[key] ?: key
+        return dao.getItems().any { item ->
+            val itemKey = when {
+                item.customProductId.isNotBlank() -> customKey(item.customProductId)
+                item.productId > 0 -> "lenta:${item.productId}"
+                else -> item.nameKey
+            }
+            (identities[itemKey] ?: itemKey) == wanted
+        }
+    }
+
     suspend fun addCustomToList(product: CustomProduct, quantity: Int = 1): Boolean {
         if (product.deleted) return false
         val added = db.withTransaction { addCustomToListInTransaction(product, quantity) }
@@ -164,15 +178,7 @@ class ShoppingRepository(
 
     private suspend fun addCustomToListInTransaction(product: CustomProduct, quantity: Int = 1): Boolean {
         archiveFinishedTrip()
-        val codes = dao.getCustomProductBarcodes().filter { it.productId == product.id && !it.deleted }
-            .mapTo(HashSet()) { it.code }
-        if (codes.isNotEmpty()) {
-            val linkedLenta = dao.getProductBarcodes().asSequence()
-                .filter { !it.deleted && it.code in codes }
-                .map { it.productId }.toSet() +
-                dao.getLentaProducts().filter { it.ean in codes }.map { it.id }
-            if (linkedLenta.isNotEmpty() && dao.getItems().any { it.productId in linkedLenta }) return false
-        }
+        if (hasActiveIdentity(customKey(product.id))) return false
         val key = customKey(product.id)
         var existing = dao.findByKey(key)
         if (existing?.deleted == true) {
@@ -240,16 +246,6 @@ class ShoppingRepository(
 
     suspend fun addProduct(product: LentaProduct, quantity: Int = 1): Boolean {
         if (product.id <= 0) return false
-        val productCodes = dao.getProductBarcodes().asSequence()
-            .filter { !it.deleted && it.productId == product.id }.map { it.code }.toSet() +
-            (if (product.ean.isBlank()) emptySet() else setOf(product.ean))
-        if (productCodes.isNotEmpty()) {
-            val linkedCustomIds = dao.getCustomProductBarcodes().filter {
-                !it.deleted && it.code in productCodes
-            }.mapTo(HashSet()) { it.productId }
-            if (linkedCustomIds.isNotEmpty() &&
-                dao.getItems().any { it.customProductId in linkedCustomIds }) return false
-        }
         val name = normalizeName(product.name)
         if (name.isEmpty()) return false
         val key = "lenta:${product.id}"
@@ -258,6 +254,7 @@ class ShoppingRepository(
         val added = db.withTransaction {
             // Все товары куплены: прошлый список уходит в архив, счётчик купленного обнуляется.
             archiveFinishedTrip()
+            if (hasActiveIdentity(key)) return@withTransaction false
             var existing = dao.findByKey(key)
             if (existing?.deleted == true) {
                 // Не теряем событие покупки при повторном добавлении до завершения похода.
@@ -283,7 +280,7 @@ class ShoppingRepository(
             val now = System.currentTimeMillis()
             val storeId = if (normalizedStore.isBlank()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(normalizedStore) }
-                    ?: ShoppingStore(UUID.randomUUID().toString(), normalizedStore, updatedAt = now)
+                    ?: ShoppingStore(stableStoreId(normalizedStore), normalizedStore, updatedAt = now)
                         .also { dao.upsertStore(it) }
                 store.id
             }
@@ -346,7 +343,7 @@ class ShoppingRepository(
             val normalizedStore = normalizeName(storeName).take(100)
             val storeId = if (normalizedStore.isEmpty()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(normalizedStore) }
-                    ?: ShoppingStore(UUID.randomUUID().toString(), normalizedStore, updatedAt = now)
+                    ?: ShoppingStore(stableStoreId(normalizedStore), normalizedStore, updatedAt = now)
                         .also { dao.upsertStore(it) }
                 store.id
             }
@@ -369,7 +366,7 @@ class ShoppingRepository(
             val storeId = if (normalizedStore.isEmpty()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted &&
                     it.nameKey == nameKeyOf(normalizedStore) }
-                    ?: ShoppingStore(UUID.randomUUID().toString(), normalizedStore, updatedAt = now)
+                    ?: ShoppingStore(stableStoreId(normalizedStore), normalizedStore, updatedAt = now)
                         .also { dao.upsertStore(it) }
                 store.id
             }

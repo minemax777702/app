@@ -115,7 +115,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     viewModel: ShoppingViewModel, onBack: () -> Unit) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
-    val rows = remember(purchases, productKey) { purchases.filter { it.productKey == productKey }.sortedByDescending { it.at } }
     val catalog = LocalContext.current.lentaCatalog
     val products by catalog.products.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
@@ -126,6 +125,15 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val ownProduct = customProducts.firstOrNull { "custom:${it.id}" == productKey }
+    val identities = remember(products, customProducts, barcodeRows, customBarcodeRows) {
+        com.mok.buylist.data.sharedCatalogIdentities(
+            products, customProducts, barcodeRows, customBarcodeRows)
+    }
+    val sharedKey = identities[productKey] ?: productKey
+    val rows = remember(purchases, sharedKey, identities) {
+        purchases.filter { (identities[it.productKey] ?: it.productKey) == sharedKey }
+            .sortedByDescending { it.at }
+    }
     val barcodes = if (product != null) barcodeRows.filter { it.productId == product.id && !it.deleted }
         .map { it.code }.sorted() else customBarcodeRows.filter {
             it.productId == ownProduct?.id && !it.deleted
@@ -230,7 +238,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                             } else {
                                 val customId = ownProduct?.id
                                 if (customId == null) "Товар не найден" else {
-                                    var result: String? = null
                                     // Repository methods are exposed as callbacks through the ViewModel.
                                     // The callback owns editor state rather than waiting in a coroutine.
                                     viewModel.changeCustomBarcode(customId, previous, barcodeInput) { outcome ->

@@ -26,3 +26,8 @@ data class ShoppingStore(
 
 /** A source-specific catalog ID is kept stable, even if another source has the same barcode. */
 fun customKey(id: String): String = "custom:$id"
+
+/** Stable across devices: the same written store name resolves to one synced ID. */
+fun stableStoreId(name: String): String = java.util.UUID.nameUUIDFromBytes(
+    "buylist:store:${nameKeyOf(name)}".toByteArray(Charsets.UTF_8)
+).toString()

@@ -99,6 +99,10 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) } }
             .sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
     }
+    val identities = remember(products, customProducts, barcodeRows, customBarcodeRows) {
+        com.mok.buylist.data.sharedCatalogIdentities(
+            products, customProducts, barcodeRows, customBarcodeRows)
+    }
     val ownRows = remember(customProducts, customBarcodeRows, query) {
         val key = nameKeyOf(query)
         customProducts.filter { !it.deleted &&
@@ -136,7 +140,10 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
                         Text(product.name, color = p.text, fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(if (customBarcodeRows.none { it.productId == product.id && !it.deleted }) "Свой товар" else "Свой товар · ${customBarcodeRows.count { it.productId == product.id && !it.deleted }} штрихкодов",
+                        val linkedKey = identities["custom:${product.id}"]
+                        val meta = if (linkedKey?.startsWith("lenta:") == true)
+                            "Связан с товаром Ленты" else "Свой товар"
+                        Text("$meta · ${customBarcodeRows.count { it.productId == product.id && !it.deleted }} штрихкодов",
                             color = p.textSecondary, fontSize = 12.sp)
                     }
                     IconButton(onClick = { viewModel.addCustomProduct(product) { added ->

@@ -68,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mok.buylist.R
 import com.mok.buylist.lentaCatalog
 import com.mok.buylist.data.LentaProduct
+import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
 import com.mok.buylist.data.nameKeyOf
 import com.mok.buylist.data.validProductBarcode
@@ -85,6 +86,7 @@ fun AddItemSheet(
     onQueryChange: (String) -> Unit,
     onAdd: (LentaProduct, (Boolean) -> Unit) -> Unit,
     customProducts: List<CustomProduct>,
+    customBarcodes: List<CustomProductBarcode>,
     onAddCustom: (CustomProduct, (Boolean) -> Unit) -> Unit,
     onCreateCustom: (String, String, (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
@@ -202,9 +204,13 @@ fun AddItemSheet(
                 }
             }
 
-            val matches = remember(customProducts, text) {
+            val matches = remember(customProducts, customBarcodes, text) {
                 if (text.isBlank()) emptyList() else customProducts.filter { !it.deleted &&
-                    (nameKeyOf(it.name).contains(nameKeyOf(text)) || it.barcode == text.trim()) }.take(5)
+                    (nameKeyOf(it.name).contains(nameKeyOf(text)) ||
+                        customBarcodes.any { barcode -> !barcode.deleted &&
+                            barcode.productId == it.id && barcode.code == text.trim() } ||
+                        (it.barcode == text.trim() && customBarcodes.none { barcode ->
+                            barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }.take(5)
             }
             if (!voice.listening && matches.isNotEmpty()) {
                 Text("Свои товары", color = p.textSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))

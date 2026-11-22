@@ -131,6 +131,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
 
     val rows by viewModel.rows.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val customBarcodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val totals by viewModel.totals.collectAsStateWithLifecycle()
@@ -350,6 +351,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onQueryChange = {},
             onAdd = viewModel::addProduct,
             customProducts = customProducts,
+            customBarcodes = customBarcodes,
             onAddCustom = viewModel::addCustomProduct,
             onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
@@ -409,7 +411,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
         val matches = lentaProducts.filter { context.lentaCatalog.matchesBarcode(it, code) }
-        val ownMatches = customProducts.filter { !it.deleted && it.barcode == code }
+        val ownMatches = customProducts.filter { product ->
+            !product.deleted && (
+                customBarcodes.any { it.productId == product.id && !it.deleted &&
+                    com.mok.buylist.sync.barcodeMatches(it.code, code) } ||
+                (product.barcode == code && customBarcodes.none {
+                    it.productId == product.id && it.code == code && it.deleted })
+            )
+        }
         val customAlreadyPlanned = ownMatches.singleOrNull()?.let { custom ->
             rows?.any { it.item.customProductId == custom.id && it.state == RowState.ACTIVE }
         } == true
