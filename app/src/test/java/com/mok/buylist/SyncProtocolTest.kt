@@ -92,6 +92,18 @@ class SyncProtocolTest {
         assertEquals(snapshot, SyncCodec.decode(SyncCodec.encode(snapshot)))
     }
 
+    @Test fun deletedBarcodeSurvivesSyncAndBackup() {
+        val snapshot = Snapshot(
+            products = listOf(StoredLentaProduct(7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1)),
+            productBarcodes = listOf(
+                StoredProductBarcode(7, "4607078115610", updatedAt = 1234, deleted = true),
+                StoredProductBarcode(7, "4607078115627", updatedAt = 1235),
+            ),
+        )
+        assertEquals(snapshot, SyncCodec.decode(SyncCodec.encode(snapshot)))
+        assertEquals(snapshot, BackupCodec.decode(BackupCodec.encode(BackupContents("u", "Тест", snapshot))).snapshot)
+    }
+
     @Test fun multipleBarcodesSurviveSyncAndBackup() {
         val snapshot = Snapshot(
             products = listOf(StoredLentaProduct(7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 0)),
