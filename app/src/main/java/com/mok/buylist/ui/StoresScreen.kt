@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,6 +63,7 @@ internal fun StoresScreen(
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val custom by viewModel.customProducts.collectAsStateWithLifecycle()
     val customCodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
+    val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val catalog = LocalContext.current.lentaCatalog
     val lenta by catalog.products.collectAsStateWithLifecycle()
     val lentaCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
@@ -81,6 +83,12 @@ internal fun StoresScreen(
     var shopName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var choosingProduct by remember { mutableStateOf(false) }
+    var chosenProductKey by remember { mutableStateOf<String?>(null) }
+    var choiceQuery by remember { mutableStateOf("") }
+    var linkPrice by remember { mutableStateOf("") }
+    var linkError by remember { mutableStateOf<String?>(null) }
+    var removingLink by remember { mutableStateOf<String?>(null) }
     val active = stores.filterNot { it.deleted }.distinctBy { it.id }.sortedBy { it.nameKey }
     val store = active.firstOrNull { it.id == openedStore }
 
@@ -91,6 +99,16 @@ internal fun StoresScreen(
                 Modifier.weight(1f), color = p.text, fontSize = 20.sp,
                 fontWeight = FontWeight.Bold)
             if (store != null) {
+                if (store.id != lentaStoreId()) IconButton(onClick = {
+                    choosingProduct = true
+                    chosenProductKey = null
+                    choiceQuery = ""
+                    linkPrice = ""
+                    linkError = null
+                }) {
+                    Icon(painterResource(R.drawable.ic_plus), "Добавить товар в магазин",
+                        tint = p.accent, modifier = Modifier.size(24.dp))
+                }
                 IconButton(onClick = { openedStore = null }) {
                     Icon(painterResource(R.drawable.ic_close), "Назад к магазинам",
                         tint = p.iconMuted, modifier = Modifier.size(21.dp))
@@ -110,7 +128,8 @@ internal fun StoresScreen(
             ) {
                 items(active, key = { it.id }) { shop ->
                     val entries = products.filter { it.storeId == shop.id }
-                    val productCount = (entries.map { it.productKey } +
+                    val linked = storeLinks.filter { it.storeId == shop.id && !it.deleted }
+                    val productCount = (entries.map { it.productKey } + linked.map { it.productKey } +
                         if (shop.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList())
                         .distinct().size
                     Row(
@@ -146,7 +165,7 @@ internal fun StoresScreen(
                 }
             }
         } else {
-            val entries = remember(store.id, products, lenta) {
+            val entries = remember(store.id, products, lenta, custom, storeLinks) {
                 val history = products.filter { it.storeId == store.id }
                     .groupBy { it.productKey }
                     .map { (key, purchases) ->
@@ -162,7 +181,22 @@ internal fun StoresScreen(
                     StoreProductLine("lenta:${item.id}", item.name, null,
                         parsePriceKopecks(item.price), false, "Цена каталога")
                 } else emptyList()
-                (history + fromLenta).sortedWith(
+                val knownKeys = (history + fromLenta).mapTo(HashSet()) { it.key }
+                val linked = storeLinks.filter { !it.deleted && it.storeId == store.id }
+                    .mapNotNull { link ->
+                        val match = custom.firstOrNull { "custom:${it.id}" == link.productKey && !it.deleted }
+                        val catalogProduct = lenta.firstOrNull { "lenta:${it.id}" == link.productKey }
+                        if (match == null && catalogProduct == null) null
+                        else StoreProductLine(link.productKey, match?.name ?: catalogProduct!!.name,
+                            null, link.priceKopecks, match?.isWeighted == true, "Добавлен в магазин")
+                    }
+                val additions = linked.filter { it.key !in knownKeys }
+                val updatedHistory = history.map { line ->
+                    val manual = linked.firstOrNull { it.key == line.key }
+                    if (manual != null && manual.price != null) line.copy(price = manual.price, source = "Цена магазина")
+                    else line
+                }
+                (updatedHistory + fromLenta + additions).sortedWith(
                     compareByDescending<StoreProductLine> { it.purchasedAt != null }
                         .thenByDescending { it.purchasedAt ?: 0L }
                         .thenBy { it.name.lowercase() })
@@ -199,10 +233,29 @@ internal fun StoresScreen(
                                         .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
                             } ?: entry.source, color = p.textSecondary, fontSize = 12.sp)
                         }
-                        Text(entry.price?.let {
-                            BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
-                                if (entry.weighted) "/кг" else ""
-                        } ?: "—", color = p.accent, fontWeight = FontWeight.Bold)
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(entry.price?.let {
+                                BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
+                                    if (entry.weighted) "/кг" else ""
+                            } ?: "—", color = p.accent, fontWeight = FontWeight.Bold)
+                            if (store.id != lentaStoreId()) {
+                                TextButton(onClick = {
+                                    chosenProductKey = entry.key
+                                    linkPrice = entry.price?.let {
+                                        BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                                    }.orEmpty()
+                                    choiceQuery = ""
+                                    linkError = null
+                                    choosingProduct = true
+                                }) { Text("Цена", color = p.accent, fontSize = 12.sp) }
+                                if (storeLinks.any { !it.deleted && it.storeId == store.id && it.productKey == entry.key })
+                                    IconButton(onClick = { removingLink = entry.key }) {
+                                        Icon(painterResource(R.drawable.ic_trash),
+                                            "Убрать из магазина", tint = p.iconMuted,
+                                            modifier = Modifier.size(18.dp))
+                                    }
+                            }
+                        }
                     }
                 }
                 if (shown < visibleEntries.size) item {
@@ -212,6 +265,81 @@ internal fun StoresScreen(
                 }
             }
         }
+    }
+
+    if (choosingProduct && store != null) {
+        val chosen = chosenProductKey
+        val options = remember(custom, lenta, choiceQuery, storeLinks, store.id) {
+            (custom.filterNot { it.deleted }.map { "custom:${it.id}" to it.name } +
+                lenta.map { "lenta:${it.id}" to it.name })
+                .distinctBy { it.first }
+                .filter { it.second.contains(choiceQuery.trim(), ignoreCase = true) }
+                .take(30)
+        }
+        val amount = if (linkPrice.isBlank()) null else parsePriceKopecks(linkPrice)
+        AppSheet(
+            onDismissRequest = { choosingProduct = false },
+            containerColor = p.sheet,
+            title = { SheetHeader(if (chosen == null) "Товар магазина" else "Цена в магазине") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (chosen == null) {
+                        SheetTextField(choiceQuery, { choiceQuery = it }, "Найти товар в базе")
+                        androidx.compose.foundation.lazy.LazyColumn(
+                            Modifier.fillMaxWidth().heightIn(max = 270.dp),
+                        ) {
+                            items(options, key = { it.first }) { (key, name) ->
+                                Row(Modifier.fillMaxWidth().clickable {
+                                    chosenProductKey = key
+                                    linkPrice = ""
+                                }.padding(12.dp)) {
+                                    Text(name, color = p.text, modifier = Modifier.weight(1f))
+                                    Icon(painterResource(R.drawable.ic_plus), null,
+                                        tint = p.accent, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    } else {
+                        val label = (custom.firstOrNull { "custom:${it.id}" == chosen }?.name
+                            ?: lenta.firstOrNull { "lenta:${it.id}" == chosen }?.name).orEmpty()
+                        Text(label, color = p.text, fontWeight = FontWeight.Bold)
+                        SheetTextField(linkPrice, { linkPrice = it; linkError = null },
+                            "Цена, ₽ (необязательно)")
+                        TextButton(onClick = { chosenProductKey = null }) {
+                            Text("Выбрать другой товар", color = p.accent)
+                        }
+                    }
+                    linkError?.let { Text(it, color = p.error) }
+                }
+            },
+            confirmButton = {
+                if (chosen != null) SheetActionButton(
+                    enabled = !saving && (linkPrice.isBlank() || amount != null),
+                    onClick = {
+                        saving = true
+                        viewModel.saveStoreProduct(store.id, chosen, amount) { issue ->
+                            saving = false
+                            if (issue == null) choosingProduct = false
+                            else linkError = issue
+                        }
+                    },
+                ) { Text("Сохранить") }
+            },
+        )
+    }
+    if (removingLink != null && store != null) {
+        val key = removingLink!!
+        AppSheet(
+            onDismissRequest = { removingLink = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Убрать товар из магазина?") },
+            text = { Text("Товар останется в общей базе и в истории покупок.", color = p.textSecondary) },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    viewModel.removeStoreProduct(store.id, key) { removingLink = null }
+                }) { Text("Убрать") }
+            },
+        )
     }
 
     if (creating || editing != null) {
