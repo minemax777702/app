@@ -355,7 +355,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             if (ownProduct != null) item {
                 HistoryCard {
                     Text("Свой товар", color = p.textSecondary, fontSize = 13.sp)
-                    if (ownProduct.barcode.isNotBlank()) Text("Штрихкод: ${ownProduct.barcode}", color = p.text)
+                    if (barcodes.isNotEmpty()) Text("Штрихкодов: ${barcodes.size}", color = p.text)
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TextButton(onClick = {
                             nameInput = ownProduct.name
@@ -482,8 +482,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         val latest = purchasesInStore.maxBy { it.at }
                         val storeName = stores.firstOrNull { it.id == storeId }?.name
                             ?: if (storeId.isBlank()) "Магазин не указан" else "Другой магазин"
+                        val prices = purchasesInStore.mapNotNull { it.unitPrice }
+                        val average = prices.fold(BigInteger.ZERO) { total, value ->
+                            total + BigInteger.valueOf(value)
+                        }.divide(BigInteger.valueOf(prices.size.toLong())).longValueExact()
                         Text("$storeName · ${historyMoney(latest.unitPrice!!)}",
                             color = p.text, fontSize = 14.sp)
+                        Text("Мин.: ${historyMoney(prices.min())} · Средняя: ${historyMoney(average)}",
+                            color = p.textSecondary, fontSize = 12.sp)
                     }
                 }
             }
