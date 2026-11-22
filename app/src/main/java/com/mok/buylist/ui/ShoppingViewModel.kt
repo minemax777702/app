@@ -223,6 +223,14 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.changeCustomBarcode(id, previous, value)) }
     }
 
+    fun renameStore(id: String, name: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.renameStore(id, name)) }
+    }
+
+    fun deleteStore(id: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.deleteStore(id)) }
+    }
+
     fun createStore(name: String, onResult: (ShoppingStore?) -> Unit) {
         viewModelScope.launch { onResult(repository.createStore(name)) }
     }
