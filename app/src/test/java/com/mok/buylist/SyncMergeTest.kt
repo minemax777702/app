@@ -320,4 +320,33 @@ class SyncMergeTest {
             Snapshot(archives = listOf(b))).archives.size)
     }
 
+    @Test fun productBarcodeSetsAreMergedWithoutLosingOldCodes() {
+        val product = com.mok.buylist.data.StoredLentaProduct(
+            7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1,
+        )
+        val old = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115610"),
+        ))
+        val recent = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115627"),
+        ))
+        val merged = SyncMerge.merge(old, recent)
+        assertEquals(setOf("4607078115610", "4607078115627"),
+            merged.productBarcodes.map { it.code }.toSet())
+        assertEquals(merged, SyncMerge.merge(merged, old))
+    }
+
+    @Test fun barcodeOfDeletedProductIsNotRestoredBySync() {
+        val product = com.mok.buylist.data.StoredLentaProduct(
+            7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1,
+        )
+        val older = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115610"),
+        ))
+        val deleted = Snapshot(tombs = listOf(tomb(TombKind.PRODUCT, "7", 10)))
+        assertEquals(emptyList<com.mok.buylist.data.StoredProductBarcode>(),
+            SyncMerge.merge(older, deleted).productBarcodes)
+    }
+
+
 }
