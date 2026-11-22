@@ -166,7 +166,7 @@ class ShoppingRepository(
         if (product.id <= 0) return false
         val productCodes = dao.getProductBarcodes().asSequence()
             .filter { !it.deleted && it.productId == product.id }.map { it.code }.toSet() +
-            product.ean.takeIf { it.isNotBlank() }?.let(::setOf).orEmpty()
+            (if (product.ean.isBlank()) emptySet() else setOf(product.ean))
         if (productCodes.isNotEmpty()) {
             val linkedCustomIds = dao.getCustomProducts().filter {
                 !it.deleted && it.barcode in productCodes
