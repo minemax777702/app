@@ -86,9 +86,9 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var shownCount by rememberSaveable(query) { mutableStateOf(20) }
     val rows = remember(products, query) {
         val key = nameKeyOf(query)
-        products.filter { key.isEmpty() || nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) || it.ean.contains(key) ||
-            catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) } ||
-            com.mok.buylist.sync.possibleVariableBarcodeMatch(it.ean, key) }
+        products.filter { key.isEmpty() || nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
+            catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) ||
+                com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) } }
             .sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
