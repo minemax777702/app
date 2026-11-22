@@ -181,6 +181,38 @@ class ShoppingRepository(
         return added
     }
 
+    suspend fun buyScannedCustom(product: CustomProduct, priceOverride: Long? = null,
+        storeName: String = ""): ScannedPurchaseResult? {
+        if (product.deleted) return null
+        val normalizedStore = normalizeName(storeName).take(100)
+        val result = db.withTransaction {
+            val now = System.currentTimeMillis()
+            val storeId = if (normalizedStore.isBlank()) "" else {
+                val store = dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(normalizedStore) }
+                    ?: ShoppingStore(UUID.randomUUID().toString(), normalizedStore, updatedAt = now)
+                        .also { dao.upsertStore(it) }
+                store.id
+            }
+            val planned = dao.findByKey(customKey(product.id))?.takeUnless { it.deleted }
+            if (planned != null) {
+                dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
+                    purchaseEvent = purchaseEvent(planned, null, now, profile.id, priceOverride,
+                        storeId = storeId)))
+                return@withTransaction ScannedPurchaseResult(planned, false)
+            }
+            val base = ShoppingItem(name = product.name, customProductId = product.id,
+                createdAt = now, updatedAt = now, authorId = profile.id, deleted = true)
+            val event = purchaseEvent(base, null, now, profile.id, priceOverride,
+                impulsive = true, storeId = storeId)
+            val eventId = checkNotNull(decodePurchaseEvent(event)).id
+            val bought = base.copy(nameKey = "impulse:$eventId", purchaseEvent = event)
+                .also { dao.insertItem(it) }
+            ScannedPurchaseResult(bought, true)
+        }
+        refreshWidget()
+        return result
+    }
+
     suspend fun buyScanned(product: LentaProduct, priceOverride: Long? = null): ScannedPurchaseResult? {
         val name = normalizeName(product.name)
         if (product.id <= 0 || name.isEmpty()) return null
