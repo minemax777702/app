@@ -1,5 +1,6 @@
 package com.mok.buylist.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -87,11 +88,13 @@ internal fun StoresScreen(
     var creatingStoreProduct by remember { mutableStateOf(false) }
     var chosenProductKey by remember { mutableStateOf<String?>(null) }
     var choiceQuery by remember { mutableStateOf("") }
+    var choiceShown by remember(choiceQuery, openedStore) { mutableIntStateOf(30) }
     var linkPrice by remember { mutableStateOf("") }
     var linkError by remember { mutableStateOf<String?>(null) }
     var removingLink by remember { mutableStateOf<String?>(null) }
     val active = stores.filterNot { it.deleted }.distinctBy { it.id }.sortedBy { it.nameKey }
     val store = active.firstOrNull { it.id == openedStore }
+    BackHandler(enabled = store != null && !choosingProduct && !creatingStoreProduct) { openedStore = null }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
@@ -275,7 +278,7 @@ internal fun StoresScreen(
                 lenta.map { "lenta:${it.id}" to it.name })
                 .distinctBy { it.first }
                 .filter { it.second.contains(choiceQuery.trim(), ignoreCase = true) }
-                .take(30)
+                .sortedBy { it.second.lowercase() }
         }
         val amount = if (linkPrice.isBlank()) null else parsePriceKopecks(linkPrice)
         AppSheet(
@@ -297,7 +300,7 @@ internal fun StoresScreen(
                         androidx.compose.foundation.lazy.LazyColumn(
                             Modifier.fillMaxWidth().heightIn(max = 270.dp),
                         ) {
-                            items(options, key = { it.first }) { (key, name) ->
+                            items(options.take(choiceShown), key = { it.first }) { (key, name) ->
                                 Row(Modifier.fillMaxWidth().clickable {
                                     chosenProductKey = key
                                     linkPrice = ""
@@ -305,6 +308,11 @@ internal fun StoresScreen(
                                     Text(name, color = p.text, modifier = Modifier.weight(1f))
                                     Icon(painterResource(R.drawable.ic_plus), null,
                                         tint = p.accent, modifier = Modifier.size(20.dp))
+                                }
+                            }
+                            if (options.size > choiceShown) item {
+                                TextButton(onClick = { choiceShown += 30 }) {
+                                    Text("Показать ещё", color = p.accent)
                                 }
                             }
                         }

@@ -1,6 +1,9 @@
 package com.mok.buylist.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Tab
@@ -29,7 +32,7 @@ fun SettingsScreen(
     val p = LocalPalette.current
     val activeTab = tab.coerceIn(0, 1)
     var syncActive by remember { mutableStateOf(false) }
-    var section by remember { mutableStateOf(0) }
+    var section by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     if (selectedProduct != null) {
@@ -50,12 +53,17 @@ fun SettingsScreen(
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
             ) {
                 listOf("Товары", "Магазины").forEachIndexed { index, label ->
-                    androidx.compose.material3.FilterChip(
-                        selected = section == index,
-                        onClick = { section = index },
-                        label = { Text(label) },
-                        modifier = Modifier.weight(1f),
-                    )
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.weight(1f)
+                            .background(
+                                if (section == index) p.chipBg else p.field,
+                                androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                            .clickable { section = index }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = androidx.compose.ui.Alignment.Center,
+                    ) {
+                        Text(label, color = if (section == index) p.accent else p.textSecondary)
+                    }
                 }
             }
             if (section == 0) stateHolder.SaveableStateProvider("products") {
