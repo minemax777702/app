@@ -219,30 +219,44 @@ internal fun StoresScreen(
                         modifier = Modifier.padding(16.dp))
                 }
                 items(visibleEntries.take(shown), key = { it.key }) { entry ->
-                    Row(
+                    Column(
                         Modifier.fillMaxWidth()
-                            .background(p.card, RoundedCornerShape(16.dp))
-                            .clickable { onProductClick(entry.key) }
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                            .background(p.card, RoundedCornerShape(18.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(entry.name, color = p.text, fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold)
-                            Text(entry.purchasedAt?.let { at ->
-                                "Последняя покупка: " +
-                                    java.time.Instant.ofEpochMilli(at).atZone(
-                                        java.time.ZoneId.systemDefault()).toLocalDate()
-                                        .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-                            } ?: entry.source, color = p.textSecondary, fontSize = 12.sp)
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onProductClick(entry.key) },
+                            verticalAlignment = Alignment.Top,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(entry.name, color = p.text, fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                Text(entry.purchasedAt?.let { at ->
+                                    "Покупка: " +
+                                        java.time.Instant.ofEpochMilli(at).atZone(
+                                            java.time.ZoneId.systemDefault()).toLocalDate()
+                                            .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
+                                } ?: entry.source, color = p.textSecondary, fontSize = 12.sp)
+                            }
                             Text(entry.price?.let {
                                 BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
                                     if (entry.weighted) "/кг" else ""
-                            } ?: "—", color = p.accent, fontWeight = FontWeight.Bold)
-                            if (store.id != lentaStoreId()) {
+                            } ?: "—", color = p.accent,
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                maxLines = 2)
+                        }
+                        if (store.id != lentaStoreId()) {
+                            val attached = storeLinks.any {
+                                !it.deleted && it.storeId == store.id && it.productKey == entry.key
+                            }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
                                 TextButton(onClick = {
                                     chosenProductKey = entry.key
                                     linkPrice = entry.price?.let {
@@ -251,13 +265,21 @@ internal fun StoresScreen(
                                     choiceQuery = ""
                                     linkError = null
                                     choosingProduct = true
-                                }) { Text("Цена", color = p.accent, fontSize = 12.sp) }
-                                if (storeLinks.any { !it.deleted && it.storeId == store.id && it.productKey == entry.key })
+                                }) {
+                                    Icon(painterResource(R.drawable.ic_edit),
+                                        contentDescription = null, tint = p.accent,
+                                        modifier = Modifier.size(17.dp))
+                                    androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
+                                    Text(if (attached) "Изменить цену" else "Добавить в магазин",
+                                        color = p.accent, fontSize = 13.sp)
+                                }
+                                if (attached) {
                                     IconButton(onClick = { removingLink = entry.key }) {
                                         Icon(painterResource(R.drawable.ic_trash),
-                                            "Убрать из магазина", tint = p.iconMuted,
-                                            modifier = Modifier.size(18.dp))
+                                            contentDescription = "Убрать из магазина",
+                                            tint = p.iconMuted, modifier = Modifier.size(19.dp))
                                     }
+                                }
                             }
                         }
                     }
