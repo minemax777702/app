@@ -108,6 +108,40 @@ class ShoppingRepository(
     }
 
 
+    fun observeStoreProducts(): Flow<List<StoreProduct>> = dao.observeStoreProducts()
+
+    suspend fun saveStoreProduct(storeId: String, productKey: String, price: Long?): String? =
+        db.withTransaction {
+            if (storeId.isBlank() || productKey.isBlank()) return@withTransaction "Выберите магазин и товар"
+            if (price != null && price < 0) return@withTransaction "Некорректная цена"
+            if (storeId == lentaStoreId() && !productKey.startsWith("lenta:"))
+                return@withTransaction "Каталог Ленты управляется автоматически"
+            val available = storeId == lentaStoreId() ||
+                dao.getStores().any { it.id == storeId && !it.deleted }
+            if (!available) return@withTransaction "Магазин не найден"
+            val valid = if (productKey.startsWith("custom:")) {
+                dao.getCustomProducts().any { it.id == productKey.removePrefix("custom:") && !it.deleted }
+            } else if (productKey.startsWith("lenta:")) {
+                dao.getLentaProducts().any { it.id.toString() == productKey.removePrefix("lenta:") }
+            } else false
+            if (!valid) return@withTransaction "Товар не найден"
+            val original = dao.getStoreProducts().firstOrNull {
+                it.storeId == storeId && it.productKey == productKey }
+            val now = maxOf(System.currentTimeMillis(), (original?.updatedAt ?: 0L) + 1)
+            dao.upsertStoreProduct(StoreProduct(storeId, productKey, price, now))
+            null
+        }
+
+    suspend fun removeStoreProduct(storeId: String, productKey: String): String? = db.withTransaction {
+        if (storeId == lentaStoreId()) return@withTransaction "Каталог Ленты нельзя изменять"
+        val existing = dao.getStoreProducts().firstOrNull {
+            it.storeId == storeId && it.productKey == productKey && !it.deleted
+        } ?: return@withTransaction "Товар не найден"
+        dao.upsertStoreProduct(existing.copy(deleted = true,
+            updatedAt = maxOf(System.currentTimeMillis(), existing.updatedAt + 1)))
+        null
+    }
+
     fun observeCustomBarcodes(): Flow<List<CustomProductBarcode>> = dao.observeCustomProductBarcodes()
 
     suspend fun editCustomProduct(id: String, rawName: String): String? = db.withTransaction {
@@ -699,6 +733,7 @@ class ShoppingRepository(
             customProducts = dao.getCustomProducts(),
             stores = dao.getStores(),
             customProductBarcodes = dao.getCustomProductBarcodes(),
+            storeProducts = dao.getStoreProducts(),
             users = dao.getUsers().map { SyncUser(it.id, it.name, it.updatedAt) },
             items = dao.getAllItems().map { SyncItem(it.name, it.createdAt, it.updatedAt, it.deleted, it.authorId, it.quantity, it.purchaseEvent, it.productId, it.weightGrams, it.customProductId) },
             archives = dao.getArchives().map { list ->
@@ -843,6 +878,8 @@ class ShoppingRepository(
         dao.upsertStores(merged.stores)
         dao.clearCustomProductBarcodes()
         dao.upsertCustomProductBarcodes(merged.customProductBarcodes)
+        dao.clearStoreProducts()
+        dao.upsertStoreProducts(merged.storeProducts)
 
         dao.clearUsers()
         dao.insertUsers(merged.users.map { AppUser(it.id, it.name, it.at) })
