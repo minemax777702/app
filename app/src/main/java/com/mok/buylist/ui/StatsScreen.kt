@@ -43,6 +43,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.mok.buylist.lentaCatalog
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -78,7 +81,13 @@ fun StatsScreen(
         val ids = bought.filter { it.deleted }.map { it.authorId }.toSet()
         (buyersIn(archive, users) + users.filter { it.id in ids }).distinctBy { it.id }
     }
-    val purchases = remember(archive, bought) { expensePurchases(archive, bought) }
+    val catalog = LocalContext.current.lentaCatalog
+    val lentaProducts by catalog.products.collectAsStateWithLifecycle()
+    val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
+    val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val purchases = remember(archive, bought, customProducts, lentaProducts, barcodeRows) {
+        mergeCatalogPriceHistory(expensePurchases(archive, bought), customProducts, lentaProducts, barcodeRows)
+    }
     var selectedUser by rememberSaveable { mutableStateOf<String?>(null) }
     var period by rememberSaveable { mutableStateOf(ExpensePeriod.MONTH) }
     val zone = ZoneId.systemDefault()
