@@ -81,7 +81,15 @@ internal object BarcodeProductLookup {
                     if (output.size() + n > limit) return null
                     output.write(buffer, 0, n)
                 }
-                output.toString(Charsets.UTF_8.name())
+                val declared = connection.contentType
+                    ?.substringAfter("charset=", "", ignoreCase = true)
+                    ?.substringBefore(";")?.trim()?.replace("\\"", "")
+                    ?.lowercase(Locale.ROOT).orEmpty()
+                val charset = when (declared) {
+                    "windows-1251", "cp1251" -> java.nio.charset.Charset.forName("windows-1251")
+                    else -> Charsets.UTF_8
+                }
+                output.toString(charset.name())
             }
         } finally {
             connection.disconnect()
@@ -148,7 +156,8 @@ internal object BarcodeProductLookup {
         if (name.length !in 4..200 || name == code || name.all(Char::isDigit)) return false
         if (name.any { it == '\n' || it == '\r' || it == '<' || it == '>' }) return false
         val ignored = listOf("not found", "error", "captcha", "access denied", "не найден",
-            "нет данных", "неизвестный товар", "invalid", "null", "undefined", "403 forbidden")
+            "нет данных", "неизвестный товар", "не зарегистрирован", "код отсутствует",
+            "invalid", "null", "undefined", "403 forbidden")
         return ignored.none { name.contains(it, ignoreCase = true) }
     }
 
