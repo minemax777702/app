@@ -228,26 +228,38 @@ internal fun StoresScreen(
                     ) {
                         Row(
                             Modifier.fillMaxWidth().clickable { onProductClick(entry.key) },
-                            verticalAlignment = Alignment.Top,
+                            verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            androidx.compose.foundation.layout.Box(
+                                Modifier.size(46.dp).background(p.field, RoundedCornerShape(14.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(painterResource(R.drawable.ic_product_placeholder),
+                                    contentDescription = null, tint = p.iconMuted,
+                                    modifier = Modifier.size(24.dp))
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 Text(entry.name, color = p.text, fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                                Text(entry.purchasedAt?.let { at ->
-                                    "Покупка: " +
+                                    fontWeight = FontWeight.SemiBold, lineHeight = 20.sp,
+                                    maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                entry.purchasedAt?.let { at ->
+                                    Text("Куплен " +
                                         java.time.Instant.ofEpochMilli(at).atZone(
                                             java.time.ZoneId.systemDefault()).toLocalDate()
-                                            .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-                                } ?: "", color = p.textSecondary, fontSize = 12.sp)
+                                            .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")),
+                                        color = p.textSecondary, fontSize = 12.sp)
+                                }
                             }
-                            Text(entry.price?.let {
-                                BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" +
-                                    if (entry.weighted) "/кг" else ""
-                            } ?: "—", color = p.accent,
-                                fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                                maxLines = 2)
+                            Column(horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(entry.price?.let {
+                                    BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
+                                } ?: "—", color = if (entry.price == null) p.textSecondary else p.accent,
+                                    fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                if (entry.weighted && entry.price != null)
+                                    Text("за кг", color = p.textSecondary, fontSize = 11.sp)
+                            }
                         }
                         if (store.id != lentaStoreId()) {
                             val attached = storeLinks.any {
