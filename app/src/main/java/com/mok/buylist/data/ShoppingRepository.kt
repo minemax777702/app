@@ -180,6 +180,28 @@ class ShoppingRepository(
             null
         }
 
+    /**
+     * A confirmed purchase makes the product available at its chosen store.
+     * Store catalog prices are edited separately and MUST NOT be overwritten
+     * by the price of a single receipt.
+     * Called inside the purchase / amendment Room transaction.
+     */
+    private suspend fun attachBoughtProductToStore(
+        storeId: String, productKey: String, at: Long,
+    ) {
+        if (storeId.isBlank() || productKey.isBlank()) return
+        val existing = dao.getStoreProducts().firstOrNull {
+            it.storeId == storeId && it.productKey == productKey
+        }
+        if (existing?.deleted == false) return
+        dao.upsertStoreProduct(StoreProduct(
+            storeId = storeId, productKey = productKey,
+            priceKopecks = existing?.priceKopecks,
+            updatedAt = maxOf(at, (existing?.updatedAt ?: 0L) + 1),
+            deleted = false,
+        ))
+    }
+
     suspend fun removeStoreProduct(storeId: String, productKey: String): String? = db.withTransaction {
         if (storeId == lentaStoreId()) return@withTransaction "Каталог Ленты нельзя изменять"
         val existing = dao.getStoreProducts().firstOrNull {
@@ -510,6 +532,7 @@ class ShoppingRepository(
                         .also { dao.upsertStore(it) }
                 store.id
             }
+            attachBoughtProductToStore(storeId, customKey(product.id), now)
             val planned = findActiveIdentity(customKey(product.id))
             if (planned != null) {
                 val weighed = if (product.isWeighted) planned.copy(weightGrams = weightGrams) else planned
@@ -547,6 +570,7 @@ class ShoppingRepository(
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
             }
+            attachBoughtProductToStore(lentaStoreId(), "lenta:${product.id}", now)
             val planned = findActiveIdentity("lenta:${product.id}")
             if (planned != null) {
                 dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
@@ -588,6 +612,12 @@ class ShoppingRepository(
                         .also { dao.upsertStore(it) }
                 store.id
             }
+            val productKey = when {
+                item.customProductId.isNotBlank() -> customKey(item.customProductId)
+                item.productId > 0 -> "lenta:${item.productId}"
+                else -> ""
+            }
+            attachBoughtProductToStore(storeId, productKey, now)
             val boughtItem = if (weightGrams != null) item.copy(weightGrams = weightGrams) else item
             dao.updateItem(boughtItem.copy(deleted = true, updatedAt = now, authorId = profile.id,
                 purchaseEvent = purchaseEvent(boughtItem, product,
@@ -619,6 +649,13 @@ class ShoppingRepository(
                 val amended = amendPurchaseEvent(bought.purchaseEvent, unitPrice, storeId, now)
                     ?: return@withTransaction "Событие покупки повреждено"
                 dao.updateItem(bought.copy(purchaseEvent = amended, updatedAt = now))
+                decodePurchaseEvent(amended)?.let { event ->
+                    attachBoughtProductToStore(storeId, when {
+                        event.customProductId.isNotBlank() -> customKey(event.customProductId)
+                        event.productId != null -> "lenta:${event.productId}"
+                        else -> ""
+                    }, now)
+                }
                 return@withTransaction null
             }
             val archive = dao.getArchives().firstOrNull { list ->
@@ -629,6 +666,15 @@ class ShoppingRepository(
                 else amendPurchaseEvent(encoded, unitPrice, storeId, now) ?: encoded
             }
             dao.updateArchived(archive.copy(purchaseEvents = updatedEvents.joinToString("\n")))
+            updatedEvents.firstNotNullOfOrNull { encoded ->
+                decodePurchaseEvent(encoded)?.takeIf { it.id == eventId }
+            }?.let { event ->
+                attachBoughtProductToStore(storeId, when {
+                    event.customProductId.isNotBlank() -> customKey(event.customProductId)
+                    event.productId != null -> "lenta:${event.productId}"
+                    else -> ""
+                }, now)
+            }
             null
         }
     }
