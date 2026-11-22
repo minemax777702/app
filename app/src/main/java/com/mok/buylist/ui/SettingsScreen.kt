@@ -29,9 +29,9 @@ fun SettingsScreen(
     val p = LocalPalette.current
     var syncActive by remember { mutableStateOf(false) }
     val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
-    var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     if (selectedProduct != null) {
-        ProductDetailsScreen("lenta:$selectedProduct", remember(archive, bought) { expensePurchases(archive, bought) },
+        ProductDetailsScreen(selectedProduct!!, remember(archive, bought) { expensePurchases(archive, bought) },
             users, viewModel, onBack = { selectedProduct = null })
         return
     }
