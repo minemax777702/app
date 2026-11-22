@@ -207,6 +207,11 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.changeCustomBarcode(id, previous, value)) }
     }
 
+    fun amendPurchase(eventId: String, unitPrice: Long?, storeName: String,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.amendPurchase(eventId, unitPrice, storeName)) }
+    }
+
     fun addManualProduct(name: String, barcode: String, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { onResult(repository.addManualProduct(name, barcode)) }
     }
