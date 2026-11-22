@@ -336,6 +336,36 @@ class SyncMergeTest {
         assertEquals(merged, SyncMerge.merge(merged, old))
     }
 
+    @Test fun manuallyDeletedBarcodeIsNotRestoredByOlderPhone() {
+        val product = com.mok.buylist.data.StoredLentaProduct(
+            7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1,
+        )
+        val saved = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115610", updatedAt = 10),
+        ))
+        val deleted = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115610", updatedAt = 20, deleted = true),
+        ))
+        val merged = SyncMerge.merge(saved, deleted)
+        assertEquals(true, merged.productBarcodes.single { it.code == "4607078115610" }.deleted)
+        assertEquals(merged, SyncMerge.merge(merged, saved))
+        assertEquals(merged, SyncMerge.merge(saved, merged))
+    }
+
+    @Test fun newerManualRestoreWinsOverBarcodeDeletion() {
+        val product = com.mok.buylist.data.StoredLentaProduct(
+            7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1,
+        )
+        val deleted = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115610", updatedAt = 20, deleted = true),
+        ))
+        val restored = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "4607078115610", updatedAt = 30, deleted = false),
+        ))
+        assertEquals(false, SyncMerge.merge(deleted, restored).productBarcodes
+            .single { it.code == "4607078115610" }.deleted)
+    }
+
     @Test fun barcodeOfDeletedProductIsNotRestoredBySync() {
         val product = com.mok.buylist.data.StoredLentaProduct(
             7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1,
