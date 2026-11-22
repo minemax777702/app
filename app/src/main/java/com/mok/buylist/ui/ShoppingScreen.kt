@@ -216,10 +216,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
                                 onWeight = { weightItem = row.item },
-                                onBuy = {
-                                    if (row.item.productId > 0) viewModel.buy(row.item)
-                                    else pendingPurchase = row.item
-                                },
+                                onBuy = { pendingPurchase = row.item },
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
@@ -363,7 +360,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     pendingPurchase?.let { item ->
         val ownProduct = customProducts.firstOrNull { it.id == item.customProductId }
-        val suggestedPrice = ownProduct?.estimatedPriceKopecks
+        val suggestedPrice = if (item.productId > 0)
+            lentaById[item.productId]?.price?.let(com.mok.buylist.data::parsePriceKopecks)
+        else ownProduct?.estimatedPriceKopecks
+        val isLenta = item.productId > 0
         val isWeighted = ownProduct?.isWeighted == true || item.weightGrams != null
         var price by remember(item.id) {
             mutableStateOf(suggestedPrice?.let {
@@ -394,7 +394,17 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
-                    StoreSelectField(stores, selectedStore, onSelected = { store ->
+                    if (isLenta) {
+                        Row(Modifier.fillMaxWidth()
+                            .background(p.field, RoundedCornerShape(18.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(painterResource(R.drawable.ic_store), contentDescription = null,
+                                tint = p.accent, modifier = Modifier.size(22.dp))
+                            Text("Лента", color = p.text, fontWeight = FontWeight.SemiBold)
+                        }
+                    } else StoreSelectField(stores, selectedStore, onSelected = { store ->
                         selectedStore = store
                         price = suggestedPrice?.let {
                             java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
@@ -418,7 +428,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             confirmButton = {
                 SheetActionButton(enabled = (price.isBlank() || priceValue != null) &&
                     (!isWeighted || weightGrams != null), onClick = {
-                    viewModel.buy(item, priceValue, selectedStore?.name.orEmpty(), weightGrams)
+                    viewModel.buy(item, priceValue,
+                        if (isLenta) "Лента" else selectedStore?.name.orEmpty(), weightGrams)
                     pendingPurchase = null
                 }) { Text("Куплено") }
             },
