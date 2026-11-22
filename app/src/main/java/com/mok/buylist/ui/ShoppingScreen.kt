@@ -156,6 +156,23 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val lentaProducts by context.lentaCatalog.products.collectAsStateWithLifecycle()
     val lentaAddress by context.lentaCatalog.address.collectAsStateWithLifecycle()
     val lentaById = remember(lentaProducts) { lentaProducts.associateBy { it.id } }
+    val lentaBarcodes by context.lentaCatalog.barcodeRows.collectAsStateWithLifecycle()
+    val sharedIdentities = remember(lentaProducts, customProducts, lentaBarcodes, customBarcodes) {
+        com.mok.buylist.data.sharedCatalogIdentities(
+            lentaProducts, customProducts, lentaBarcodes, customBarcodes)
+    }
+    val recordedPurchases = remember(archive, bought) { expensePurchases(archive, bought) }
+    val shopPricesByKey = remember(rows, stores, storeLinks, recordedPurchases, sharedIdentities) {
+        rows.orEmpty().mapNotNull { row ->
+            val key = when {
+                row.item.customProductId.isNotBlank() -> "custom:${row.item.customProductId}"
+                row.item.productId > 0 -> "lenta:${row.item.productId}"
+                else -> return@mapNotNull null
+            }
+            row.item.id to productShopPrices(
+                key, stores, storeLinks, recordedPurchases, sharedIdentities)
+        }.toMap()
+    }
 
     var showAdd by rememberSaveable { mutableStateOf(false) }
     var scanPurchase by remember { mutableStateOf(false) }
@@ -214,6 +231,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                             ItemRow(
                                 row = row,
                                 product = lentaById[row.item.productId],
+                                shopPrices = shopPricesByKey[row.item.id].orEmpty(),
+                                ownEstimate = customProducts.firstOrNull { it.id == row.item.customProductId }?.estimatedPriceKopecks,
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
                                 onWeight = { weightItem = row.item },
@@ -786,6 +805,8 @@ private const val SWIPE_REMOVE_FRACTION = 0.55f
 private fun ItemRow(
     row: ListRow,
     product: LentaProduct?,
+    shopPrices: List<ProductShopPrice>,
+    ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
     onWeight: () -> Unit,
@@ -798,7 +819,8 @@ private fun ItemRow(
     // Обёртка свайпа есть всегда (просто выключается), чтобы строка не пересоздавалась и её цвет и значок
     // плавно перетекали из «в списке» в «куплено».
     SwipeToRemove(enabled = row.state == RowState.ACTIVE, onRemove = onRemove, modifier = modifier) {
-        ItemRowContent(row, onBuy, onUndo, product, address, onQuantity, onWeight, onDetails, onRemove)
+        ItemRowContent(row, onBuy, onUndo, product, shopPrices, ownEstimate,
+            address, onQuantity, onWeight, onDetails, onRemove)
     }
 }
 
@@ -945,6 +967,8 @@ private fun ItemRowContent(
     onBuy: () -> Unit,
     onUndo: () -> Unit,
     product: LentaProduct?,
+    shopPrices: List<ProductShopPrice>,
+    ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
     onWeight: () -> Unit,
@@ -1014,6 +1038,22 @@ private fun ItemRowContent(
         )
         val shown = product?.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" && it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null }
         if (shown != null) Text("${shown.price} ₽", color = p.textSecondary, fontSize = 12.sp)
+        if (row.item.customProductId.isNotBlank()) {
+            val lowest = cheapestShopPrice(shopPrices)
+            val amount = lowest?.priceKopecks ?: ownEstimate
+            if (amount != null) {
+                val priceText = java.math.BigDecimal.valueOf(amount, 2)
+                    .stripTrailingZeros().toPlainString() + " ₽"
+                val label = if (lowest != null) "$priceText · ${lowest.storeName}"
+                    else "Ориентир: $priceText"
+                Text(label, color = p.accent, fontSize = 13.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            } else if (shopPrices.isNotEmpty()) {
+                Text(shopPrices.take(2).joinToString(" · ") { it.storeName },
+                    color = p.textSecondary, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
         }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
