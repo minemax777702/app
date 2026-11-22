@@ -1023,7 +1023,9 @@ private fun ItemRowContent(
                 }
             }
         }, verticalAlignment = Alignment.CenterVertically) {
-        LentaImage(product?.image.orEmpty(), Modifier.size(48.dp))
+        if (row.item.customProductId.isNotBlank())
+            CustomProductImage(row.item.customProductId, Modifier.size(48.dp))
+        else LentaImage(product?.image.orEmpty(), Modifier.size(48.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
         Text(
