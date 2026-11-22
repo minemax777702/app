@@ -419,42 +419,104 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             })
     }
     editingPurchase?.let { row ->
-        val parsed = com.mok.buylist.data.parsePriceKopecks(purchasePrice)
-        AppSheet(onDismissRequest = { editingPurchase = null }, containerColor = p.sheet,
-            title = { SheetHeader("Изменить покупку") },
+        val parsed = if (purchasePrice.isBlank()) null
+            else com.mok.buylist.data.parsePriceKopecks(purchasePrice)
+        val fixedLenta = row.productKey.startsWith("lenta:") &&
+            row.storeId == com.mok.buylist.data.lentaStoreId()
+        val eventProduct = products.firstOrNull { "lenta:${it.id}" == row.productKey }
+        AppSheet(
+            onDismissRequest = { editingPurchase = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Цена и магазин") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(row.name, color = p.text)
-                    SheetTextField(purchasePrice,
-                        { purchasePrice = it; purchaseError = null; purchasePriceRevision++ },
-                        "Цена за единицу, ₽ (необязательно)",
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    if ((row.productKey.startsWith("lenta:") && row.storeId == com.mok.buylist.data.lentaStoreId())) {
-                        Text("Магазин: Лента", color = p.textSecondary)
-                    } else StoreSelectField(stores, purchaseStore, onSelected = { store ->
-                        purchaseStore = store
-                        purchaseError = null
-                        val revision = ++purchasePriceRevision
-                        if (store != null) viewModel.latestStorePrice(
-                            row.productKey, store.id, row.id
-                        ) { known ->
-                            if (purchaseStore?.id == store.id && purchasePriceRevision == revision && known != null)
-                                purchasePrice = BigDecimal.valueOf(known, 2)
-                                    .stripTrailingZeros().toPlainString()
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                            .background(p.card).padding(14.dp),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (row.productKey.startsWith("custom:"))
+                            CustomProductImage(row.productKey.removePrefix("custom:"), Modifier.size(58.dp))
+                        else LentaImage(eventProduct?.image.orEmpty(), Modifier.size(58.dp))
+                        Column(Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(row.name, color = p.text, fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold, maxLines = 3)
+                            Text(formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)),
+                                color = p.textSecondary, fontSize = 12.sp)
                         }
-                    }, onCreate = viewModel::createStore)
-                    purchaseError?.let { Text(it, color = p.error) }
+                    }
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                            .background(p.card).padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(if (row.weightGrams != null) "Цена за кг" else "Цена за единицу",
+                            color = p.text, fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        SheetTextField(
+                            purchasePrice,
+                            { purchasePrice = it; purchaseError = null; purchasePriceRevision++ },
+                            "Цена, ₽ (необязательно)",
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            isError = purchasePrice.isNotBlank() && parsed == null,
+                        )
+                        Text("Неуказанная цена не участвует в расчёте расходов.",
+                            color = p.textSecondary, fontSize = 12.sp)
+                    }
+                    Column(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                            .background(p.card).padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text("Магазин", color = p.text, fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold)
+                        if (fixedLenta) {
+                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                                .background(p.field).padding(16.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(painterResource(R.drawable.ic_store), null,
+                                    tint = p.accent, modifier = Modifier.size(21.dp))
+                                Text("Лента", color = p.text,
+                                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            StoreSelectField(stores, purchaseStore, onSelected = { store ->
+                                purchaseStore = store
+                                purchaseError = null
+                                val revision = ++purchasePriceRevision
+                                if (store != null) viewModel.latestStorePrice(
+                                    row.productKey, store.id, row.id
+                                ) { known ->
+                                    if (purchaseStore?.id == store.id &&
+                                        purchasePriceRevision == revision && known != null)
+                                        purchasePrice = BigDecimal.valueOf(known, 2)
+                                            .stripTrailingZeros().toPlainString()
+                                }
+                            }, onCreate = viewModel::createStore)
+                        }
+                    }
+                    purchaseError?.let {
+                        Text(it, color = p.error, fontSize = 13.sp)
+                    }
                 }
             },
             confirmButton = {
-                SheetActionButton(enabled = purchasePrice.isBlank() || parsed != null, onClick = {
-                    viewModel.amendPurchase(row.id, parsed,
-                        if ((row.productKey.startsWith("lenta:") && row.storeId == com.mok.buylist.data.lentaStoreId())) "Лента"
-                        else purchaseStore?.name.orEmpty()) { error ->
-                        if (error == null) editingPurchase = null else purchaseError = error
-                    }
-                }) { Text("Сохранить") }
-            })
+                SheetActionButton(
+                    enabled = purchasePrice.isBlank() || parsed != null,
+                    onClick = {
+                        viewModel.amendPurchase(row.id, parsed,
+                            if (fixedLenta) "Лента" else purchaseStore?.name.orEmpty()
+                        ) { error ->
+                            if (error == null) editingPurchase = null
+                            else purchaseError = error
+                        }
+                    },
+                ) { Text("Сохранить изменения") }
+            },
+        )
     }
     LaunchedEffect(ownProduct?.id, barcodes.firstOrNull()) {
         val own = ownProduct
@@ -741,14 +803,28 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     val amount = row.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: "Количество: ${row.quantity}"
                     Text(listOfNotNull(amount, row.total?.let { "Стоимость: ${historyMoney(it)}" }).joinToString(" · "), color = p.textSecondary)
                     if (row.buyer.isNotBlank()) Text("Покупатель: ${buyers[row.buyer] ?: row.buyer}", color = p.textSecondary)
-                    TextButton(onClick = {
-                        editingPurchase = row
-                        purchasePrice = row.unitPrice?.let {
-                            BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
-                        }.orEmpty()
-                        purchaseStore = stores.firstOrNull { it.id == row.storeId }
-                        purchaseError = null
-                    }) { Text("Изменить цену и магазин", color = p.accent) }
+                    Row(Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End) {
+                        Row(
+                            Modifier.clip(RoundedCornerShape(14.dp))
+                                .background(p.chipBg)
+                                .clickable {
+                                    editingPurchase = row
+                                    purchasePrice = row.unitPrice?.let {
+                                        BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                                    }.orEmpty()
+                                    purchaseStore = stores.firstOrNull { it.id == row.storeId }
+                                    purchaseError = null
+                                }.padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(painterResource(R.drawable.ic_edit), contentDescription = null,
+                                tint = p.accent, modifier = Modifier.size(17.dp))
+                            Text("Изменить цену и магазин", color = p.accent,
+                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
             if (historyCount < rows.size) item {
