@@ -97,7 +97,7 @@ internal class ByteReader(private val data: ByteArray) {
 
 /** Двоичный формат сообщений. Сообщение сжимается deflate: названия в архиве и истории часто повторяются. */
 object SyncCodec {
-    private const val VERSION = 7
+    private const val VERSION = 8
     private const val MAX_UNPACKED_BYTES = 16 * 1024 * 1024
 
     fun encode(snapshot: Snapshot): ByteArray = deflate(write(snapshot))
@@ -136,7 +136,7 @@ object SyncCodec {
             w.string(p.address); w.long(p.storeId); w.string(p.channel); w.long(p.fetchedAt); w.long(p.updatedAt)
         }
         w.int(s.productBarcodes.size)
-        for (barcode in s.productBarcodes) { w.long(barcode.productId); w.string(barcode.code) }
+        for (barcode in s.productBarcodes) { w.long(barcode.productId); w.string(barcode.code); w.long(barcode.updatedAt); w.byte(if (barcode.deleted) 1 else 0) }
         return w.toByteArray()
     }
 
@@ -181,7 +181,7 @@ object SyncCodec {
                 r.string(), r.string(), r.string(), r.long(), r.string(), r.long(), r.long())
         } else emptyList()
         val barcodes = if (version >= 7) List(r.count()) {
-            StoredProductBarcode(r.long(), r.string())
+            StoredProductBarcode(r.long(), r.string(), if (version >= 8) r.long() else 0, if (version >= 8) r.byte() != 0 else false)
         } else products.mapNotNull { p ->
             p.ean.takeIf { it.isNotBlank() }?.let { StoredProductBarcode(p.id, it) }
         }
