@@ -25,6 +25,7 @@ import com.mok.buylist.sync.TombKind
 import com.mok.buylist.widget.ShoppingWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
@@ -51,12 +52,43 @@ class ShoppingRepository(
     private val dao = db.shoppingDao()
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
-    fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores()
+    fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores().map { rows ->
+        val builtin = ShoppingStore(lentaStoreId(), "Лента", updatedAt = 0L)
+        if (rows.any { it.id == builtin.id && !it.deleted }) rows
+        else rows.filterNot { it.id == builtin.id } + builtin
+    }
+
+    suspend fun renameStore(id: String, rawName: String): String? = db.withTransaction {
+        if (id == lentaStoreId()) return@withTransaction "Магазин Лента нельзя переименовать"
+        val name = normalizeName(rawName)
+        if (name.isBlank() || name.length > 100) return@withTransaction "Название должно содержать от 1 до 100 символов"
+        val stores = dao.getStores()
+        val store = stores.firstOrNull { it.id == id && !it.deleted }
+            ?: return@withTransaction "Магазин не найден"
+        if (stores.any { it.id != id && !it.deleted && it.nameKey == nameKeyOf(name) } ||
+            nameKeyOf(name) == nameKeyOf("Лента"))
+            return@withTransaction "Такой магазин уже существует"
+        dao.upsertStore(store.copy(name = name, nameKey = nameKeyOf(name),
+            updatedAt = maxOf(System.currentTimeMillis(), store.updatedAt + 1)))
+        null
+    }
+
+    suspend fun deleteStore(id: String): String? = db.withTransaction {
+        if (id == lentaStoreId()) return@withTransaction "Магазин Лента нельзя удалить"
+        val store = dao.getStores().firstOrNull { it.id == id && !it.deleted }
+            ?: return@withTransaction "Магазин не найден"
+        // Keep name and UUID for archived purchase history and sync tombstones.
+        dao.upsertStore(store.copy(deleted = true,
+            updatedAt = maxOf(System.currentTimeMillis(), store.updatedAt + 1)))
+        null
+    }
 
     /** A store is created explicitly, never as a side effect of typing in checkout. */
     suspend fun createStore(rawName: String): ShoppingStore? = db.withTransaction {
         val name = normalizeName(rawName)
         if (name.isBlank() || name.length > 100) return@withTransaction null
+        if (nameKeyOf(name) == nameKeyOf("Лента"))
+            return@withTransaction ShoppingStore(lentaStoreId(), "Лента", updatedAt = 0L)
         dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(name) }
             ?.let { return@withTransaction it }
         val now = System.currentTimeMillis()
@@ -418,11 +450,17 @@ class ShoppingRepository(
         return result
     }
 
+    private suspend fun ensureLentaStore(now: Long) {
+        if (dao.getStores().none { it.id == lentaStoreId() && !it.deleted })
+            dao.upsertStore(ShoppingStore(lentaStoreId(), "Лента", updatedAt = now))
+    }
+
     suspend fun buyScanned(product: LentaProduct, priceOverride: Long? = null): ScannedPurchaseResult? {
         val name = normalizeName(product.name)
         if (product.id <= 0 || name.isEmpty()) return null
         val item = db.withTransaction {
             val now = System.currentTimeMillis()
+            ensureLentaStore(now)
             val address = context.lentaCatalog.address.value
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
@@ -430,12 +468,14 @@ class ShoppingRepository(
             val planned = findActiveIdentity("lenta:${product.id}")
             if (planned != null) {
                 dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                    purchaseEvent = purchaseEvent(planned, current, now, profile.id, priceOverride)))
+                    purchaseEvent = purchaseEvent(planned, current, now, profile.id, priceOverride,
+                        storeId = lentaStoreId())))
                 return@withTransaction ScannedPurchaseResult(planned, impulsive = false)
             }
             val base = ShoppingItem(name = name, productId = product.id, createdAt = now, updatedAt = now,
                 authorId = profile.id, deleted = true)
-            val event = purchaseEvent(base, current, now, profile.id, priceOverride, impulsive = true)
+            val event = purchaseEvent(base, current, now, profile.id, priceOverride,
+                impulsive = true, storeId = lentaStoreId())
             val eventId = checkNotNull(decodePurchaseEvent(event)).id
             val bought = base.copy(nameKey = "impulse:$eventId", purchaseEvent = event).also { dao.insertItem(it) }
             ScannedPurchaseResult(bought, impulsive = true)
@@ -456,8 +496,11 @@ class ShoppingRepository(
             val product = dao.getLentaProducts().firstOrNull { it.id == item.productId }?.toProduct()?.takeIf {
                 catalog.address.value.isNotBlank() && it.address == catalog.address.value && it.channel == "locc"
             }
-            val normalizedStore = normalizeName(storeName).take(100)
-            val storeId = if (normalizedStore.isEmpty()) "" else {
+            val normalizedStore = if (item.productId > 0) "Лента" else normalizeName(storeName).take(100)
+            val storeId = if (item.productId > 0) {
+                ensureLentaStore(now)
+                lentaStoreId()
+            } else if (normalizedStore.isEmpty()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(normalizedStore) }
                     ?: ShoppingStore(stableStoreId(normalizedStore), normalizedStore, updatedAt = now)
                         .also { dao.upsertStore(it) }
@@ -465,7 +508,7 @@ class ShoppingRepository(
             }
             val boughtItem = if (weightGrams != null) item.copy(weightGrams = weightGrams) else item
             dao.updateItem(boughtItem.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                purchaseEvent = purchaseEvent(boughtItem, if (storeId.isNotEmpty()) null else product,
+                purchaseEvent = purchaseEvent(boughtItem, product,
                     now, profile.id, priceOverride, impulsive, storeId)))
         }
         refreshWidget()
