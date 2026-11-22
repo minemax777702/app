@@ -310,7 +310,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         FilterChip(selected = ownWeighted, onClick = { ownWeighted = true },
                             label = { Text("Весовой") })
                     }
-                    Text(if (ownWeighted) "Цена за кг" else "Ориентировочная цена",
+                    Text(if (ownWeighted) "Ориентировочная цена за кг" else "Ориентировочная цена",
                         color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownPriceInput,
                         { ownPriceInput = it; ownDetailsError = null }, "Цена, ₽",

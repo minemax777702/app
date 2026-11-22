@@ -221,7 +221,8 @@ class ShoppingRepository(
                     isWeighted = saved.isWeighted || isWeighted,
                     updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
             }
-            return addCustomToList(saved)
+            return addCustomToList(if (isWeighted && !saved.isWeighted)
+                saved.copy(isWeighted = true) else saved)
         }
         val product = CustomProduct(UUID.randomUUID().toString(), name, code,
             System.currentTimeMillis(), estimatedPriceKopecks = estimatedPriceKopecks,
@@ -378,7 +379,7 @@ class ShoppingRepository(
                 dao.updateItem(weighed.copy(deleted = true, updatedAt = now, authorId = profile.id,
                     purchaseEvent = purchaseEvent(weighed, null, now, profile.id, priceOverride,
                         storeId = storeId)))
-                return@withTransaction ScannedPurchaseResult(planned, false)
+                return@withTransaction ScannedPurchaseResult(weighed, false)
             }
             val base = ShoppingItem(name = product.name, customProductId = product.id,
                 createdAt = now, updatedAt = now, authorId = profile.id, deleted = true,
