@@ -20,7 +20,7 @@ class LentaMcpResponseTest {
             "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"content\":[]}}\n\n"
         assertEquals("""{"jsonrpc":"2.0","id":1,"result":{"content":[]}}""",
             readMcpResponse("text/event-stream; charset=utf-8", ByteArrayInputStream(response.toByteArray())) {
-                it.contains("\\"id\\":1")
+                it.contains("\"id\":1")
             })
     }
 
