@@ -958,29 +958,41 @@ class ShoppingRepository(
      * идентификатор становится моим, и покупки из копии остаются «моими», а не чужого пользователя с тем же именем.
      */
     suspend fun restoreBackup(contents: BackupContents, asMe: Boolean): SyncSummary {
-        if (asMe && contents.ownerId.isNotEmpty() && contents.ownerId != profile.id) {
-            adoptIdentity(contents.ownerId, contents.ownerName)
+        val adopt = asMe && contents.ownerId.isNotEmpty() && contents.ownerId != profile.id
+        if (!adopt) return applyRemote(contents.snapshot)
+
+        val oldId = profile.id
+        // Keep all Room mutations in a single transaction. On merge/write failure
+        // the database is rolled back and the persisted profile is untouched.
+        val summary = db.withTransaction {
+            reassignIdentityInDb(oldId, contents.ownerId, contents.ownerName)
+            val local = buildSnapshot()
+            val merged = SyncMerge.merge(local, contents.snapshot)
+            write(merged)
+            summarize(local, merged)
         }
-        return applyRemote(contents.snapshot)
+        // Publish identity only after the database transaction succeeded.
+        // UserProfile.adopt uses synchronous commit to avoid async preference writes.
+        profile.adopt(contents.ownerId, contents.ownerName)
+        refreshWidget()
+        return summary
     }
 
-    private suspend fun adoptIdentity(oldId: String, name: String) {
-        val temporary = profile.id
-        profile.adopt(oldId, name)
-        db.withTransaction {
-            dao.deleteUser(temporary)
-            dao.upsertUser(AppUser(oldId, name, System.currentTimeMillis()))
-            dao.reassignItems(temporary, oldId)
-            for (item in dao.getAllItems()) {
-                val event = reassignPurchaseEvent(item.purchaseEvent, temporary, oldId)
-                if (event != item.purchaseEvent) dao.updateItem(item.copy(purchaseEvent = event))
-            }
-            for (list in dao.getArchives()) {
-                val replaced = list.buyerIds.map { if (it == temporary) oldId else it }
-                val events = list.events.map { reassignPurchaseEvent(it, temporary, oldId) }
-                if (temporary in list.buyerIds || events != list.events)
-                    dao.updateArchived(list.copy(buyers = replaced.joinToString("\n"), purchaseEvents = events.joinToString("\n")))
-            }
+    /** Must be called within the caller's Room transaction. */
+    private suspend fun reassignIdentityInDb(temporary: String, newId: String, name: String) {
+        dao.deleteUser(temporary)
+        dao.upsertUser(AppUser(newId, name, System.currentTimeMillis()))
+        dao.reassignItems(temporary, newId)
+        for (item in dao.getAllItems()) {
+            val event = reassignPurchaseEvent(item.purchaseEvent, temporary, newId)
+            if (event != item.purchaseEvent) dao.updateItem(item.copy(purchaseEvent = event))
+        }
+        for (list in dao.getArchives()) {
+            val replaced = list.buyerIds.map { if (it == temporary) newId else it }
+            val events = list.events.map { reassignPurchaseEvent(it, temporary, newId) }
+            if (temporary in list.buyerIds || events != list.events)
+                dao.updateArchived(list.copy(buyers = replaced.joinToString("\\n"),
+                    purchaseEvents = events.joinToString("\\n")))
         }
     }
 
