@@ -319,6 +319,28 @@ class SyncMergeTest {
     }
 
     @Test
+    fun legacyVersionsWithDifferentQuantitiesPreserveBothRows() {
+        val old = SyncArchive("shared", 100, listOf("Молоко"), listOf("u"), 0, 1,
+            quantities = listOf(1))
+        val newer = old.copy(quantities = listOf(3))
+        val result = SyncMerge.merge(Snapshot(archives = listOf(old)),
+            Snapshot(archives = listOf(newer)))
+        assertEquals(listOf(1, 3), result.archives.single().quantities.sorted())
+        assertEquals(result, SyncMerge.merge(result, Snapshot(archives = listOf(old))))
+    }
+
+    @Test
+    fun anonymousLegacyVersionCannotCollapseTwoKnownBuyers() {
+        val anonymous = SyncArchive("shared", 100, listOf("Молоко"), listOf(""), 0, 1)
+        val buyerA = anonymous.copy(buyers = listOf("a"))
+        val buyerB = anonymous.copy(buyers = listOf("b"))
+        val result = SyncMerge.merge(Snapshot(archives = listOf(anonymous, buyerA)),
+            Snapshot(archives = listOf(buyerB)))
+        assertEquals(2, result.archives.single().names.size)
+        assertEquals(setOf("a", "b"), result.archives.single().buyers.toSet())
+    }
+
+    @Test
     fun archivePurchaseKeepsOriginalBuyerWhenOtherCopyHasNoBuyer() {
         val known = SyncArchive("shared", 100, listOf("Молоко"), listOf("buyer-a"), 0, 1)
         val unknown = known.copy(buyers = listOf(""))
