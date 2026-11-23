@@ -85,7 +85,7 @@ data class Snapshot(
 )
 
 /** Короткий «отпечаток» записи архива: по нему второй телефон понимает, что у меня это уже есть. */
-data class ArchiveStamp(val prefix: Long)
+data class ArchiveStamp(val prefix: Long, val digest: String = "")
 
 /** Что уже есть у телефона: по нему второй телефон не присылает архив повторно. */
 data class Hello(val archives: List<ArchiveStamp>)
