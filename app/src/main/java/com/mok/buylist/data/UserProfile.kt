@@ -30,7 +30,10 @@ class UserProfile(context: Context, prefsName: String = "profile") {
     /** Восстановление копии на новом телефоне: принимаем прежний идентификатор владельца вместо созданного заново. */
     fun adopt(id: String, name: String): Profile {
         val profile = Profile(id, name)
-        prefs.edit().putString(KEY_ID, id).putString(KEY_NAME, name).apply()
+        // A restored identity must be persisted before being published to flows.
+        check(prefs.edit().putString(KEY_ID, id).putString(KEY_NAME, name).commit()) {
+            "Не удалось сохранить профиль после восстановления"
+        }
         _profile.value = profile
         return profile
     }
