@@ -62,10 +62,50 @@ class LentaSearchControllerTest {
         delay(50)
         controller.searchOnline()
         delay(50)
-        assertEquals(listOf(1, 2, 3, 4, 5, 6), requests)
+        assertEquals((1..9).toList(), requests)
         assertEquals(listOf(1L), controller.state.value.online.map { it.id })
         assertFalse(controller.state.value.failed)
         assertEquals(true, controller.state.value.hasMore)
+    }
+
+    @Test fun newProductOnSixthPageAppearsWithoutAnotherClick() = runBlocking {
+        val requests = mutableListOf<Int>()
+        val saved = (1L..5L).map { product(it, "Молоко") }
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            when (page) {
+                in 1..5 -> listOf(product(page.toLong(), "Молоко"))
+                6 -> listOf(product(6, "Новое молоко"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("молоко", "address", saved, false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..6).toList(), requests)
+        assertEquals(listOf(6L), controller.state.value.online.map { it.id })
+        assertFalse(controller.state.value.loading)
+    }
+
+    @Test fun scanLimitCanBeResumedWithoutRepeatingEarlierPages() = runBlocking {
+        val requests = mutableListOf<Int>()
+        val saved = (1L..12L).map { product(it, "Молоко") }
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            if (page <= 12) listOf(product(page.toLong(), "Молоко"))
+            else if (page == 13) listOf(product(13, "Новое молоко"))
+            else emptyList()
+        }, this)
+        controller.update("молоко", "address", saved, false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..12).toList(), requests)
+        assertEquals(emptyList<Long>(), controller.state.value.online.map { it.id })
+        assertEquals(true, controller.state.value.hasMore)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..13).toList(), requests)
+        assertEquals(listOf(13L), controller.state.value.online.map { it.id })
     }
 
     @Test fun savedAndRepeatedPagesAreSkippedUntilNewProduct() = runBlocking {
