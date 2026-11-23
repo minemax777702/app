@@ -304,6 +304,23 @@ class SyncProtocolTest {
     }
 
     @Test
+    fun secondPassTransfersUpdatedVersionOfKnownArchive() {
+        val old = archive(0, items = 1)
+        val updated = old.copy(names = old.names + "Новый товар",
+            buyers = old.buyers + "buyer-b", quantities = listOf(1, 2),
+            purchaseEvents = listOf("", ""))
+        val known = SyncMerge.helloOf(Snapshot(archives = listOf(old)))
+        val delta = SyncMerge.forPeer(Snapshot(archives = listOf(updated)), known)
+        assertEquals(listOf(updated), delta.archives)
+
+        val receiver = SyncReceiver()
+        transfer(SyncSender(delta), receiver, loss = 0.0)
+        val merged = SyncMerge.merge(Snapshot(archives = listOf(old)), whole(receiver))
+        assertEquals(1, merged.archives.size)
+        assertEquals(setOf("Продукт 1", "Новый товар"), merged.archives.single().names.toSet())
+    }
+
+    @Test
     fun largeArchiveStaysWithinReasonableFrameCount() {
         // Сто пятьдесят списков по двадцать товаров — около года покупок. Для обмена это должно быть терпимо.
         val names = (1..400).map { "Продукт номер $it" }
