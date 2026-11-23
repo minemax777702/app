@@ -9,6 +9,67 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ShoppingDao {
+    @Query("SELECT * FROM store_products ORDER BY storeId, productKey")
+    fun observeStoreProducts(): Flow<List<StoreProduct>>
+
+    @Query("SELECT * FROM store_products ORDER BY storeId, productKey")
+    suspend fun getStoreProducts(): List<StoreProduct>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertStoreProduct(row: StoreProduct)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertStoreProducts(rows: List<StoreProduct>)
+
+    @Query("DELETE FROM store_products")
+    suspend fun clearStoreProducts()
+
+
+    @Query("SELECT * FROM custom_product_barcodes ORDER BY productId, code")
+    fun observeCustomProductBarcodes(): Flow<List<CustomProductBarcode>>
+
+    @Query("SELECT * FROM custom_product_barcodes ORDER BY productId, code")
+    suspend fun getCustomProductBarcodes(): List<CustomProductBarcode>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProductBarcode(row: CustomProductBarcode)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProductBarcodes(rows: List<CustomProductBarcode>)
+
+    @Query("DELETE FROM custom_product_barcodes")
+    suspend fun clearCustomProductBarcodes()
+
+    @Query("SELECT * FROM custom_products ORDER BY name, id")
+    fun observeCustomProducts(): Flow<List<CustomProduct>>
+
+    @Query("SELECT * FROM custom_products")
+    suspend fun getCustomProducts(): List<CustomProduct>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProducts(rows: List<CustomProduct>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertCustomProduct(row: CustomProduct)
+
+    @Query("DELETE FROM custom_products")
+    suspend fun clearCustomProducts()
+
+    @Query("SELECT * FROM stores ORDER BY name, id")
+    fun observeStores(): Flow<List<ShoppingStore>>
+
+    @Query("SELECT * FROM stores")
+    suspend fun getStores(): List<ShoppingStore>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertStores(rows: List<ShoppingStore>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertStore(row: ShoppingStore)
+
+    @Query("DELETE FROM stores")
+    suspend fun clearStores()
+
     @Query("SELECT * FROM lenta_products ORDER BY name, id")
     fun observeLentaProducts(): Flow<List<StoredLentaProduct>>
 
@@ -26,6 +87,27 @@ interface ShoppingDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertLentaProducts(products: List<StoredLentaProduct>)
+
+    @Query("SELECT * FROM product_barcodes ORDER BY productId, code")
+    fun observeProductBarcodes(): Flow<List<StoredProductBarcode>>
+
+    @Query("SELECT * FROM product_barcodes ORDER BY productId, code")
+    suspend fun getProductBarcodes(): List<StoredProductBarcode>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProductBarcode(row: StoredProductBarcode)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertProductBarcode(row: StoredProductBarcode)
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertProductBarcodes(rows: List<StoredProductBarcode>)
+
+    @Query("DELETE FROM product_barcodes WHERE productId = :id")
+    suspend fun deleteProductBarcodes(id: Long)
+
+    @Query("DELETE FROM product_barcodes")
+    suspend fun clearProductBarcodes()
 
     @Query("SELECT * FROM items WHERE deleted = 0 ORDER BY createdAt DESC")
     fun observeItems(): Flow<List<ShoppingItem>>

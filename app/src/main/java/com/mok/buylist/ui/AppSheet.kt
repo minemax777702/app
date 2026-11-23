@@ -48,16 +48,18 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
 @Composable
 internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint: String,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default, keyboardActions: KeyboardActions = KeyboardActions.Default,
-    isError: Boolean = false) {
+    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
     val lineColor = if (isError) p.error else p.accent
     Box(Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(20.dp)).background(p.field)
         .drawBehind { val line = 3.dp.toPx(); drawRect(lineColor, Offset(0f, size.height - line), Size(size.width, line)) }
         .padding(horizontal = 18.dp), contentAlignment = Alignment.CenterStart) {
-        BasicTextField(value = value, onValueChange = onValueChange, modifier = Modifier.fillMaxWidth(), singleLine = true,
+        BasicTextField(value = value, onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp), singleLine = true,
             textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
             cursorBrush = SolidColor(p.accent), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
             decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, color = p.textSecondary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold); inner() } })
+        if (trailingAction != null) Box(Modifier.align(Alignment.CenterEnd)) { trailingAction() }
     }
 }
 

@@ -11,6 +11,7 @@ internal data class ExpensePurchase(
     val id: String, val productKey: String, val name: String, val trip: String,
     val buyer: String, val at: Long, val quantity: Int, val unitPrice: Long?, val priceType: String = "", val impulsive: Boolean = false,
     val weightGrams: Int? = null,
+    val storeId: String = "",
 ) {
     val total: Long? get() = unitPrice?.let { price ->
         if (weightGrams != null) com.mok.buylist.data.priceForWeight(price, weightGrams)
@@ -27,9 +28,14 @@ internal fun expensePurchases(archive: List<ArchivedList>, bought: List<Shopping
         val event = decodePurchaseEvent(encoded)
         val eventId = event?.id?.takeIf { it.isNotBlank() } ?: fallbackId
         purchases += ExpensePurchase(eventId,
-            event?.productId?.let { "lenta:$it" } ?: "event:$eventId",
+            event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
+                ?: event?.productId?.let { "lenta:$it" } ?: "event:$eventId",
             event?.name ?: name, trip, event?.buyer?.ifBlank { buyer } ?: buyer,
-            event?.boughtAt ?: at, event?.quantity ?: quantity, event?.unitPrice, event?.priceType.orEmpty(), event?.impulsive == true, event?.weightGrams)
+            event?.boughtAt ?: at, event?.quantity ?: quantity, event?.unitPrice, event?.priceType.orEmpty(), event?.impulsive == true, event?.weightGrams,
+            event?.storeId.orEmpty().ifBlank {
+                if (event?.productId != null && event.customProductId.isBlank())
+                    com.mok.buylist.data.lentaStoreId() else ""
+            })
     }
     archive.forEach { list ->
         list.names.forEachIndexed { index, name ->
@@ -89,3 +95,24 @@ internal fun archiveForPeriod(archive: List<ArchivedList>, start: LocalDate?, to
             purchaseEvents = indices.joinToString("\n") { list.events[it] },
         )
     }
+
+/**
+ * When one custom product's barcode resolves to exactly one Lenta identity, show a
+ * shared price history. Ambiguous barcode collisions remain separate.
+ *
+ * This is a read-only projection: neither catalog, nor purchase events are rewritten.
+ */
+internal fun mergeCatalogPriceHistory(
+    purchases: List<ExpensePurchase>,
+    customProducts: List<com.mok.buylist.data.CustomProduct>,
+    lentaProducts: List<com.mok.buylist.data.LentaProduct>,
+    barcodes: List<com.mok.buylist.data.StoredProductBarcode>,
+    customBarcodes: List<com.mok.buylist.data.CustomProductBarcode> = emptyList(),
+): List<ExpensePurchase> {
+    val canonical = com.mok.buylist.data.sharedCatalogIdentities(
+        lentaProducts, customProducts, barcodes, customBarcodes)
+    return purchases.map { purchase ->
+        val sharedKey = canonical[purchase.productKey] ?: purchase.productKey
+        if (sharedKey == purchase.productKey) purchase else purchase.copy(productKey = sharedKey)
+    }
+}

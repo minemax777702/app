@@ -58,6 +58,22 @@ object SyncMerge {
             compareBy<com.mok.buylist.data.StoredLentaProduct> { it.updatedAt }.thenBy { it.toString() },
         )
 
+        val activeProductIds = products.mapTo(HashSet()) { it.id }
+        // Подтверждённые коды объединяются по паре (productId, code).
+        // Один код у двух товаров остаётся неоднозначным и требует выбора в UI.
+        val productBarcodes = (a.productBarcodes + b.productBarcodes +
+            products.mapNotNull { p ->
+                p.ean.takeIf { it.isNotBlank() }?.let {
+                    com.mok.buylist.data.StoredProductBarcode(p.id, it)
+                }
+            }).filter { it.productId in activeProductIds &&
+            it.code.length in setOf(8, 12, 13) && it.code.all(Char::isDigit) }
+            .groupBy { it.productId to it.code }
+            .values.map { rows ->
+                rows.maxWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.updatedAt }
+                    .thenBy { it.deleted })
+            }.sortedWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.productId }.thenBy { it.code })
+
         val hidden = pick(
             a.hidden + b.hidden, TombKind.HIDDEN, { it.key }, { it.at },
             compareBy<SyncHidden> { it.at },
@@ -73,8 +89,7 @@ object SyncMerge {
             .values
             .map { group -> mergeArchiveVersions(group) }
         val joinedArchives = joinOverlappingTrips(archiveCandidates)
-        // Только совпадающие ID событий внутри одного похода считаются дублями.
-        // Независимые покупки одного товара разными людьми сохраняются.
+        // Сохраняем независимые покупки; дубли событий объединяются по ID.
         val archives = joinedArchives.sortedBy { it.uid }
         for ((id, t) in archiveTombs) keptTombs += SyncTomb(TombKind.ARCHIVE, id.second, t)
         // Архивы, слитые в один поход, получают устойчивые надгробия для
@@ -86,6 +101,33 @@ object SyncMerge {
             }
         }
 
+        // Persist tombstoned records to avoid resurrection during offline sync.
+        val customProducts = (a.customProducts + b.customProducts)
+            .groupBy { it.id }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.CustomProduct> { it.updatedAt }
+                    .thenBy { it.deleted }.thenBy { it.toString() })
+            }.sortedBy { it.id }
+        val stores = (a.stores + b.stores)
+            .groupBy { it.id }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.ShoppingStore> { it.updatedAt }
+                    .thenBy { it.deleted }.thenBy { it.toString() })
+            }.sortedBy { it.id }
+
+        val activeCustomIds = customProducts.filterNot { it.deleted }.mapTo(HashSet()) { it.id }
+        val customProductBarcodes = (a.customProductBarcodes + b.customProductBarcodes)
+            .filter { it.productId in activeCustomIds }
+            .groupBy { it.productId to it.code }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.CustomProductBarcode> { it.updatedAt }
+                    .thenBy { it.deleted })
+            }.sortedWith(compareBy<com.mok.buylist.data.CustomProductBarcode> { it.productId }.thenBy { it.code })
+
+        val storeProducts = (a.storeProducts + b.storeProducts)
+            .groupBy { it.storeId to it.productKey }.values.map { group ->
+                group.maxWith(compareBy<com.mok.buylist.data.StoreProduct> { it.updatedAt }
+                    .thenBy { it.deleted }.thenBy { it.toString() })
+            }.sortedWith(compareBy<com.mok.buylist.data.StoreProduct> { it.storeId }
+                .thenBy { it.productKey })
+
         return Snapshot(
             users = users,
             items = items,
@@ -94,6 +136,11 @@ object SyncMerge {
             archives = archives,
             tombs = keptTombs.sortedWith(compareBy<SyncTomb> { it.kind.code }.thenBy { it.key }),
             products = products,
+            productBarcodes = productBarcodes,
+            customProducts = customProducts,
+            stores = stores,
+            customProductBarcodes = customProductBarcodes,
+            storeProducts = storeProducts,
         )
     }
 
@@ -172,7 +219,17 @@ object SyncMerge {
                 val ordinal = occurrences.getOrDefault(legacyKey, 0)
                 occurrences[legacyKey] = ordinal + 1
                 val key = if (purchaseId != null) "purchase:$purchaseId"
-                    else "legacy:$legacyKey:$ordinal"
+                    else {
+                        // When an older copy has lost the buyer, it represents the
+                        // same legacy purchase as the corresponding known-buyer row.
+                        // Keep separate keys for purchases with distinct known buyers.
+                        val exact = "legacy:$legacyKey:$ordinal"
+                        val anonymous = "legacy:${nameKeyOf(name)}::$ordinal"
+                        if (buyer.isBlank()) {
+                            events.keys.firstOrNull { it.startsWith("legacy:${nameKeyOf(name)}:") &&
+                                it.endsWith(":$ordinal") } ?: anonymous
+                        } else if (anonymous in events) anonymous else exact
+                    }
                 val candidate = Entry(name, buyer, archive.quantities.getOrElse(index) { 1 }, event)
                 val old = events[key]
                 // Известного покупателя нельзя затирать пустым полем автора.
@@ -181,8 +238,11 @@ object SyncMerge {
                 if (old == null ||
                     (candidate.buyer.isNotEmpty() && old.buyer.isEmpty()) ||
                     (candidate.buyer.isNotEmpty() == old.buyer.isNotEmpty() &&
-                        (candidate.event.length > old.event.length ||
-                            (candidate.event.length == old.event.length && candidate.toString() > old.toString())))) {
+                        ((decodePurchaseEvent(candidate.event)?.revisedAt ?: 0) >
+                            (decodePurchaseEvent(old.event)?.revisedAt ?: 0) ||
+                            ((decodePurchaseEvent(candidate.event)?.revisedAt ?: 0) ==
+                                (decodePurchaseEvent(old.event)?.revisedAt ?: 0) &&
+                                candidate.toString() > old.toString())))) {
                     events[key] = candidate
                 }
             }

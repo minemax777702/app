@@ -52,27 +52,30 @@ fun LentaSettings(onDismiss: () -> Unit) {
 }
 
 @Composable
-fun LentaSuggestions(query: String, modifier: Modifier = Modifier, onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit, onlineOnly: Boolean = false) {
+fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
+    onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
+    onlineOnly: Boolean = false, hasOtherResults: Boolean = false) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
+    val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val ready by catalog.ready.collectAsStateWithLifecycle()
     val p = LocalPalette.current
     val trimmed = query.trim()
     val scope = rememberCoroutineScope()
-    val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope) }
+    val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     LaunchedEffect(state.failed) {
         if (state.failed) activity?.notifyUser("Не удалось выполнить поиск в Ленте")
     }
-    LaunchedEffect(trimmed, address, saved, onlineOnly, ready) {
+    LaunchedEffect(trimmed, address, saved, barcodeRows, onlineOnly, ready) {
         if (ready) controller.update(trimmed, address, saved, onlineOnly)
     }
     Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
         if (trimmed.length >= 2) {
             if (address.isBlank()) TextButton(onClick = onSettings) { Text("Указать адрес") }
-            if (!state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
+            if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
                 Text(if (state.hasMore) "Новые товары пока не найдены. Можно продолжить поиск." else "Ничего не найдено",
                     color = p.textSecondary, fontSize = 13.sp)
             LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {

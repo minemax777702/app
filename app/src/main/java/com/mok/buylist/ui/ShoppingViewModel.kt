@@ -7,6 +7,9 @@ import com.mok.buylist.data.AppUser
 import com.mok.buylist.data.ArchivedList
 import com.mok.buylist.data.Profile
 import com.mok.buylist.data.ShoppingItem
+import com.mok.buylist.data.CustomProductBarcode
+import com.mok.buylist.data.CustomProduct
+import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.nameKeyOf
 import com.mok.buylist.repository
 import com.mok.buylist.userProfile
@@ -88,6 +91,19 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
             Progress(bought = bought, total = bought + (active?.size ?: 0))
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), Progress(0, 0))
+
+    val customProducts: StateFlow<List<CustomProduct>> = repository.observeCustomProducts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val customBarcodes: StateFlow<List<CustomProductBarcode>> = repository.observeCustomBarcodes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val storeProducts: StateFlow<List<com.mok.buylist.data.StoreProduct>> =
+        repository.observeStoreProducts()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val stores: StateFlow<List<ShoppingStore>> = repository.observeStores()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val archive: StateFlow<List<ArchivedList>> = repository.observeArchive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
@@ -182,6 +198,95 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { onResult(repository.addProduct(product)) }
     }
 
+    fun editCustomProduct(id: String, name: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.editCustomProduct(id, name)) }
+    }
+
+    fun updateCustomEstimatedPrice(id: String, priceKopecks: Long?,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.updateCustomEstimatedPrice(id, priceKopecks))
+        }
+    }
+
+    fun updateCustomProductDetails(
+        id: String, name: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
+        onResult: (String?) -> Unit,
+    ) {
+        viewModelScope.launch {
+            onResult(repository.updateCustomProductDetails(id, name, estimatedPriceKopecks, isWeighted))
+        }
+    }
+
+    fun deleteCustomProduct(id: String, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.deleteCustomProduct(id)) }
+    }
+
+    fun changeCustomBarcode(id: String, previous: String?, value: String?,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.changeCustomBarcode(id, previous, value)) }
+    }
+
+    fun renameStore(id: String, name: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.renameStore(id, name)) }
+    }
+
+    fun deleteStore(id: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.deleteStore(id)) }
+    }
+
+    fun createCustomForStore(storeId: String, name: String, barcode: String,
+        storePrice: Long?, isWeighted: Boolean, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.createCustomForStore(storeId, name, barcode, storePrice, isWeighted) != null)
+        }
+    }
+
+    fun saveStoreProduct(storeId: String, productKey: String, price: Long?,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.saveStoreProduct(storeId, productKey, price)) }
+    }
+
+    fun removeStoreProduct(storeId: String, productKey: String,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.removeStoreProduct(storeId, productKey)) }
+    }
+
+    fun createStore(name: String, onResult: (ShoppingStore?) -> Unit) {
+        viewModelScope.launch { onResult(repository.createStore(name)) }
+    }
+
+    fun latestStorePrice(productKey: String, storeId: String,
+        excludedEventId: String? = null, onResult: (Long?) -> Unit) {
+        viewModelScope.launch {
+            onResult(repository.latestStorePrice(productKey, storeId, excludedEventId))
+        }
+    }
+
+    fun amendPurchase(eventId: String, unitPrice: Long?, storeName: String,
+        onResult: (String?) -> Unit) {
+        viewModelScope.launch { onResult(repository.amendPurchase(eventId, unitPrice, storeName)) }
+    }
+
+    fun addManualProduct(name: String, barcode: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
+        onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode, estimatedPriceKopecks, isWeighted)) }
+    }
+
+    fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { onResult(repository.addCustomToList(product)) }
+    }
+
+    fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String, weightGrams: Int?,
+        onResult: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.buyScannedCustom(product, price, storeName, weightGrams)
+            if (result == null) { onResult(false); return@launch }
+            showUndo(result.item, RowState.BOUGHT)
+            onResult(true)
+        }
+    }
+
     fun buyScanned(product: com.mok.buylist.data.LentaProduct, price: Long?, onResult: (Boolean) -> Unit) {
         viewModelScope.launch {
             val result = repository.buyScanned(product, price)
@@ -192,9 +297,10 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Куплено: товар остаётся в базе (для прогресса), но из списка уходит. */
-    fun buy(item: ShoppingItem, priceOverride: Long? = null) {
+    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "",
+        weightGrams: Int? = null) {
         showUndo(item, RowState.BOUGHT)
-        viewModelScope.launch { repository.buy(item.id, priceOverride) }
+        viewModelScope.launch { repository.buy(item.id, priceOverride, storeName = storeName, weightGrams = weightGrams) }
     }
 
     fun setQuantity(item: ShoppingItem, quantity: Int) {

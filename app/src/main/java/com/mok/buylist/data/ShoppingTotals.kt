@@ -38,13 +38,15 @@ internal data class PurchaseEvent(
     val id: String, val productId: Long?, val name: String, val unitPrice: Long?,
     val priceType: String, val quantity: Int, val boughtAt: Long, val buyer: String,
     val address: String, val channel: String, val fetchedAt: Long, val impulsive: Boolean = false, val weightGrams: Int? = null,
+    val customProductId: String = "", val storeId: String = "",
+    val revisedAt: Long = 0,
 )
 
-internal fun purchaseEvent(item: ShoppingItem, product: LentaProduct?, now: Long, buyer: String, priceOverride: Long? = null, impulsive: Boolean = false): String {
+internal fun purchaseEvent(item: ShoppingItem, product: LentaProduct?, now: Long, buyer: String, priceOverride: Long? = null, impulsive: Boolean = false, storeId: String = ""): String {
     return encodePurchaseEvent(PurchaseEvent(UUID.randomUUID().toString(), item.productId.takeIf { it > 0 } ?: product?.id, item.name,
         priceOverride ?: product?.price?.let(::parsePriceKopecks), product?.priceType.orEmpty(), item.quantity,
         now, buyer, product?.address.orEmpty(), product?.channel.orEmpty(), product?.fetchedAt ?: 0, impulsive,
-        if (priceOverride == null) item.weightGrams else null))
+        item.weightGrams, item.customProductId, storeId))
 }
 
 private fun encodePurchaseEvent(event: PurchaseEvent): String {
@@ -57,6 +59,9 @@ private fun encodePurchaseEvent(event: PurchaseEvent): String {
         out.writeLong(event.fetchedAt)
         out.writeBoolean(event.impulsive)
         out.writeInt(event.weightGrams ?: -1)
+        out.writeUTF(event.customProductId)
+        out.writeUTF(event.storeId)
+        out.writeLong(event.revisedAt)
     }
     return Base64.getEncoder().encodeToString(bytes.toByteArray())
 }
@@ -66,9 +71,20 @@ internal fun decodePurchaseEvent(encoded: String): PurchaseEvent? = runCatching 
         PurchaseEvent(input.readUTF(), input.readLong().takeIf { it > 0 }, input.readUTF(),
             input.readLong().takeIf { it >= 0 }, input.readUTF(), input.readInt(), input.readLong(),
             input.readUTF(), input.readUTF(), input.readUTF(), input.readLong(), if (input.available() > 0) input.readBoolean() else false,
-            if (input.available() >= 4) input.readInt().takeIf { it in 1..999000 } else null)
+            if (input.available() >= 4) input.readInt().takeIf { it in 1..999000 } else null,
+            if (input.available() > 0) input.readUTF() else "",
+            if (input.available() > 0) input.readUTF() else "",
+            if (input.available() >= 8) input.readLong() else 0) 
     }
 }.getOrNull()
+
+/** Preserve immutable event ID and purchase time when correcting the paid price or shop. */
+internal fun amendPurchaseEvent(encoded: String, unitPrice: Long?, storeId: String, revisedAt: Long): String? {
+    if (unitPrice != null && unitPrice < 0) return null
+    val event = decodePurchaseEvent(encoded) ?: return null
+    return encodePurchaseEvent(event.copy(unitPrice = unitPrice, storeId = storeId,
+        revisedAt = maxOf(revisedAt, event.revisedAt + 1)))
+}
 
 internal fun reassignPurchaseEvent(encoded: String, old: String, new: String): String {
     val event = decodePurchaseEvent(encoded) ?: return encoded
@@ -94,4 +110,21 @@ internal fun calculateShoppingTotals(lines: List<PricedLine>): ShoppingTotals {
         return PartialAmount(sum, known, unknown)
     }
     return ShoppingTotals(amount(lines), amount(lines.filterNot { it.bought }))
+}
+
+/**
+ * Archive expenses are based solely on confirmed purchase events.
+ * Remaining planned products are an inventory snapshot, not money spent.
+ */
+internal fun archivedPurchaseTotal(archive: ArchivedList): PartialAmount {
+    val lines = archive.names.indices.map { index ->
+        val event = decodePurchaseEvent(archive.events[index])
+        PricedLine(
+            quantity = event?.quantity ?: archive.counts[index],
+            bought = true,
+            unitPriceKopecks = event?.unitPrice,
+            weightGrams = event?.weightGrams,
+        )
+    }
+    return calculateShoppingTotals(lines).total
 }

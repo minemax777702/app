@@ -14,8 +14,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         Tombstone::class,
         AppUser::class,
         StoredLentaProduct::class,
+        StoredProductBarcode::class,
+        CustomProduct::class,
+        ShoppingStore::class,
+        CustomProductBarcode::class,
+        StoreProduct::class,
     ],
-    version = 17,
+    version = 24,
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun shoppingDao(): ShoppingDao
@@ -209,11 +214,62 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS product_barcodes (productId INTEGER NOT NULL, code TEXT NOT NULL, PRIMARY KEY(productId, code))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_product_barcodes_code ON product_barcodes (code)")
+                db.execSQL("INSERT OR IGNORE INTO product_barcodes (productId, code) SELECT id, TRIM(ean) FROM lenta_products WHERE LENGTH(TRIM(ean)) IN (8, 12, 13) AND TRIM(ean) NOT GLOB '*[^0-9]*'")
+            }
+        }
+
+        private val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE product_barcodes ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE product_barcodes ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS custom_products (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, barcode TEXT NOT NULL, updatedAt INTEGER NOT NULL, deleted INTEGER NOT NULL)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS stores (id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, nameKey TEXT NOT NULL, updatedAt INTEGER NOT NULL, deleted INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_stores_nameKey ON stores (nameKey)")
+                db.execSQL("ALTER TABLE items ADD COLUMN customProductId TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        private val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS custom_product_barcodes (productId TEXT NOT NULL, code TEXT NOT NULL, updatedAt INTEGER NOT NULL DEFAULT 0, deleted INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(productId, code))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_custom_product_barcodes_code ON custom_product_barcodes (code)")
+                db.execSQL("INSERT OR IGNORE INTO custom_product_barcodes (productId, code, updatedAt, deleted) SELECT id, TRIM(barcode), updatedAt, 0 FROM custom_products WHERE LENGTH(TRIM(barcode)) IN (8, 12, 13) AND TRIM(barcode) NOT GLOB '*[^0-9]*' AND deleted = 0")
+            }
+        }
+
+        private val MIGRATION_21_22 = object : Migration(21, 22) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE custom_products ADD COLUMN estimatedPriceKopecks INTEGER")
+            }
+        }
+
+        private val MIGRATION_22_23 = object : Migration(22, 23) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE custom_products ADD COLUMN isWeighted INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        private val MIGRATION_23_24 = object : Migration(23, 24) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS store_products (storeId TEXT NOT NULL, productKey TEXT NOT NULL, priceKopecks INTEGER, updatedAt INTEGER NOT NULL, deleted INTEGER NOT NULL, PRIMARY KEY(storeId, productKey))")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_store_products_productKey ON store_products (productKey)")
+            }
+        }
+
         fun create(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, "shopping.db")
                 .addMigrations(
                     MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
-                    MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17,
+                    MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24,
                 )
                 .build()
     }

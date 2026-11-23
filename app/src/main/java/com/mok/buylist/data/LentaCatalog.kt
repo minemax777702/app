@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
@@ -49,9 +49,70 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
     val address = _address.asStateFlow()
     private val _ready = MutableStateFlow(false)
     val ready = _ready.asStateFlow()
-    val products = dao.observeLentaProducts().map { rows -> rows.map { it.toProduct() } }
-        .onEach { _ready.value = true }
+    val barcodeRows = dao.observeProductBarcodes()
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
+    val products = combine(dao.observeLentaProducts(), dao.observeProductBarcodes()) { rows, _ ->
+        rows.map { it.toProduct() }
+    }.onEach { _ready.value = true }
+        .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    fun barcodeAliases(id: Long): Set<String> =
+        barcodeRows.value.asSequence().filter { it.productId == id && !it.deleted }.map { it.code }.toSet()
+
+    fun matchesBarcode(product: LentaProduct, scanned: String): Boolean =
+        barcodeAliases(product.id).any { com.mok.buylist.sync.barcodeMatches(it, scanned) }
+
+    private suspend fun rememberBarcode(id: Long, code: String?) {
+        val barcode = code?.trim().orEmpty()
+        if (barcode.length !in setOf(8, 12, 13) || !barcode.all(Char::isDigit)) return
+        dao.insertProductBarcode(StoredProductBarcode(id, barcode))
+    }
+
+    /** Возвращает текст ошибки или null после успешного сохранения. */
+    suspend fun addBarcode(id: Long, raw: String): String? = db.withTransaction {
+        val code = raw.trim()
+        if (!validProductBarcode(code)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
+        if (dao.getLentaProducts().none { it.id == id }) return@withTransaction "Товар удалён"
+        val records = dao.getProductBarcodes()
+        if (records.any { it.productId != id && !it.deleted &&
+                com.mok.buylist.sync.barcodeMatches(it.code, code) }) {
+            return@withTransaction "Штрихкод уже привязан к другому товару"
+        }
+        if (records.any { it.productId == id && !it.deleted && it.code == code }) {
+            return@withTransaction "Этот штрихкод уже добавлен"
+        }
+        val previous = records.firstOrNull { it.productId == id && it.code == code }
+        val at = maxOf(System.currentTimeMillis(), (previous?.updatedAt ?: -1L) + 1)
+        dao.upsertProductBarcode(StoredProductBarcode(id, code, at, false))
+        null
+    }
+
+    suspend fun removeBarcode(id: Long, code: String): String? = db.withTransaction {
+        val current = dao.getProductBarcodes().firstOrNull {
+            it.productId == id && it.code == code && !it.deleted
+        } ?: return@withTransaction "Штрихкод не найден"
+        dao.upsertProductBarcode(current.copy(updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1), deleted = true))
+        null
+    }
+
+    suspend fun editBarcode(id: Long, previous: String, replacement: String): String? = db.withTransaction {
+        val next = replacement.trim()
+        if (!validProductBarcode(next)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
+        val records = dao.getProductBarcodes()
+        val current = records.firstOrNull { it.productId == id && it.code == previous && !it.deleted }
+            ?: return@withTransaction "Исходный штрихкод не найден"
+        if (previous == next) return@withTransaction null
+        if (records.any { !it.deleted && (it.productId != id || it.code != previous) &&
+                com.mok.buylist.sync.barcodeMatches(it.code, next) }) {
+            return@withTransaction "Этот штрихкод уже используется"
+        }
+        val now = System.currentTimeMillis()
+        dao.upsertProductBarcode(current.copy(updatedAt = maxOf(now, current.updatedAt + 1), deleted = true))
+        val previouslyUsed = records.firstOrNull { it.productId == id && it.code == next }
+        val restoredAt = maxOf(now, (previouslyUsed?.updatedAt ?: -1L) + 1)
+        dao.upsertProductBarcode(StoredProductBarcode(id, next, restoredAt, false))
+        null
+    }
 
     fun setAddress(value: String) {
         val address = value.trim()
@@ -59,19 +120,24 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         _address.value = address
     }
 
-    suspend fun save(product: LentaProduct) {
+    suspend fun save(product: LentaProduct, scannedBarcode: String? = null) {
         if (product.id <= 0 || product.name.isBlank()) return
         db.withTransaction {
             val old = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()
             val saved = product.copy(ean = product.ean.ifBlank { old?.ean.orEmpty() }, stock = null)
             val deletedAt = dao.getTombstones().firstOrNull { it.kind == TombKind.PRODUCT.code && it.target == product.id.toString() }?.deletedAt ?: 0
             dao.upsertLentaProduct(saved.toStored().copy(updatedAt = maxOf(System.currentTimeMillis(), deletedAt + 1)))
+            // Если Лента заменила EAN у того же ID, старый код остаётся доступным.
+            rememberBarcode(product.id, old?.ean)
+            rememberBarcode(product.id, saved.ean)
+            rememberBarcode(product.id, scannedBarcode)
         }
     }
 
     suspend fun removeById(id: Long) {
         db.withTransaction {
             dao.deleteLentaProduct(id)
+            dao.deleteProductBarcodes(id)
             dao.upsertTombstone(Tombstone(TombKind.PRODUCT.code, id.toString(), System.currentTimeMillis()))
         }
     }
@@ -109,6 +175,8 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
             val saved = existing.copy(price = fresh.price, priceType = fresh.priceType, ean = fresh.ean.ifBlank { existing.ean },
                 address = currentAddress, storeId = fresh.storeId, channel = fresh.channel, fetchedAt = fresh.fetchedAt)
             dao.upsertLentaProduct(saved.toStored())
+            rememberBarcode(id, existing.ean)
+            rememberBarcode(id, fresh.ean)
         }
     }
 

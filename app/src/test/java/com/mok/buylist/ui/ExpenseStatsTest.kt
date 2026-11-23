@@ -5,6 +5,7 @@ import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.data.purchaseEvent
 import com.mok.buylist.data.decodePurchaseEvent
+import com.mok.buylist.data.amendPurchaseEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -12,6 +13,39 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class ExpenseStatsTest {
+    @Test fun correctedArchivedPurchaseRetainsIdentityAndWinsAfterSync() {
+        val item = ShoppingItem(name = "Яйца", customProductId = "uuid")
+        val original = purchaseEvent(item, null, 500L, "buyer", priceOverride = 12900L)
+        val corrected = amendPurchaseEvent(original, 11900L, "store-id", 900L)!!
+        val before = decodePurchaseEvent(original)!!
+        val after = decodePurchaseEvent(corrected)!!
+        assertEquals(before.id, after.id)
+        assertEquals(before.boughtAt, after.boughtAt)
+        assertEquals("uuid", after.customProductId)
+        assertEquals("store-id", after.storeId)
+        assertEquals(11900L, after.unitPrice)
+        assertEquals(900L, after.revisedAt)
+
+        val first = com.mok.buylist.sync.SyncArchive("archive", 500L,
+            listOf("Яйца"), listOf("buyer"), 0L, 1, purchaseEvents = listOf(original))
+        val second = first.copy(purchaseEvents = listOf(corrected))
+        val merged = com.mok.buylist.sync.SyncMerge.merge(
+            com.mok.buylist.sync.Snapshot(archives = listOf(first)),
+            com.mok.buylist.sync.Snapshot(archives = listOf(second)))
+        assertEquals(11900L, decodePurchaseEvent(merged.archives.single().purchaseEvents.single())?.unitPrice)
+    }
+
+    @Test fun historicalPriceCanBeClearedAndDoesNotAffectExpenseSum() {
+        val original = purchaseEvent(ShoppingItem(name = "Молоко", customProductId = "uuid"),
+            null, 1L, "buyer", priceOverride = 12000L)
+        val cleared = amendPurchaseEvent(original, null, "", 999L)!!
+        val purchase = expensePurchases(emptyList(),
+            listOf(ShoppingItem(name = "Молоко", customProductId = "uuid",
+                deleted = true, purchaseEvent = cleared))).single()
+        assertNull(purchase.unitPrice)
+        assertEquals(0L, expenseSum(listOf(purchase)))
+    }
+
     @Test fun weightIsIncludedInArchiveAndExpenseTotal() {
         val item = ShoppingItem(name = "Картофель", productId = 42, weightGrams = 2540)
         val product = LentaProduct(42, item.name, "", "", "30", "card", "", "")
@@ -44,7 +78,17 @@ class ExpenseStatsTest {
         assertEquals(12550L, event.unitPrice)
         assertEquals(2, event.quantity)
         org.junit.Assert.assertTrue(event.impulsive)
-        val legacy = java.util.Base64.getDecoder().decode(encoded).dropLast(5).toByteArray()
+        // v9 appends two UTF strings after the legacy fields. Construct the actual
+        // pre-impulsive format rather than trimming an arbitrary number of bytes.
+        val legacy = java.io.ByteArrayOutputStream().also { bytes ->
+            java.io.DataOutputStream(bytes).use { out ->
+                out.writeUTF(event.id); out.writeLong(event.productId ?: 0)
+                out.writeUTF(event.name); out.writeLong(event.unitPrice ?: -1)
+                out.writeUTF(event.priceType); out.writeInt(event.quantity); out.writeLong(event.boughtAt)
+                out.writeUTF(event.buyer); out.writeUTF(event.address); out.writeUTF(event.channel)
+                out.writeLong(event.fetchedAt)
+            }
+        }.toByteArray()
         org.junit.Assert.assertFalse(decodePurchaseEvent(java.util.Base64.getEncoder().encodeToString(legacy))!!.impulsive)
         val saved = item.copy(deleted = true, purchaseEvent = encoded)
         val current = expensePurchases(emptyList(), listOf(saved)).single()

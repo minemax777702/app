@@ -134,6 +134,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
         verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         SyncAction(R.drawable.ic_store, if (address.isBlank()) stringResource(R.string.lenta_address_empty) else stringResource(R.string.lenta_address_value, address), onClick = { showAddress = true })
         if (profile != null) SyncAction(R.drawable.ic_edit, stringResource(R.string.sync_you, profile.name), onRename)
+        BarcodeSourceSettingsSection()
         NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
         Text(stringResource(R.string.backup_title), Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp),
             color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)

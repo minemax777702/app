@@ -2,6 +2,11 @@ package com.mok.buylist.sync
 
 import com.mok.buylist.data.nameKeyOf
 import com.mok.buylist.data.StoredLentaProduct
+import com.mok.buylist.data.StoredProductBarcode
+import com.mok.buylist.data.CustomProductBarcode
+import com.mok.buylist.data.CustomProduct
+import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.StoreProduct
 import com.mok.buylist.data.decodePurchaseEvent
 
 /*
@@ -26,10 +31,12 @@ data class SyncItem(
     val purchaseEvent: String = "",
     val productId: Long = 0,
     val weightGrams: Int? = null,
+    val customProductId: String = "",
 ) {
     val key: String get() {
         val event = decodePurchaseEvent(purchaseEvent)
         return if (event?.impulsive == true) "impulse:${event.id}"
+            else if (customProductId.isNotBlank()) "custom:$customProductId"
             else if (productId > 0) "lenta:$productId" else nameKeyOf(name)
     }
 }
@@ -82,6 +89,11 @@ data class Snapshot(
     val archives: List<SyncArchive> = emptyList(),
     val tombs: List<SyncTomb> = emptyList(),
     val products: List<StoredLentaProduct> = emptyList(),
+    val productBarcodes: List<StoredProductBarcode> = emptyList(),
+    val customProducts: List<CustomProduct> = emptyList(),
+    val stores: List<ShoppingStore> = emptyList(),
+    val customProductBarcodes: List<CustomProductBarcode> = emptyList(),
+    val storeProducts: List<StoreProduct> = emptyList(),
 )
 
 /** Короткий «отпечаток» записи архива: по нему второй телефон понимает, что у меня это уже есть. */
@@ -95,6 +107,6 @@ enum class SnapshotSection { LIST, ARCHIVE, ALL }
 
 fun Snapshot.selectSection(section: SnapshotSection): Snapshot = when (section) {
     SnapshotSection.ALL -> this
-    SnapshotSection.LIST -> Snapshot(users = users, items = items, products = products, tombs = tombs.filter { it.kind == TombKind.ITEM || it.kind == TombKind.PRODUCT })
-    SnapshotSection.ARCHIVE -> Snapshot(users = users, archives = archives, tombs = tombs.filter { it.kind == TombKind.ARCHIVE })
+    SnapshotSection.LIST -> Snapshot(users = users, items = items, products = products, productBarcodes = productBarcodes, customProducts = customProducts, stores = stores, customProductBarcodes = customProductBarcodes, storeProducts = storeProducts, tombs = tombs.filter { it.kind == TombKind.ITEM || it.kind == TombKind.PRODUCT })
+    SnapshotSection.ARCHIVE -> Snapshot(users = users, archives = archives, customProducts = customProducts, stores = stores, customProductBarcodes = customProductBarcodes, storeProducts = storeProducts, tombs = tombs.filter { it.kind == TombKind.ARCHIVE })
 }

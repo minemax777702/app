@@ -61,6 +61,8 @@ import com.mok.buylist.data.decodePurchaseEvent
 import com.mok.buylist.R
 import com.mok.buylist.data.AppUser
 import com.mok.buylist.data.ArchivedList
+import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.purchaseStoreName
 import com.mok.buylist.data.tripMinutes
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Motion
@@ -87,14 +89,15 @@ fun ArchiveScreen(
     var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
     var pendingDelete by remember { mutableStateOf<ArchivedList?>(null) }
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
-    var selectedProduct by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedProduct by rememberSaveable { mutableStateOf<String?>(null) }
     val allArchive by viewModel.archive.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
     val now = remember { System.currentTimeMillis() }
     val userNames = remember(users) { users.associate { it.id to it.name } }
     val multiUser = users.size > 1
     if (selectedProduct != null) {
-        ProductDetailsScreen("lenta:$selectedProduct", remember(allArchive, bought) { expensePurchases(allArchive, bought) },
+        ProductDetailsScreen(selectedProduct!!, remember(allArchive, bought) { expensePurchases(allArchive, bought) },
             users, viewModel, onBack = { selectedProduct = null })
         return
     }
@@ -130,6 +133,7 @@ fun ArchiveScreen(
                         userNames = userNames,
                         meId = meId,
                         showBuyers = multiUser,
+                        stores = stores,
                         modifier = Modifier.animateItem(
                             fadeInSpec = Motion.smooth(),
                             placementSpec = Motion.settle(),
@@ -142,7 +146,7 @@ fun ArchiveScreen(
     }
 
     details?.let { (list, index) ->
-        ArchiveProductDetails(list, index, userNames, meId, multiUser,
+        ArchiveProductDetails(list, index, userNames, meId, multiUser, stores,
             onProduct = { id -> details = null; selectedProduct = id }) { details = null }
     }
 
@@ -238,10 +242,12 @@ private fun ArchiveCard(
     userNames: Map<String, String>,
     meId: String,
     showBuyers: Boolean,
+    stores: List<ShoppingStore>,
     modifier: Modifier = Modifier,
 ) {
     val p = LocalPalette.current
     val names = list.names
+    val storeNames = list.events.mapNotNull { purchaseStoreName(decodePurchaseEvent(it), stores) }.distinct()
     val youLabel = stringResource(R.string.archive_buyer_you)
     fun buyerLabel(id: String): String = when {
         id.isEmpty() -> ""
@@ -303,6 +309,11 @@ private fun ArchiveCard(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                 )
+                if (storeNames.isNotEmpty())
+                    Text(if (storeNames.size == 1) storeNames.single()
+                        else "Магазины: " + storeNames.joinToString(", "),
+                        color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             Icon(
                 painterResource(R.drawable.ic_chevron_down),
@@ -313,15 +324,12 @@ private fun ArchiveCard(
             Spacer(Modifier.width(8.dp))
         }
 
-        val boughtLines = names.indices.map { index ->
-            val event = decodePurchaseEvent(list.events[index])
-            com.mok.buylist.data.PricedLine(list.counts[index], true, event?.unitPrice, event?.weightGrams)
-        }
-        val remainingLines = list.remaining.map { com.mok.buylist.data.PricedLine(it.quantity, false, it.unitPrice, it.weightGrams) }
-        val amounts = com.mok.buylist.data.calculateShoppingTotals(boughtLines + remainingLines)
         if (expanded) {
-            val total = if (list.hasRemainingSnapshot) amounts.total else amounts.total.copy(unknown = amounts.total.unknown + 1)
-            if (total.known > 0) Text("Стоимость: ${formatAmount(total)}", Modifier.padding(top = 8.dp), color = p.textSecondary)
+            // Planned-but-unpurchased items are not part of the amount spent.
+            val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
+            if (spent.known > 0)
+                Text("Потрачено: ${formatAmount(spent)}",
+                    Modifier.padding(top = 8.dp), color = p.textSecondary)
         }
 
         if (!expanded) {
@@ -343,6 +351,7 @@ private fun ArchiveCard(
                 names.forEachIndexed { index, name ->
                     ArchiveItemRow(
                         name = name,
+                        store = purchaseStoreName(decodePurchaseEvent(list.events[index]), stores),
                         impulsive = decodePurchaseEvent(list.events[index])?.impulsive == true,
                         checked = index !in skipped,
                         onToggle = { skipped = if (index in skipped) skipped - index else skipped + index },
@@ -404,7 +413,7 @@ private fun ArchiveCard(
 
 /** Товар в раскрытой карточке: нажатием отмечается, нужен ли он при повторе. */
 @Composable
-private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
+private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
     val p = LocalPalette.current
     val on = animateFloatAsState(if (checked) 1f else 0f, Motion.smooth(Motion.Quick), label = "archive-check")
     Row(
@@ -443,6 +452,7 @@ private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, o
         Column(Modifier.weight(1f)) {
             Text(name, color = if (checked) p.text else p.textSecondary,
                 fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            if (store != null) Text(store, color = p.textSecondary, fontSize = 12.sp)
             if (impulsive) Text("Импульсивная покупка", color = p.accent, fontSize = 12.sp)
         }
         IconButton(onClick = onInfo) {
@@ -453,7 +463,7 @@ private fun ArchiveItemRow(name: String, impulsive: Boolean, checked: Boolean, o
 
 @Composable
 private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map<String, String>, meId: String, showBuyers: Boolean,
-    onProduct: (Long) -> Unit, onDismiss: () -> Unit) {
+    stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit) {
     val p = LocalPalette.current
     val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
     val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
@@ -464,22 +474,111 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
     fun money(value: Long): String = java.text.NumberFormat.getNumberInstance(java.util.Locale.forLanguageTag("ru-RU"))
         .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }
         .format(java.math.BigDecimal.valueOf(value, 2)) + " ₽"
-    AppSheet(onDismissRequest = onDismiss, containerColor = p.sheet,
-        title = { Text(event?.name ?: list.names[index], color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            LentaImage(image, Modifier.size(120.dp))
-            val quantity = event?.quantity ?: list.counts[index]
-            val amount = event?.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: quantity.toString()
-            Text(if (price == null || total == null) amount
-                else "$amount × ${money(price)} = ${money(total)}", color = p.text, fontWeight = FontWeight.Bold)
-            val buyerId = event?.buyer?.ifBlank { null } ?: list.buyerIds[index]
-            if (showBuyers && buyerId.isNotBlank()) {
-                val buyer = if (buyerId == meId) stringResource(R.string.archive_buyer_you) else userNames[buyerId].orEmpty()
-                if (buyer.isNotBlank()) Text("Покупатель: $buyer", color = p.textSecondary)
+    val name = event?.name ?: list.names.getOrNull(index).orEmpty()
+    val buyerId = event?.buyer?.ifBlank { null } ?: list.buyerIds.getOrNull(index).orEmpty()
+    val buyer = if (buyerId == meId) stringResource(R.string.archive_buyer_you)
+        else userNames[buyerId].orEmpty()
+    val store = purchaseStoreName(event, stores)
+    val quantity = event?.quantity ?: list.counts.getOrNull(index) ?: 1
+    val weight = event?.weightGrams
+    val quantityText = weight?.let {
+        java.math.BigDecimal.valueOf(it.toLong(), 3)
+            .stripTrailingZeros().toPlainString() + " кг"
+    } ?: "$quantity шт."
+    val productKey = event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
+        ?: event?.productId?.let { "lenta:$it" }
+
+    AppSheet(
+        onDismissRequest = onDismiss,
+        containerColor = p.sheet,
+        title = { SheetHeader("Подробно о товаре") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val customId = event?.customProductId.orEmpty()
+                    if (customId.isNotBlank()) CustomProductImage(customId, Modifier.size(88.dp))
+                    else LentaImage(image, Modifier.size(88.dp))
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(name, color = p.text, fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp, lineHeight = 23.sp, maxLines = 4,
+                            overflow = TextOverflow.Ellipsis)
+                        Text(if (customId.isNotBlank()) "Свой товар" else "Товар из истории",
+                            color = p.textSecondary, fontSize = 12.sp)
+                    }
+                }
+
+                Column(
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Text("Стоимость покупки", color = p.textSecondary, fontSize = 12.sp)
+                    Text(total?.let(::money) ?: "Цена не указана",
+                        color = if (total == null) p.textSecondary else p.accent,
+                        fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Количество", color = p.textSecondary, fontSize = 13.sp)
+                        Text(quantityText, color = p.text, fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold)
+                    }
+                    if (price != null) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(if (weight != null) "Цена за кг" else "Цена за шт.",
+                                color = p.textSecondary, fontSize = 13.sp)
+                            Text(money(price), color = p.text, fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+
+                if (store != null || (showBuyers && buyer.isNotBlank())) {
+                    Text("Информация о покупке", color = p.text,
+                        fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Column(
+                        Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 18.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        store?.let {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Магазин", color = p.textSecondary, fontSize = 12.sp)
+                                Text(it, color = p.text, fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        if (showBuyers && buyer.isNotBlank()) {
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Покупатель", color = p.textSecondary, fontSize = 12.sp)
+                                Text(buyer, color = p.text, fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
             }
-        } },
+        },
         confirmButton = {
-            event?.productId?.let { id -> SheetActionButton(onClick = { onProduct(id) }) { Text("Информация о товаре") } }
+            productKey?.let { key ->
+                SheetActionButton(onClick = { onProduct(key) }) {
+                    Text("Открыть товар")
+                }
+            }
         },
     )
 }
