@@ -190,18 +190,13 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
             c.setRequestProperty("Accept", "application/json, text/event-stream")
             c.outputStream.use { it.write(request.toString().toByteArray(Charsets.UTF_8)) }
             if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
-            val raw = c.inputStream.use { input ->
-                val output = java.io.ByteArrayOutputStream()
-                val buffer = ByteArray(8192)
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    require(output.size() + n <= 4 * 1024 * 1024) { "Ответ MCP слишком большой" }
-                    output.write(buffer, 0, n)
+            val payload = c.inputStream.use { input ->
+                readMcpResponse(c.contentType, input) { candidate ->
+                    val rpc = runCatching { JSONObject(candidate) }.getOrNull()
+                    rpc?.optInt("id") == 1 && (rpc.has("result") || rpc.has("error"))
                 }
-                output.toString("UTF-8")
             }
-            val response = JSONObject(mcpJsonMessage(c.contentType, raw))
+            val response = JSONObject(payload)
             response.optJSONObject("error")?.let { error(it.optString("message")) }
             val result = response.getJSONObject("result")
             if (result.optBoolean("isError")) error("Ошибка сервиса")
@@ -213,32 +208,52 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
 }
 
 /**
- * MCP Streamable HTTP may reply with either JSON or SSE. Extract the final
- * JSON-RPC message from SSE data frames without treating framing as JSON.
+ * MCP Streamable HTTP replies with either a JSON document or a sequence of
+ * SSE events. A server is allowed to keep the SSE connection open, so we
+ * return as soon as a matching JSON-RPC response arrives (without waiting for EOF).
  */
-internal fun mcpJsonMessage(contentType: String?, body: String): String {
-    if (!contentType.orEmpty().substringBefore(';').trim().equals("text/event-stream", true))
-        return body
-    val messages = ArrayList<String>()
-    val payload = StringBuilder()
-    fun flush() {
-        if (payload.isNotEmpty()) {
-            messages += payload.toString()
-            payload.clear()
+internal fun readMcpResponse(
+    contentType: String?,
+    input: java.io.InputStream,
+    isReply: (String) -> Boolean = { true },
+): String {
+    val maxBytes = 4 * 1024 * 1024
+    val isSse = contentType.orEmpty().substringBefore(';').trim()
+        .equals("text/event-stream", true)
+    if (!isSse) {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            require(output.size() + n <= maxBytes) { "Ответ MCP слишком большой" }
+            output.write(buffer, 0, n)
+        }
+        return output.toString("UTF-8")
+    }
+
+    val reader = input.bufferedReader(Charsets.UTF_8)
+    val data = StringBuilder()
+    var charsRead = 0
+    fun completeEvent(): String? {
+        if (data.isEmpty()) return null
+        val payload = data.toString()
+        data.clear()
+        return payload.takeIf(isReply)
+    }
+    while (true) {
+        val line = reader.readLine() ?: break
+        charsRead += line.length + 1
+        require(charsRead <= maxBytes) { "Ответ MCP слишком большой" }
+        when {
+            line.isBlank() -> completeEvent()?.let { return it }
+            line.startsWith("data:") -> {
+                if (data.isNotEmpty()) data.append('\n')
+                data.append(line.removePrefix("data:").trimStart())
+            }
         }
     }
-    for (line in body.lineSequence()) {
-        val normalized = line.removeSuffix("\r")
-        if (normalized.isBlank()) {
-            flush()
-        } else if (normalized.startsWith("data:")) {
-            if (payload.isNotEmpty()) payload.append('\n')
-            payload.append(normalized.removePrefix("data:").trimStart())
-        }
-    }
-    flush()
-    return messages.lastOrNull { it.trimStart().startsWith("{") }
-        ?: throw java.io.IOException("В ответе MCP нет JSON-RPC сообщения")
+    return completeEvent() ?: throw java.io.IOException("В ответе MCP нет JSON-RPC сообщения")
 }
 
 internal fun LentaProduct.toStored() = StoredLentaProduct(
