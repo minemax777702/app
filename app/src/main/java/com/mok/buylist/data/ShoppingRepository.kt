@@ -42,6 +42,8 @@ data class SyncSummary(val items: Int, val archives: Int) {
         SyncSummary(items + other.items, archives + other.archives)
 }
 
+data class RepeatItemsResult(val added: Int, val skipped: Int)
+
 data class ScannedPurchaseResult(val item: ShoppingItem, val impulsive: Boolean)
 
 class ShoppingRepository(
@@ -753,28 +755,58 @@ class ShoppingRepository(
 
     private fun tomb(kind: TombKind, key: String, at: Long) = Tombstone(kind.code, key, at)
 
-    suspend fun repeatItems(names: List<String>, quantities: List<Int>, events: List<String> = emptyList()) {
+    /**
+     * Repeating a historical list must never silently discard a legacy item.
+     * Items without a known catalog identity are recreated as personal products.
+     */
+    suspend fun repeatItems(
+        names: List<String>, quantities: List<Int>, events: List<String> = emptyList(),
+    ): RepeatItemsResult {
         val products = dao.getLentaProducts().associateBy { it.id }
         val custom = dao.getCustomProducts().associateBy { it.id }
+        var added = 0
         names.forEachIndexed { index, name ->
             val event = decodePurchaseEvent(events.getOrElse(index) { "" })
+            val count = quantities.getOrElse(index) { 1 }.coerceIn(1, 999)
             val id = event?.productId
-            val product = id?.let(products::get)
-            if (event?.customProductId?.let(custom::get)?.takeUnless { it.deleted } != null) {
-                if (addCustomToList(custom.getValue(event.customProductId),
-                        quantities.getOrElse(index) { 1 }) && event.weightGrams != null)
-                    dao.findByKey(customKey(event.customProductId))?.let { setWeight(it.id, event.weightGrams) }
-            } else if (product != null) {
-                if (addProduct(product.toProduct(), quantities.getOrElse(index) { 1 }) && event.weightGrams != null)
-                    dao.findByKey("lenta:$id")?.let { setWeight(it.id, event.weightGrams) }
+            val savedCustom = event?.customProductId?.let(custom::get)?.takeUnless { it.deleted }
+            val savedLenta = id?.let(products::get)
+            val success = when {
+                savedCustom != null -> addCustomToList(savedCustom, count)
+                savedLenta != null -> addProduct(savedLenta.toProduct(), count)
+                id != null -> {
+                    val restored = LentaProduct(id, name, "", "", "", "", "", "", channel = "locc")
+                    context.lentaCatalog.save(restored)
+                    addProduct(restored, count)
+                }
+                else -> {
+                    // Older backups may have no product ID, or the personal
+                    // product may have been deleted from the current catalog.
+                    val created = addManualProduct(name,
+                        isWeighted = event?.weightGrams != null)
+                    if (created) {
+                        val matching = dao.getItems().firstOrNull {
+                            nameKeyOf(it.name) == nameKeyOf(name) && it.customProductId.isNotBlank()
+                        }
+                        if (matching != null && event?.weightGrams == null)
+                            setQuantity(matching.id, count)
+                    }
+                    created
+                }
             }
-            else if (id != null) {
-                val restored = LentaProduct(id, name, "", "", "", "", "", "", channel = "locc")
-                context.lentaCatalog.save(restored)
-                if (addProduct(restored, quantities.getOrElse(index) { 1 }) && event.weightGrams != null)
-                    dao.findByKey("lenta:$id")?.let { setWeight(it.id, event.weightGrams) }
+            if (success) {
+                added++
+                if (event?.weightGrams != null) {
+                    val item = dao.getItems().firstOrNull {
+                        (savedCustom != null && it.customProductId == savedCustom.id) ||
+                            (id != null && it.productId == id) ||
+                            (id == null && nameKeyOf(it.name) == nameKeyOf(name))
+                    }
+                    item?.let { setWeight(it.id, event.weightGrams) }
+                }
             }
         }
+        return RepeatItemsResult(added, names.size - added)
     }
 
     /** Вызывать внутри транзакции. @return true, если список перенесён в архив. */
