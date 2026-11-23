@@ -130,6 +130,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val scope = rememberCoroutineScope()
 
     val rows by viewModel.rows.collectAsStateWithLifecycle()
+    val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
+    val customBarcodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
+    val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val totals by viewModel.totals.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
@@ -152,6 +156,23 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val lentaProducts by context.lentaCatalog.products.collectAsStateWithLifecycle()
     val lentaAddress by context.lentaCatalog.address.collectAsStateWithLifecycle()
     val lentaById = remember(lentaProducts) { lentaProducts.associateBy { it.id } }
+    val lentaBarcodes by context.lentaCatalog.barcodeRows.collectAsStateWithLifecycle()
+    val sharedIdentities = remember(lentaProducts, customProducts, lentaBarcodes, customBarcodes) {
+        com.mok.buylist.data.sharedCatalogIdentities(
+            lentaProducts, customProducts, lentaBarcodes, customBarcodes)
+    }
+    val recordedPurchases = remember(archive, bought) { expensePurchases(archive, bought) }
+    val shopPricesByKey = remember(rows, stores, storeLinks, recordedPurchases, sharedIdentities) {
+        rows.orEmpty().mapNotNull { row ->
+            val key = when {
+                row.item.customProductId.isNotBlank() -> "custom:${row.item.customProductId}"
+                row.item.productId > 0 -> "lenta:${row.item.productId}"
+                else -> return@mapNotNull null
+            }
+            row.item.id to productShopPrices(
+                key, stores, storeLinks, recordedPurchases, sharedIdentities)
+        }.toMap()
+    }
 
     var showAdd by rememberSaveable { mutableStateOf(false) }
     var scanPurchase by remember { mutableStateOf(false) }
@@ -166,6 +187,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var renaming by rememberSaveable { mutableStateOf(false) }
     var detailsRow by remember { mutableStateOf<ListRow?>(null) }
     var weightItem by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
+    var pendingPurchase by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
+    var scannedCustom by remember { mutableStateOf<com.mok.buylist.data.CustomProduct?>(null) }
 
     Box(Modifier.fillMaxSize().background(p.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -208,10 +231,15 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                             ItemRow(
                                 row = row,
                                 product = lentaById[row.item.productId],
+                                shopPrices = shopPricesByKey[row.item.id].orEmpty(),
+                                ownEstimate = customProducts.firstOrNull { it.id == row.item.customProductId }?.estimatedPriceKopecks,
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
                                 onWeight = { weightItem = row.item },
-                                onBuy = { viewModel.buy(row.item) },
+                                onBuy = {
+                                    if (row.item.productId > 0) viewModel.buy(row.item)
+                                    else pendingPurchase = row.item
+                                },
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
@@ -345,8 +373,89 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         AddItemSheet(
             onQueryChange = {},
             onAdd = viewModel::addProduct,
+            customProducts = customProducts,
+            customBarcodes = customBarcodes,
+            onAddCustom = viewModel::addCustomProduct,
+            onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
             onAddressSettings = { showAdd = false; settingsTab = 1; addressRequest++; showSettings = true },
+        )
+    }
+    pendingPurchase?.let { item ->
+        val ownProduct = customProducts.firstOrNull { it.id == item.customProductId }
+        val suggestedPrice = if (item.productId > 0)
+            lentaById[item.productId]?.price?.let { com.mok.buylist.data.parsePriceKopecks(it) }
+        else ownProduct?.estimatedPriceKopecks
+        val isLenta = item.productId > 0
+        val isWeighted = ownProduct?.isWeighted == true || item.weightGrams != null
+        var price by remember(item.id) {
+            mutableStateOf(suggestedPrice?.let {
+                java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+            }.orEmpty())
+        }
+        var selectedStore by remember(item.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+        var priceRevision by remember(item.id) { mutableIntStateOf(0) }
+        var weightText by remember(item.id) {
+            mutableStateOf(java.math.BigDecimal.valueOf(
+                (item.weightGrams ?: 1000).toLong(), 3).stripTrailingZeros().toPlainString())
+        }
+        val weightGrams = if (isWeighted)
+            com.mok.buylist.data.parseWeightGrams(weightText) else null
+        val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
+        AppSheet(
+            onDismissRequest = { pendingPurchase = null },
+            containerColor = p.sheet,
+            title = { SheetHeader("Отметить покупку") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(item.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                    if (isWeighted) SheetTextField(
+                        weightText, { weightText = it }, "Вес, кг",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    SheetTextField(price, { price = it; priceRevision++ },
+                        if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    if (isLenta) {
+                        Row(Modifier.fillMaxWidth()
+                            .background(p.field, RoundedCornerShape(18.dp))
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(painterResource(R.drawable.ic_store), contentDescription = null,
+                                tint = p.accent, modifier = Modifier.size(22.dp))
+                            Text("Лента", color = p.text, fontWeight = FontWeight.SemiBold)
+                        }
+                    } else StoreSelectField(stores, selectedStore, onSelected = { store ->
+                        selectedStore = store
+                        price = suggestedPrice?.let {
+                            java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                        }.orEmpty()
+                        val revision = ++priceRevision
+                        if (store != null) {
+                            val key = when {
+                                item.customProductId.isNotBlank() -> "custom:${item.customProductId}"
+                                item.productId > 0 -> "lenta:${item.productId}"
+                                else -> ""
+                            }
+                            if (key.isNotBlank()) viewModel.latestStorePrice(key, store.id) { known ->
+                                if (selectedStore?.id == store.id && priceRevision == revision && known != null)
+                                    price = java.math.BigDecimal.valueOf(known, 2)
+                                        .stripTrailingZeros().toPlainString()
+                            }
+                        }
+                    }, onCreate = viewModel::createStore)
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = (price.isBlank() || priceValue != null) &&
+                    (!isWeighted || weightGrams != null), onClick = {
+                    viewModel.buy(item, priceValue,
+                        if (isLenta) "Лента" else selectedStore?.name.orEmpty(), weightGrams)
+                    pendingPurchase = null
+                }) { Text("Куплено") }
+            },
         )
     }
     weightItem?.let { item ->
@@ -363,13 +472,76 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
-        val matches = lentaProducts.filter { com.mok.buylist.sync.barcodeMatches(it.ean, code) }
-        if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) && matches.size == 1) {
+        val matches = lentaProducts.filter { context.lentaCatalog.matchesBarcode(it, code) }
+        val ownMatches = customProducts.filter { product ->
+            !product.deleted && (
+                customBarcodes.any { it.productId == product.id && !it.deleted &&
+                    com.mok.buylist.sync.barcodeMatches(it.code, code) } ||
+                (product.barcode == code && customBarcodes.none {
+                    it.productId == product.id && it.code == code && it.deleted })
+            )
+        }
+        val customAlreadyPlanned = ownMatches.singleOrNull()?.let { custom ->
+            rows?.any { it.item.customProductId == custom.id && it.state == RowState.ACTIVE }
+        } == true
+        if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) &&
+            ownMatches.size == 1 && (matches.isEmpty() || customAlreadyPlanned || ownMatches.single().isWeighted)) {
+            scannedCustom = ownMatches.single()
+        } else if (!com.mok.buylist.sync.isVariableMeasureBarcode(code) && matches.size == 1) {
             viewModel.buyScanned(matches.single(), null) { done ->
                 activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
             }
         } else scanLookup = code
     })
+    scannedCustom?.let { product ->
+        var price by remember(product.id) {
+            mutableStateOf(product.estimatedPriceKopecks?.let {
+                java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+            }.orEmpty())
+        }
+        var selectedStore by remember(product.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+        var priceRevision by remember(product.id) { mutableIntStateOf(0) }
+        var weightText by remember(product.id) { mutableStateOf("1") }
+        val weightGrams = if (product.isWeighted)
+            com.mok.buylist.data.parseWeightGrams(weightText) else null
+        val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
+        AppSheet(onDismissRequest = { scannedCustom = null }, containerColor = p.sheet,
+            title = { SheetHeader(product.name) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (product.isWeighted) SheetTextField(
+                        weightText, { weightText = it }, "Вес, кг",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    SheetTextField(price, { price = it; priceRevision++ },
+                        if (product.isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    StoreSelectField(stores, selectedStore, onSelected = { store ->
+                        selectedStore = store
+                        price = product.estimatedPriceKopecks?.let {
+                            java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
+                        }.orEmpty()
+                        val revision = ++priceRevision
+                        if (store != null) viewModel.latestStorePrice("custom:${product.id}", store.id) { known ->
+                            if (selectedStore?.id == store.id && priceRevision == revision && known != null)
+                                price = java.math.BigDecimal.valueOf(known, 2)
+                                    .stripTrailingZeros().toPlainString()
+                        }
+                    }, onCreate = viewModel::createStore)
+                }
+            },
+            confirmButton = {
+                SheetActionButton(enabled = (price.isBlank() || priceValue != null) &&
+                    (!product.isWeighted || weightGrams != null), onClick = {
+                    viewModel.buyScannedCustom(product, priceValue, selectedStore?.name.orEmpty(), weightGrams) { done ->
+                        activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
+                    }
+                    scannedCustom = null
+                }) { Text("Куплено") }
+            },
+        )
+    }
     scanLookup?.let { code ->
         var lookupQuery by remember(code) { mutableStateOf(code) }
         androidx.compose.material3.ModalBottomSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
@@ -384,7 +556,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
                     scope.launch {
-                        context.lentaCatalog.save(chosen)
+                        context.lentaCatalog.save(chosen, code)
                         if (com.mok.buylist.sync.isVariableMeasureBarcode(code)) pendingWeight = code to chosen
                         else viewModel.buyScanned(chosen, null) { done ->
                             activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")
@@ -420,7 +592,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     detailsRow?.let { selected ->
         ItemDetailsSheet(selected.item, lentaById[selected.item.productId], lentaAddress,
             refresh?.takeIf { it.first == selected.item.productId }?.second,
-            onRefresh = { viewModel.refreshPrice(selected.item.productId) }) { detailsRow = null }
+            onRefresh = { viewModel.refreshPrice(selected.item.productId) },
+            customProducts = customProducts,
+            customBarcodes = customBarcodes,
+            storeLinks = storeLinks,
+            stores = stores,
+            archive = archive,
+            bought = bought,
+        ) { detailsRow = null }
     }
     if (showTheme) {
         ThemeSheet(
@@ -626,6 +805,8 @@ private const val SWIPE_REMOVE_FRACTION = 0.55f
 private fun ItemRow(
     row: ListRow,
     product: LentaProduct?,
+    shopPrices: List<ProductShopPrice>,
+    ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
     onWeight: () -> Unit,
@@ -638,7 +819,8 @@ private fun ItemRow(
     // Обёртка свайпа есть всегда (просто выключается), чтобы строка не пересоздавалась и её цвет и значок
     // плавно перетекали из «в списке» в «куплено».
     SwipeToRemove(enabled = row.state == RowState.ACTIVE, onRemove = onRemove, modifier = modifier) {
-        ItemRowContent(row, onBuy, onUndo, product, address, onQuantity, onWeight, onDetails, onRemove)
+        ItemRowContent(row, onBuy, onUndo, product, shopPrices, ownEstimate,
+            address, onQuantity, onWeight, onDetails, onRemove)
     }
 }
 
@@ -785,6 +967,8 @@ private fun ItemRowContent(
     onBuy: () -> Unit,
     onUndo: () -> Unit,
     product: LentaProduct?,
+    shopPrices: List<ProductShopPrice>,
+    ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
     onWeight: () -> Unit,
@@ -839,7 +1023,9 @@ private fun ItemRowContent(
                 }
             }
         }, verticalAlignment = Alignment.CenterVertically) {
-        LentaImage(product?.image.orEmpty(), Modifier.size(48.dp))
+        if (row.item.customProductId.isNotBlank())
+            CustomProductImage(row.item.customProductId, Modifier.size(48.dp))
+        else LentaImage(product?.image.orEmpty(), Modifier.size(48.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f).padding(end = 8.dp)) {
         Text(
@@ -854,6 +1040,22 @@ private fun ItemRowContent(
         )
         val shown = product?.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" && it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null }
         if (shown != null) Text("${shown.price} ₽", color = p.textSecondary, fontSize = 12.sp)
+        if (row.item.customProductId.isNotBlank()) {
+            val lowest = cheapestShopPrice(shopPrices)
+            val amount = lowest?.priceKopecks ?: ownEstimate
+            if (amount != null) {
+                val priceText = java.math.BigDecimal.valueOf(amount, 2)
+                    .stripTrailingZeros().toPlainString() + " ₽"
+                val label = if (lowest != null) "$priceText · ${lowest.storeName}"
+                    else "Ориентир: $priceText"
+                Text(label, color = p.accent, fontSize = 13.sp,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+            } else if (shopPrices.isNotEmpty()) {
+                Text(shopPrices.take(2).joinToString(" · ") { it.storeName },
+                    color = p.textSecondary, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
         }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {

@@ -29,6 +29,15 @@ data class StoredLentaProduct(
     @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
 )
 
+/** Подтверждённый код товара. Несколько товаров могут иметь один код — выбор тогда неоднозначен. */
+@Entity(tableName = "product_barcodes", primaryKeys = ["productId", "code"], indices = [Index(value = ["code"])])
+data class StoredProductBarcode(
+    val productId: Long,
+    val code: String,
+    @ColumnInfo(defaultValue = "0") val updatedAt: Long = 0,
+    @ColumnInfo(defaultValue = "0") val deleted: Boolean = false,
+)
+
 /**
  * Товар в списке. Купленный товар не удаляется сразу, а помечается [deleted] — так работает отмена покупки.
  * [authorId] — пользователь, сделавший последнее действие (добавил, купил, вернул); пусто — до регистрации.
@@ -46,6 +55,7 @@ data class ShoppingItem(
     @ColumnInfo(defaultValue = "''") val purchaseEvent: String = "",
     @ColumnInfo(defaultValue = "0") val productId: Long = 0,
     val weightGrams: Int? = null,
+    @ColumnInfo(defaultValue = "''") val customProductId: String = "",
 )
 
 /** Новый случайный идентификатор записи архива: 32 шестнадцатеричных символа. */

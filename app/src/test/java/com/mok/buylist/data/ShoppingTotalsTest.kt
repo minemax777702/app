@@ -95,4 +95,50 @@ class ShoppingTotalsTest {
     @Test fun overflowIsUnknown() {
         assertEquals(PartialAmount(0, 0, 1), calculateShoppingTotals(listOf(PricedLine(999, false, Long.MAX_VALUE))).total)
     }
+    @Test fun earlyFinishOnlyCountsBoughtProductsNotRemainingPlan() {
+        val bought = ShoppingItem(name = "Кофе", quantity = 1)
+        val event = purchaseEvent(bought, null, 100L, "buyer", priceOverride = 32_999L)
+        val remaining = ShoppingItem(name = "Не куплено", quantity = 1)
+        val estimated = purchaseEvent(remaining, null, 100L, "",
+            priceOverride = 169_478L)
+        val archive = ArchivedList(completedAt = 100L, itemCount = 1,
+            items = "Кофе", quantities = "1", purchaseEvents = event,
+            remainingEvents = "v1|$estimated")
+        assertEquals(32_999L, archivedPurchaseTotal(archive).kopecks)
+        assertEquals(1, archivedPurchaseTotal(archive).known)
+        assertEquals(0, archivedPurchaseTotal(archive).unknown)
+        // 329.99 + 1694.78 = 2024.77, but remaining stock is NOT an expense.
+        assertEquals(202_477L,
+            calculateShoppingTotals(listOf(
+                PricedLine(1, true, 32_999L),
+                PricedLine(1, false, 169_478L)
+            )).total.kopecks)
+    }
+
+    @Test fun archiveUnpricedBoughtItemDoesNotCountRemainingEstimatedPrices() {
+        val priced = purchaseEvent(ShoppingItem(name = "Кофе"), null,
+            100L, "buyer", priceOverride = 32_999L)
+        val withoutPrice = purchaseEvent(ShoppingItem(name = "Яйца"), null,
+            101L, "buyer")
+        val remaining = purchaseEvent(ShoppingItem(name = "Хлеб"), null,
+            101L, "", priceOverride = 50_000L)
+        val archive = ArchivedList(completedAt = 101L, itemCount = 2,
+            items = listOf("Кофе", "Яйца").joinToString("\n"),
+            quantities = listOf(1, 1).joinToString("\n"),
+            purchaseEvents = listOf(priced, withoutPrice).joinToString("\n"),
+            remainingEvents = "v1|$remaining")
+        assertEquals(PartialAmount(32_999L, 1, 1), archivedPurchaseTotal(archive))
+    }
+
+    @Test fun weightedManualPriceRetainsWeightAndCalculatesExactTotal() {
+        val item = ShoppingItem(name = "Яблоки", weightGrams = 750)
+        val encoded = purchaseEvent(item, null, 1L, "buyer", priceOverride = 32999L)
+        val decoded = decodePurchaseEvent(encoded)!!
+        assertEquals(750, decoded.weightGrams)
+        assertEquals(24749L, priceForWeight(decoded.unitPrice!!, decoded.weightGrams!!))
+        assertEquals(PartialAmount(24749L, 1, 0),
+            calculateShoppingTotals(listOf(PricedLine(decoded.quantity, true,
+                decoded.unitPrice, decoded.weightGrams))).total)
+    }
+
 }

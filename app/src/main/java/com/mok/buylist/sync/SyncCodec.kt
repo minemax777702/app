@@ -5,6 +5,11 @@ import java.io.ByteArrayOutputStream
 import java.util.zip.DeflaterOutputStream
 import java.util.zip.InflaterInputStream
 import com.mok.buylist.data.StoredLentaProduct
+import com.mok.buylist.data.StoredProductBarcode
+import com.mok.buylist.data.CustomProductBarcode
+import com.mok.buylist.data.CustomProduct
+import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.data.StoreProduct
 
 class SyncFormatException(message: String) : Exception(message)
 
@@ -96,7 +101,7 @@ internal class ByteReader(private val data: ByteArray) {
 
 /** Двоичный формат сообщений. Сообщение сжимается deflate: названия в архиве и истории часто повторяются. */
 object SyncCodec {
-    private const val VERSION = 6
+    private const val VERSION = 13
     private const val MAX_UNPACKED_BYTES = 16 * 1024 * 1024
 
     fun encode(snapshot: Snapshot): ByteArray = deflate(write(snapshot))
@@ -110,7 +115,7 @@ object SyncCodec {
         for (u in s.users) { w.string(u.id); w.string(u.name); w.long(u.at) }
         w.int(s.items.size)
         for (i in s.items) {
-            w.string(i.name); w.long(i.createdAt); w.long(i.at); w.byte(if (i.bought) 1 else 0); w.string(i.author); w.int(i.quantity); w.string(i.purchaseEvent); w.long(i.productId); w.int(i.weightGrams ?: -1)
+            w.string(i.name); w.long(i.createdAt); w.long(i.at); w.byte(if (i.bought) 1 else 0); w.string(i.author); w.int(i.quantity); w.string(i.purchaseEvent); w.long(i.productId); w.int(i.weightGrams ?: -1); w.string(i.customProductId)
         }
         w.int(s.history.size)
         for (h in s.history) { w.string(h.name); w.int(h.useCount); w.long(h.lastUsedAt) }
@@ -134,6 +139,27 @@ object SyncCodec {
             w.long(p.priceKopecks ?: -1); w.string(p.priceType); w.string(p.ean)
             w.string(p.address); w.long(p.storeId); w.string(p.channel); w.long(p.fetchedAt); w.long(p.updatedAt)
         }
+        w.int(s.productBarcodes.size)
+        for (barcode in s.productBarcodes) { w.long(barcode.productId); w.string(barcode.code); w.long(barcode.updatedAt); w.byte(if (barcode.deleted) 1 else 0) }
+        w.int(s.customProducts.size)
+        for (p in s.customProducts) {
+            w.string(p.id); w.string(p.name); w.string(p.barcode); w.long(p.updatedAt); w.byte(if (p.deleted) 1 else 0); w.long(p.estimatedPriceKopecks ?: -1); w.byte(if (p.isWeighted) 1 else 0)
+        }
+        w.int(s.stores.size)
+        for (store in s.stores) {
+            w.string(store.id); w.string(store.name); w.string(store.nameKey); w.long(store.updatedAt); w.byte(if (store.deleted) 1 else 0)
+        }
+        w.int(s.customProductBarcodes.size)
+        for (barcode in s.customProductBarcodes) {
+            w.string(barcode.productId); w.string(barcode.code); w.long(barcode.updatedAt)
+            w.byte(if (barcode.deleted) 1 else 0)
+        }
+        w.int(s.storeProducts.size)
+        for (entry in s.storeProducts) {
+            w.string(entry.storeId); w.string(entry.productKey)
+            w.long(entry.priceKopecks ?: -1); w.long(entry.updatedAt)
+            w.byte(if (entry.deleted) 1 else 0)
+        }
         return w.toByteArray()
     }
 
@@ -144,7 +170,8 @@ object SyncCodec {
         val users = List(r.count()) { SyncUser(r.string(), r.string(), r.long()) }
         val items = List(r.count()) {
             SyncItem(r.string(), r.long(), r.long(), r.byte() != 0, r.string(), if (version >= 2) r.int().coerceIn(1, 999) else 1, if (version >= 3) r.string() else "", if (version >= 4) r.long() else 0,
-                if (version >= 6) r.int().takeIf { it in 1..999000 } else null)
+                if (version >= 6) r.int().takeIf { it in 1..999000 } else null,
+                if (version >= 9) r.string() else "")
         }
         val history = List(r.count()) { SyncHistory(r.string(), r.int(), r.long()) }
         repeat(r.count()) { r.string(); r.long(); r.string(); r.long() } // Старые цены пропускаются.
@@ -177,7 +204,32 @@ object SyncCodec {
             StoredLentaProduct(r.long(), r.string(), r.string(), r.string(), r.long().takeIf { it >= 0 },
                 r.string(), r.string(), r.string(), r.long(), r.string(), r.long(), r.long())
         } else emptyList()
-        return Snapshot(users, items, history, hidden, archives, tombs, products)
+        val barcodes = if (version >= 7) List(r.count()) {
+            StoredProductBarcode(r.long(), r.string(), if (version >= 8) r.long() else 0, if (version >= 8) r.byte() != 0 else false)
+        } else products.mapNotNull { p ->
+            p.ean.takeIf { it.isNotBlank() }?.let { StoredProductBarcode(p.id, it) }
+        }
+        val customProducts = if (version >= 9) List(r.count()) {
+            CustomProduct(r.string(), r.string(), r.string(), r.long(), r.byte() != 0,
+                if (version >= 11) r.long().takeIf { it >= 0 } else null,
+                if (version >= 12) r.byte() != 0 else false)
+        } else emptyList()
+        val stores = if (version >= 9) List(r.count()) {
+            ShoppingStore(r.string(), r.string(), r.string(), r.long(), r.byte() != 0)
+        } else emptyList()
+        val customBarcodes = if (version >= 10) List(r.count()) {
+            CustomProductBarcode(r.string(), r.string(), r.long(), r.byte() != 0)
+        } else customProducts.mapNotNull { product ->
+            product.barcode.takeIf { it.isNotBlank() }?.let {
+                CustomProductBarcode(product.id, it, product.updatedAt)
+            }
+        }
+        val storeProducts = if (version >= 13) List(r.count()) {
+            StoreProduct(r.string(), r.string(), r.long().takeIf { it >= 0 },
+                r.long(), r.byte() != 0)
+        } else emptyList()
+        return Snapshot(users, items, history, hidden, archives, tombs, products, barcodes,
+            customProducts, stores, customBarcodes, storeProducts)
     }
 
     /** uid — 32 шестнадцатеричных символа: храним 16 байтами; нестандартный — строкой. */
