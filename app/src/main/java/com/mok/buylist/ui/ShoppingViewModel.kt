@@ -18,7 +18,11 @@ import com.mok.buylist.data.PricedLine
 import com.mok.buylist.data.ShoppingTotals
 import com.mok.buylist.data.calculateShoppingTotals
 import com.mok.buylist.data.decodePurchaseEvent
-import com.mok.buylist.data.parsePriceKopecks
+import com.mok.buylist.data.plannedUnitPrice
+import com.mok.buylist.data.sharedCatalogIdentities
+import com.mok.buylist.data.LentaProduct
+import com.mok.buylist.data.StoreProduct
+import com.mok.buylist.data.StoredProductBarcode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -51,6 +55,14 @@ data class ListRow(val item: ShoppingItem, val state: RowState)
 data class Progress(val bought: Int, val total: Int)
 
 data class BatchPriceRefresh(val completed: Int, val total: Int, val failed: Int, val running: Boolean)
+
+private data class PriceCatalogSnapshot(
+    val products: List<LentaProduct>,
+    val address: String,
+    val custom: List<CustomProduct>,
+    val offers: List<StoreProduct>,
+    val barcodes: List<StoredProductBarcode>,
+)
 
 /** Сколько миллисекунд после покупки или удаления на строке остаётся кнопка «Отменить». */
 private const val UNDO_WINDOW_MS = 1_500L
@@ -111,11 +123,26 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     val bought: StateFlow<List<ShoppingItem>> = repository.observeBought()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), lenta.products, lenta.address) { items, products, address ->
+    private val priceCatalog = combine(
+        lenta.products, lenta.address, repository.observeCustomProducts(),
+        repository.observeStoreProducts(), lenta.barcodeRows,
+    ) { products, address, custom, offers, barcodes ->
+        PriceCatalogSnapshot(products, address, custom, offers, barcodes)
+    }
+
+    internal val totals: StateFlow<ShoppingTotals> = combine(
+        repository.observeAllItems(), priceCatalog, repository.observeCustomBarcodes(),
+    ) { items, catalog, customCodes ->
+        val aliases = sharedCatalogIdentities(
+            catalog.products, catalog.custom, catalog.barcodes, customCodes,
+        )
         val lines = items.map { item ->
-            val price = if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.unitPrice
-                else products.firstOrNull { it.id == item.productId && address.isNotBlank() && it.address == address && it.channel == "locc" }?.price?.let(::parsePriceKopecks)
-            PricedLine(item.quantity, item.deleted, price, if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.weightGrams else item.weightGrams)
+            val event = if (item.deleted) decodePurchaseEvent(item.purchaseEvent) else null
+            val price = if (item.deleted) event?.unitPrice else plannedUnitPrice(
+                item, catalog.products, catalog.address, catalog.custom, catalog.offers, aliases,
+            )
+            PricedLine(item.quantity, item.deleted, price,
+                if (item.deleted) event?.weightGrams else item.weightGrams)
         }
         calculateShoppingTotals(lines)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), calculateShoppingTotals(emptyList()))
