@@ -18,6 +18,9 @@ internal data class LentaSearchState(
     val hasMore: Boolean = false,
 )
 
+private const val MAX_PAGES_PER_FETCH = 12
+private const val MAX_IDENTICAL_PAGES = 8
+
 internal class LentaSearchController(
     private val search: suspend (String, String, Int, Long) -> List<LentaProduct>,
     private val scope: CoroutineScope,
@@ -59,28 +62,42 @@ internal class LentaSearchController(
     private suspend fun fetch() {
         state.value = state.value.copy(loading = true, failed = false, started = true)
         try {
-            // Пропускаем страницы, целиком состоящие из уже сохранённых товаров.
-            repeat(5) {
+            var previousPageIds: Set<Long>? = null
+            var identicalPages = 0
+            // Пропускаем сохранённые и уже показанные товары, включая страницы после пятой.
+            // Лимиты ограничивают нагрузку на сервис, но не объявляют выдачу законченной.
+            repeat(MAX_PAGES_PER_FETCH) {
                 val page = nextPage
                 val response = search(query, address, page, storeId)
-                if (page == 1 && response.isNotEmpty()) storeId = response.first().storeId
-                val fresh = response.filter { it.id > 0 && it.id !in seenIds }.distinctBy { it.id }
                 if (response.isEmpty()) {
                     state.value = state.value.copy(loading = false, hasMore = false, failed = false)
                     return
                 }
-                // Повторяющаяся страница не означает конец выдачи: сервер может
-                // возвращать пересекающиеся результаты на соседних страницах.
+                if (page == 1) storeId = response.first().storeId
                 nextPage = page + 1
-                if (fresh.isEmpty()) return@repeat
-                seenIds.addAll(fresh.map { it.id })
+
+                val pageIds = response.mapNotNull { it.id.takeIf { id -> id > 0 } }.toSet()
+                identicalPages = if (pageIds == previousPageIds) identicalPages + 1 else 1
+                previousPageIds = pageIds
+
+                val fresh = response.filter { it.id > 0 && seenIds.add(it.id) }.distinctBy { it.id }
                 val added = fresh.filter { it.id !in savedIds }
                 if (added.isNotEmpty()) {
-                    state.value = state.value.copy(online = state.value.online + added,
-                        loading = false, hasMore = true, failed = false)
+                    state.value = state.value.copy(
+                        online = state.value.online + added,
+                        loading = false, hasMore = true, failed = false,
+                    )
+                    return
+                }
+                if (identicalPages >= MAX_IDENTICAL_PAGES) {
+                    // Сервер повторяет одинаковую страницу. Оставляем ручное
+                    // продолжение с nextPage вместо бесконечных запросов.
+                    state.value = state.value.copy(loading = false, hasMore = true, failed = false)
                     return
                 }
             }
+            // Если новых товаров пока нет, кнопка «Показать ещё» продолжит
+            // поиск с сохранённой позиции, не возвращаясь на первую страницу.
             state.value = state.value.copy(loading = false, hasMore = true, failed = false)
         } catch (e: CancellationException) {
             throw e
