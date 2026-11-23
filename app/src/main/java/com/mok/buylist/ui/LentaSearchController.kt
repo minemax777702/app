@@ -34,21 +34,38 @@ internal class LentaSearchController(
     private var nextPage = 1
     private var storeId = 0L
     private val seenIds = HashSet<Long>()
+    private var onlineOnly = false
+    private var initialized = false
 
     fun update(query: String, address: String, saved: List<LentaProduct>, onlineOnly: Boolean) {
-        job?.cancel()
-        this.query = query.trim()
+        val trimmed = query.trim()
+        val newSavedIds = saved.mapTo(HashSet()) { it.id }
+        val reset = !initialized || this.query != trimmed ||
+            this.address != address || this.onlineOnly != onlineOnly
+        initialized = true
+        if (reset) job?.cancel()
+        this.query = trimmed
         this.address = address
-        savedIds = saved.mapTo(HashSet()) { it.id }
-        nextPage = 1
-        storeId = 0
-        seenIds.clear()
-        val key = nameKeyOf(this.query)
+        this.onlineOnly = onlineOnly
+        savedIds = newSavedIds
+        val key = nameKeyOf(trimmed)
         val local = if (onlineOnly || key.length < 2) emptyList() else saved.filter {
             nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
                 barcodeAliases(it.id).any { alias -> alias.contains(key) ||
                     com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) }
         }.sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
+        if (!reset) {
+            // Saved products and barcode aliases may change while paging.
+            // Do not discard the current server cursor or cancel an in-flight request.
+            state.value = state.value.copy(
+                local = local,
+                online = state.value.online.filterNot { it.id in newSavedIds },
+            )
+            return
+        }
+        nextPage = 1
+        storeId = 0
+        seenIds.clear()
         state.value = LentaSearchState(local = local)
         if (key.length >= 2 && address.isNotBlank() && (onlineOnly || local.isEmpty())) {
             job = scope.launch { delay(500); fetch() }
