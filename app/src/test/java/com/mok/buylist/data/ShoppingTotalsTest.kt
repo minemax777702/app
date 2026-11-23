@@ -141,4 +141,38 @@ class ShoppingTotalsTest {
                 decoded.unitPrice, decoded.weightGrams))).total)
     }
 
+    @Test fun plannedCustomProductUsesCheapestKnownStorePrice() {
+        val item = ShoppingItem(name = "Яйца", customProductId = "own")
+        val custom = listOf(CustomProduct("own", "Яйца", updatedAt = 1,
+            estimatedPriceKopecks = 15_000))
+        val offers = listOf(
+            StoreProduct("first", "custom:own", 12_500),
+            StoreProduct("second", "custom:own", 11_900),
+        )
+        assertEquals(11_900L, plannedUnitPrice(item, emptyList(), "", custom, offers))
+        assertEquals(15_000L, plannedUnitPrice(item, emptyList(), "", custom, emptyList()))
+        assertNull(plannedUnitPrice(item, emptyList(), "", emptyList(), emptyList()))
+    }
+
+    @Test fun barcodeAliasesLinkStorePricesAndIgnoreDeletedOffers() {
+        val item = ShoppingItem(name = "Яйца", productId = 42L)
+        val offers = listOf(
+            StoreProduct("first", "custom:own", 7_000),
+            StoreProduct("second", "custom:own", 100, deleted = true),
+        )
+        assertEquals(7_000L, plannedUnitPrice(item, emptyList(), "",
+            emptyList(), offers, mapOf("custom:own" to "lenta:42")))
+    }
+
+    @Test fun currentLentaPriceAndKnownStorePricesUseMinimum() {
+        val item = ShoppingItem(name = "Молоко", productId = 42L)
+        val product = LentaProduct(42L, "Молоко", "", "", "120.00", "", "", "address",
+            channel = "locc")
+        val offers = listOf(StoreProduct("shop", "lenta:42", 11_000))
+        assertEquals(11_000L, plannedUnitPrice(item, listOf(product), "address",
+            emptyList(), offers))
+        assertEquals(12_000L, plannedUnitPrice(item, listOf(product), "address",
+            emptyList(), emptyList()))
+    }
+
 }
