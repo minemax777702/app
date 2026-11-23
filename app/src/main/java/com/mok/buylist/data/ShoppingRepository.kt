@@ -962,18 +962,24 @@ class ShoppingRepository(
         if (!adopt) return applyRemote(contents.snapshot)
 
         val oldId = profile.id
-        // Keep all Room mutations in a single transaction. On merge/write failure
-        // the database is rolled back and the persisted profile is untouched.
+        var previous: Snapshot? = null
+        // All Room mutations are transactional, including the merge.
         val summary = db.withTransaction {
+            previous = buildSnapshot()
             reassignIdentityInDb(oldId, contents.ownerId, contents.ownerName)
             val local = buildSnapshot()
             val merged = SyncMerge.merge(local, contents.snapshot)
             write(merged)
             summarize(local, merged)
         }
-        // Publish identity only after the database transaction succeeded.
-        // UserProfile.adopt uses synchronous commit to avoid async preference writes.
-        profile.adopt(contents.ownerId, contents.ownerName)
+        // Publish identity after the Room commit, using synchronous persistence.
+        // If SharedPreferences refuses to persist, restore the pre-adoption DB.
+        try {
+            profile.adopt(contents.ownerId, contents.ownerName)
+        } catch (failure: Exception) {
+            db.withTransaction { write(requireNotNull(previous)) }
+            throw failure
+        }
         refreshWidget()
         return summary
     }
@@ -991,8 +997,8 @@ class ShoppingRepository(
             val replaced = list.buyerIds.map { if (it == temporary) newId else it }
             val events = list.events.map { reassignPurchaseEvent(it, temporary, newId) }
             if (temporary in list.buyerIds || events != list.events)
-                dao.updateArchived(list.copy(buyers = replaced.joinToString("\\n"),
-                    purchaseEvents = events.joinToString("\\n")))
+                dao.updateArchived(list.copy(buyers = replaced.joinToString("\n"),
+                    purchaseEvents = events.joinToString("\n")))
         }
     }
 
