@@ -26,6 +26,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import com.mok.buylist.barcodeSourceSettings
+import com.mok.buylist.themeSettings
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,7 +85,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onActiveChange: (Boolean) -> Unit) {
+fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onActiveChange: (Boolean) -> Unit, onOpenTheme: () -> Unit = {}) {
     val p = LocalPalette.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -92,7 +96,12 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     var showAddress by rememberSaveable { mutableStateOf(false) }
     val address by context.lentaCatalog.address.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
-    LaunchedEffect(Unit) { onActiveChange(false) }
+    var page by rememberSaveable { mutableStateOf("profile") }
+    var showBackup by rememberSaveable { mutableStateOf(false) }
+    val sources by context.barcodeSourceSettings.enabled.collectAsStateWithLifecycle()
+    val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
+    LaunchedEffect(page) { onActiveChange(page != "profile"); scrollState.scrollTo(0) }
+    BackHandler(enabled = page != "profile") { page = "profile" }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) scrollState.scrollTo(0) }
     LaunchedEffect(state.notice) {
         val notice = state.notice ?: return@LaunchedEffect
@@ -128,22 +137,70 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             controller.onBackupRead(bytes)
         }
     }
-    Column(Modifier.fillMaxSize().background(p.background).verticalScroll(scrollState).padding(
-        start = 16.dp, end = 16.dp, top = 16.dp,
-        bottom = 16.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-        verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        SyncAction(R.drawable.ic_store, if (address.isBlank()) stringResource(R.string.lenta_address_empty) else stringResource(R.string.lenta_address_value, address), onClick = { showAddress = true })
-        if (profile != null) SyncAction(R.drawable.ic_edit, stringResource(R.string.sync_you, profile.name), onRename)
-        BarcodeSourceSettingsSection()
-        NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
-        Text(stringResource(R.string.backup_title), Modifier.fillMaxWidth().padding(start = 4.dp, top = 8.dp),
-            color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card)) {
-            SyncAction(R.drawable.ic_history, stringResource(R.string.backup_save), onClick = { saveBackup.launch("spisok-pokupok-${LocalDate.now()}.buylist") })
-            Box(Modifier.fillMaxWidth().padding(start = 56.dp, end = 16.dp).height(1.dp).background(p.background))
-            SyncAction(R.drawable.ic_repeat, stringResource(R.string.backup_restore), onClick = { openBackup.launch(arrayOf("*/*")) })
+    Column(Modifier.fillMaxSize().background(p.background)) {
+        when (page) {
+            "sources" -> SubScreenHeader("Источники поиска", { page = "profile" })
+            "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
+            else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
+        }
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
+            .padding(horizontal = 20.dp, vertical = 8.dp).navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            when (page) {
+                "sources" -> BarcodeSourceSettingsSection()
+                "nearby" -> {
+                    Text("Синхронизация без интернета", color = p.textSecondary, fontSize = 14.sp)
+                    NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
+                }
+                else -> {
+                    if (profile != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
+                        .clickable(role = Role.Button, onClick = onRename).padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Box(Modifier.size(56.dp).clip(RoundedCornerShape(20.dp)).background(p.field),
+                            contentAlignment = Alignment.Center) {
+                            Text(profile.name.take(1).uppercase(), color = p.text, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(profile.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Личный профиль", color = p.textSecondary, fontSize = 13.sp)
+                        }
+                        Icon(painterResource(R.drawable.ic_edit), "Изменить имя", Modifier.size(22.dp), tint = p.text)
+                    }
+                    FreshCutSectionTitle("Приложение", Modifier.padding(top = 8.dp))
+                    ProfileMenuRow(R.drawable.ic_sun, "Оформление", when (themeMode) {
+                        com.mok.buylist.ui.theme.ThemeMode.AUTO -> "Системная тема"
+                        com.mok.buylist.ui.theme.ThemeMode.LIGHT -> "Светлая тема"
+                        com.mok.buylist.ui.theme.ThemeMode.DARK -> "Тёмная тема"
+                    }, onOpenTheme)
+                    ProfileMenuRow(R.drawable.ic_store, "Магазин Ленты",
+                        if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
+                    ProfileMenuRow(R.drawable.ic_scan_barcode, "Источники штрихкодов",
+                        "${sources.size} из ${BarcodeSource.entries.size} включено", { page = "sources" })
+                    FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
+                    ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
+                    ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
+                }
+            }
         }
     }
+    if (showBackup) AppSheet(
+        onDismissRequest = { showBackup = false }, containerColor = p.sheet,
+        title = { SheetHeader("Резервная копия") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ProfileMenuRow(R.drawable.ic_archive, "Сохранить в файл", "Экспорт данных", {
+                    showBackup = false
+                    saveBackup.launch("spisok-pokupok-${LocalDate.now()}.buylist")
+                })
+                ProfileMenuRow(R.drawable.ic_repeat, "Восстановить из файла", "Импорт данных", {
+                    showBackup = false
+                    openBackup.launch(arrayOf("*/*"))
+                })
+            }
+        },
+        confirmButton = { SheetActionButton(onClick = { showBackup = false }) { Text("Готово") } },
+    )
+
     if (showAddress) LentaSettings { showAddress = false }
     if (confirmUndo) {
         AppSheet(
@@ -195,3 +252,20 @@ private fun SyncAction(icon: Int, title: String, onClick: () -> Unit, modifier: 
     }
 }
 
+
+@Composable
+private fun ProfileMenuRow(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card)
+        .clickable(role = Role.Button, onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(p.field), contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = p.textSecondary, fontSize = 12.sp)
+        }
+        Text("›", color = p.textSecondary, fontSize = 24.sp)
+    }
+}

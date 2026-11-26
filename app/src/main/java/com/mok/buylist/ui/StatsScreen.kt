@@ -75,6 +75,7 @@ fun StatsScreen(
     meId: String,
     onBack: () -> Unit,
     viewModel: ShoppingViewModel,
+    navigation: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val buyers = remember(archive, bought, users) {
@@ -126,7 +127,7 @@ fun StatsScreen(
     }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader(stringResource(R.string.stats_title), onBack)
+        FreshCutRootHeader("ВАШИ ПОКУПКИ", stringResource(R.string.stats_title), "Расходы и привычки за выбранный период")
         if (buyers.size > 1) {
             Row(
                 Modifier
@@ -150,7 +151,7 @@ fun StatsScreen(
             LazyColumn(
                 Modifier
                     .weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp,
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp,
                     bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -166,6 +167,7 @@ fun StatsScreen(
                         NumberCard(stats.averageItems.toString(), stringResource(R.string.stats_average_label), Modifier.weight(1f))
                     }
                 } }
+                item { HistoryButton(onClick = { showHistory = true }) }
                 item { WeeksCard(if (monthly) stats.months else stats.weeks, shown, monthly) { monthly = it } }
                 stats.busiestDay?.let { day ->
                     item {
@@ -187,6 +189,7 @@ fun StatsScreen(
                 }
             }
         }
+        navigation()
     }
 }
 

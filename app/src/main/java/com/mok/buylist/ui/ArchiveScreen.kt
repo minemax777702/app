@@ -84,6 +84,7 @@ fun ArchiveScreen(
     meId: String,
     initiallyExpandedId: Long? = null,
     viewModel: ShoppingViewModel,
+    navigation: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
@@ -102,7 +103,7 @@ fun ArchiveScreen(
         return
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader(stringResource(R.string.archive_title), onBack) {
+        FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title), "Ваши завершённые покупки") {
             if (archive.isNotEmpty() && onOpenStats != null) {
                 HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
             }
@@ -113,9 +114,9 @@ fun ArchiveScreen(
             LazyColumn(
                 Modifier.weight(1f),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 0.dp,
                     bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -143,6 +144,7 @@ fun ArchiveScreen(
                 }
             }
         }
+        navigation()
     }
 
     details?.let { (list, index) ->
@@ -182,33 +184,12 @@ internal fun durationText(minutes: Int): String = when {
 @Composable
 internal fun SubScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
-            .background(p.header)
-            .drawBehind {
-                drawCircle(
-                    color = Color.White.copy(alpha = if (p.isDark) 0.07f else 0.1f),
-                    radius = 110.dp.toPx(),
-                    center = Offset(size.width - 50.dp.toPx(), 20.dp.toPx()),
-                )
-            }
-            .statusBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 28.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        HeaderButton(R.drawable.ic_back, stringResource(R.string.archive_back), onBack)
-        Spacer(Modifier.width(14.dp))
-        Text(
-            title,
-            Modifier.weight(1f),
-            color = p.onHeader,
-            fontSize = 26.sp,
-            lineHeight = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.3).sp,
-        )
+    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        HeaderButton(R.drawable.ic_back, "Назад", onBack)
+        Spacer(Modifier.width(12.dp))
+        Text(title, Modifier.weight(1f), color = p.text, fontSize = 24.sp,
+            lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
         trailing()
     }
 }
@@ -220,7 +201,7 @@ internal fun HeaderButton(icon: Int, description: String, onClick: () -> Unit) {
         Modifier
             .size(48.dp)
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.16f))
+            .background(p.field)
             .clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -283,7 +264,7 @@ private fun ArchiveCard(
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(date, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                     if (listLabel != null) {
                         Text(
                             listLabel,
@@ -324,13 +305,11 @@ private fun ArchiveCard(
             Spacer(Modifier.width(8.dp))
         }
 
-        if (expanded) {
-            // Planned-but-unpurchased items are not part of the amount spent.
-            val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
-            if (spent.known > 0)
-                Text("Потрачено: ${formatAmount(spent)}",
-                    Modifier.padding(top = 8.dp), color = p.textSecondary)
-        }
+        // Сумма отображается и в свёрнутом состоянии, только по фактическим покупкам.
+        val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
+        if (spent.known > 0) Text(formatAmount(spent), Modifier.padding(top = 12.dp),
+            color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+        else Text("Без указанных цен", Modifier.padding(top = 8.dp), color = p.textSecondary, fontSize = 13.sp)
 
         if (!expanded) {
             val preview = names.take(PREVIEW_ITEMS).joinToString(", ") +
@@ -491,7 +470,7 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
     AppSheet(
         onDismissRequest = onDismiss,
         containerColor = p.sheet,
-        title = { SheetHeader("Подробно о товаре") },
+        title = { SheetHeader("Покупка") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
@@ -602,7 +581,8 @@ private fun EmptyArchive(modifier: Modifier = Modifier) {
             color = p.text,
             fontSize = 22.sp,
             lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.SemiBold,
         )
+        Text("Завершённые списки появятся здесь.", color = p.textSecondary, fontSize = 14.sp)
     }
 }

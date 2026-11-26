@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,7 +33,7 @@ internal fun BarcodeSourceSettingsSection() {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Поиск по штрихкоду", color = p.text,
-            fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
         Text("Выберите источники названий и изображений товаров. Отключённые API не опрашиваются.",
             color = p.textSecondary, fontSize = 12.sp)
         BarcodeSource.entries.forEach { source ->
@@ -47,10 +48,14 @@ internal fun BarcodeSourceSettingsSection() {
                 Switch(
                     checked = source in enabled,
                     onCheckedChange = { settings.setEnabled(source, it) },
+                    colors = SwitchDefaults.colors(checkedTrackColor = p.actionFill,
+                        checkedThumbColor = p.actionInk, checkedBorderColor = p.actionFill,
+                        uncheckedTrackColor = p.field, uncheckedThumbColor = p.textSecondary,
+                        uncheckedBorderColor = p.line),
                 )
             }
         }
-        Text("DiSAI проверяется по открытой странице товара. Если сайт недоступен или название не распознано, остальные источники продолжат работать.",
+        Text(if (enabled.isEmpty()) "Все внешние источники отключены." else "DiSAI проверяется по открытой странице товара. Если сайт недоступен или название не распознано, остальные источники продолжат работать.",
             color = p.textSecondary, fontSize = 12.sp)
     }
 }

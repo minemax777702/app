@@ -196,6 +196,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     val allPurchased = progress.total > 0 && progress.bought == progress.total
 
+    fun navigate(destination: FreshCutDestination) {
+        showArchive = destination == FreshCutDestination.ARCHIVE
+        showStats = destination == FreshCutDestination.STATS
+        showSettings = destination == FreshCutDestination.CATALOG || destination == FreshCutDestination.PROFILE
+        if (destination == FreshCutDestination.CATALOG) settingsTab = 0
+        if (destination == FreshCutDestination.PROFILE) settingsTab = 1
+    }
+
     Box(Modifier.fillMaxSize().background(p.background)) {
         Column(Modifier.fillMaxSize()) {
             Header(
@@ -225,16 +233,16 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             ) { empty ->
                 val list = visibleRows
                 when {
-                    empty == null || list == null -> Unit
+                    empty == null || list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = p.textSecondary) }
                     empty && allPurchased -> Column(
                         Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 48.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        Box(Modifier.size(64.dp).background(p.actionFill, RoundedCornerShape(20.dp)),
+                        Box(Modifier.size(64.dp).background(p.field, RoundedCornerShape(20.dp)),
                             contentAlignment = Alignment.Center) {
                             Icon(painterResource(R.drawable.ic_check), contentDescription = null,
-                                tint = p.actionInk, modifier = Modifier.size(24.dp))
+                                tint = p.text, modifier = Modifier.size(24.dp))
                         }
                         Text("Все товары куплены", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                         Text("В активном списке ничего не осталось.", color = p.textSecondary, fontSize = 13.sp)
@@ -316,21 +324,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         tint = p.text, modifier = Modifier.size(24.dp))
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(20.dp))
-                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                FreshCutTab(R.drawable.ic_shopping_cart, "Список", true, Modifier.weight(1f)) {}
-                FreshCutTab(R.drawable.ic_package, "Товары", false, Modifier.weight(1f)) {
-                    settingsTab = 0; showSettings = true
-                }
-                FreshCutTab(R.drawable.ic_archive, "Архив", false, Modifier.weight(1f)) { showArchive = true }
-                FreshCutTab(R.drawable.ic_chart, "Статистика", false, Modifier.weight(1f)) { showStats = true }
-                FreshCutTab(R.drawable.ic_user_round, "Профиль", false, Modifier.weight(1f)) {
-                    settingsTab = 1; showSettings = true
-                }
-            }
+            FreshCutNavigation(FreshCutDestination.LIST, ::navigate)
+
         }
 
         AnimatedVisibility(
@@ -342,7 +337,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             ArchiveScreen(
                 archive = archive,
                 onBack = { showArchive = false },
-                onOpenStats = { showStats = true },
+                onOpenStats = { navigate(FreshCutDestination.STATS) },
+                navigation = { FreshCutNavigation(FreshCutDestination.ARCHIVE, ::navigate, Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) },
                 onRepeat = { names, quantities, events -> viewModel.repeatArchived(names, quantities, events) { showArchive = false } },
                 onDelete = viewModel::deleteArchived,
                 users = users,
@@ -363,6 +359,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 onBack = { showSettings = false },
                 profile = profile,
                 onRename = { renaming = true },
+                onOpenTheme = { showTheme = true },
+                navigation = { FreshCutNavigation(if (settingsTab == 0) FreshCutDestination.CATALOG else FreshCutDestination.PROFILE, ::navigate, Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) },
                 addressRequest = addressRequest,
                 onAdd = { product -> viewModel.addProduct(product) { added -> activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке") } },
                 viewModel = viewModel,
@@ -384,6 +382,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 users = users,
                 meId = profile?.id.orEmpty(),
                 onBack = { showStats = false },
+                navigation = { FreshCutNavigation(FreshCutDestination.STATS, ::navigate, Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) },
                 viewModel = viewModel,
             )
         }
@@ -701,6 +700,14 @@ private fun Header(
             }
         }
         Spacer(Modifier.height(20.dp))
+        if (progress.total == 0) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Начните с малого", color = p.text, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
+                Text("Добавьте то, что нужно купить.", color = p.textSecondary, fontSize = 13.sp)
+            }
+            return
+        }
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
                 .padding(16.dp),
@@ -1218,8 +1225,9 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             color = p.text,
             fontSize = 22.sp,
             lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.SemiBold,
         )
+        Text("Все покупки будут здесь.", color = p.textSecondary, fontSize = 14.sp)
     }
 }
 
