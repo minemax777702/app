@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -36,6 +37,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import java.util.concurrent.atomic.AtomicBoolean
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current

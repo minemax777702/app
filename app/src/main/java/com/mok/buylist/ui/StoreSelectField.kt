@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -22,6 +23,7 @@ import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.ui.theme.LocalPalette
 
 /** Отдельная панель выбора и создания магазина: Figma select-store/create-store. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun StoreSelectField(
     stores: List<ShoppingStore>,
