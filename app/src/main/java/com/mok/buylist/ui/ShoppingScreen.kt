@@ -162,7 +162,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             lentaProducts, customProducts, lentaBarcodes, customBarcodes)
     }
     val recordedPurchases = remember(archive, bought) { expensePurchases(archive, bought) }
-    val shopPricesByKey = remember(rows, stores, storeLinks, recordedPurchases, sharedIdentities) {
+    val shopPricesByKey = remember(rows, stores, storeLinks, recordedPurchases, sharedIdentities, lentaProducts, lentaAddress) {
         rows.orEmpty().mapNotNull { row ->
             val key = when {
                 row.item.customProductId.isNotBlank() -> "custom:${row.item.customProductId}"
@@ -170,7 +170,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 else -> return@mapNotNull null
             }
             row.item.id to productShopPrices(
-                key, stores, storeLinks, recordedPurchases, sharedIdentities)
+                key, stores, storeLinks, recordedPurchases, sharedIdentities, lentaProducts, lentaAddress)
         }.toMap()
     }
 
@@ -392,7 +392,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     pendingPurchase?.let { item ->
         val ownProduct = customProducts.firstOrNull { it.id == item.customProductId }
         val suggestedPrice = if (item.productId > 0)
-            lentaById[item.productId]?.price?.let { com.mok.buylist.data.parsePriceKopecks(it) }
+            shopPricesByKey[item.id]?.firstOrNull { it.storeId == com.mok.buylist.data.lentaStoreId() }?.priceKopecks
         else ownProduct?.estimatedPriceKopecks
         val isLenta = item.productId > 0
         val isWeighted = ownProduct?.isWeighted == true || item.weightGrams != null
@@ -1062,8 +1062,7 @@ private fun ItemRowContent(
     val lowest = cheapestShopPrice(shopPrices)
     val ownPrice = lowest?.priceKopecks ?: ownEstimate
     val subtitle = when {
-        shown != null -> "Лента · ${shown.price} ₽"
-        row.item.customProductId.isNotBlank() && ownPrice != null -> {
+        ownPrice != null -> {
             val price = java.math.BigDecimal.valueOf(ownPrice, 2).stripTrailingZeros().toPlainString() + " ₽"
             if (lowest != null) "${lowest.storeName} · $price" else price
         }

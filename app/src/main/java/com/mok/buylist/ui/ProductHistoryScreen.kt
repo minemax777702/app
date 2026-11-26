@@ -144,8 +144,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
         purchases.filter { (identities[it.productKey] ?: it.productKey) == sharedKey }
             .sortedByDescending { it.at }
     }
-    val shopPrices = remember(sharedKey, stores, storeLinks, rows, identities) {
-        productShopPrices(productKey, stores, storeLinks, rows, identities)
+    val shopPrices = remember(sharedKey, stores, storeLinks, rows, identities, products, address) {
+        productShopPrices(productKey, stores, storeLinks, rows, identities, products, address)
     }
     val barcodes = if (product != null) barcodeRows.filter { it.productId == product.id && !it.deleted }
         .map { it.code }.sorted() else customBarcodeRows.filter {
@@ -384,7 +384,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     Text(product?.name ?: ownProduct?.name.orEmpty(), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     SheetTextField(linkedPrice, { linkedPrice = it; linkError = null }, "Цена, ₽", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     StoreSelectField(
-                        stores.filterNot { it.id == com.mok.buylist.data.lentaStoreId() },
+                        stores,
                         linkedStore,
                         onSelected = { linkedStore = it; linkError = null },
                         onCreate = viewModel::createStore,
@@ -630,7 +630,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 }
                 if (shopPrices.isEmpty()) item { Text("Магазины пока не добавлены", color = p.textSecondary, fontSize = 13.sp) }
                 items(shopPrices, key = { "store:${it.storeId}" }) { shopPrice ->
-                    val editable = shopPrice.storeId != com.mok.buylist.data.lentaStoreId()
+                    val editable = true
                     val attached = storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&
                         (identities[it.productKey] ?: it.productKey) == sharedKey }
                     val updateAt = storeLinks.filter { !it.deleted && it.storeId == shopPrice.storeId &&
@@ -644,7 +644,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         linkError = null; editingStoreLink = true
                     }
                     FreshCutListRow(R.drawable.ic_store, shopPrice.storeName,
-                        date?.let { "Цена от $it" } ?: "Цена магазина",
+                        if (shopPrice.manual) "Ручная цена" else date?.let { "Цена от $it" } ?: "Цена магазина",
                         value = shopPrice.priceKopecks?.let(::historyMoney) ?: "—",
                         onClick = { if (editable) editPrice() },
                         trailing = if (editable) ({
@@ -654,7 +654,10 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 }
                                 AppDropdownMenu(menu, { menu = false }) {
                                     AppDropdownMenuItem(text = { Text("Изменить цену") }, onClick = { menu = false; editPrice() })
-                                    if (attached) AppDropdownMenuItem(text = { Text("Убрать из магазина", color = p.error) },
+                                    if (shopPrice.manual && shopPrice.storeId == com.mok.buylist.data.lentaStoreId()) AppDropdownMenuItem(text = { Text("Сбросить ручную цену") }, onClick = {
+                                        menu = false; viewModel.saveStoreProduct(shopPrice.storeId, productKey, null) { error -> activity?.notifyUser(error ?: "Ручная цена сброшена") }
+                                    })
+                                    if (attached && !(shopPrice.storeId == com.mok.buylist.data.lentaStoreId() && product != null)) AppDropdownMenuItem(text = { Text("Убрать из магазина", color = p.error) },
                                         onClick = { menu = false; pendingLinkRemoval = shopPrice.storeId })
                                 }
                             }

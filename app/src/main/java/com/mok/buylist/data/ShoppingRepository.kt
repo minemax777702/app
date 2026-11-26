@@ -114,6 +114,12 @@ class ShoppingRepository(
             (aliases[it.productKey] ?: it.productKey) == canonical }
             .maxByOrNull { it.updatedAt }?.priceKopecks
         if (configured != null) return configured
+        if (storeId == lentaStoreId()) {
+            dao.getLentaProducts().map { it.toProduct() }.firstOrNull {
+                (aliases["lenta:${it.id}"] ?: "lenta:${it.id}") == canonical &&
+                    it.address == context.lentaCatalog.address.value && it.address.isNotBlank() && it.channel == "locc"
+            }?.price?.let(::parsePriceKopecks)?.let { return it }
+        }
         val receipts = dao.getBought().mapNotNull { decodePurchaseEvent(it.purchaseEvent) } +
             dao.getArchives().flatMap { archive -> archive.events.mapNotNull(::decodePurchaseEvent) }
         return lastStorePurchasePrice(receipts, productKey, storeId, aliases, excludedEventId)
@@ -136,7 +142,7 @@ class ShoppingRepository(
             return@withTransaction null
         if (barcode.isNotEmpty() && !validProductBarcode(barcode)) return@withTransaction null
         if (storePrice != null && storePrice < 0) return@withTransaction null
-        if (storeId == lentaStoreId() ||
+        if (storeId != lentaStoreId() &&
             dao.getStores().none { it.id == storeId && !it.deleted })
             return@withTransaction null
         val matching = if (barcode.isBlank()) emptyList() else {
@@ -168,8 +174,6 @@ class ShoppingRepository(
         db.withTransaction {
             if (storeId.isBlank() || productKey.isBlank()) return@withTransaction "Выберите магазин и товар"
             if (price != null && price < 0) return@withTransaction "Некорректная цена"
-            if (storeId == lentaStoreId() && !productKey.startsWith("lenta:"))
-                return@withTransaction "Каталог Ленты управляется автоматически"
             val available = storeId == lentaStoreId() ||
                 dao.getStores().any { it.id == storeId && !it.deleted }
             if (!available) return@withTransaction "Магазин не найден"
@@ -179,9 +183,16 @@ class ShoppingRepository(
                 dao.getLentaProducts().any { it.id.toString() == productKey.removePrefix("lenta:") }
             } else false
             if (!valid) return@withTransaction "Товар не найден"
-            val original = dao.getStoreProducts().firstOrNull {
-                it.storeId == storeId && it.productKey == productKey }
-            val now = maxOf(System.currentTimeMillis(), (original?.updatedAt ?: 0L) + 1)
+            val aliases = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+                dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+            val canonical = aliases[productKey] ?: productKey
+            val matching = dao.getStoreProducts().filter { it.storeId == storeId &&
+                (aliases[it.productKey] ?: it.productKey) == canonical }
+            val now = maxOf(System.currentTimeMillis(), (matching.maxOfOrNull { it.updatedAt } ?: 0L) + 1)
+            // Keep availability links; update all active aliases consistently.
+            matching.filterNot { it.deleted }.forEach {
+                dao.upsertStoreProduct(it.copy(priceKopecks = price, updatedAt = now))
+            }
             dao.upsertStoreProduct(StoreProduct(storeId, productKey, price, now))
             null
         }
@@ -204,7 +215,7 @@ class ShoppingRepository(
     }
 
     suspend fun removeStoreProduct(storeId: String, productKey: String): String? = db.withTransaction {
-        if (storeId == lentaStoreId()) return@withTransaction "Каталог Ленты нельзя изменять"
+        if (storeId == lentaStoreId() && productKey.startsWith("lenta:")) return@withTransaction "Для товара каталога сбросьте ручную цену"
         val existing = dao.getStoreProducts().firstOrNull {
             it.storeId == storeId && it.productKey == productKey && !it.deleted
         } ?: return@withTransaction "Товар не найден"
@@ -576,17 +587,18 @@ class ShoppingRepository(
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
             }
+            val effectivePrice = priceOverride ?: latestStorePrice("lenta:${product.id}", lentaStoreId())
             attachBoughtProductToStore(lentaStoreId(), "lenta:${product.id}", now)
             val planned = findActiveIdentity("lenta:${product.id}")
             if (planned != null) {
                 dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                    purchaseEvent = purchaseEvent(planned, current, now, profile.id, priceOverride,
+                    purchaseEvent = purchaseEvent(planned, current, now, profile.id, effectivePrice,
                         storeId = lentaStoreId())))
                 return@withTransaction ScannedPurchaseResult(planned, impulsive = false)
             }
             val base = ShoppingItem(name = name, productId = product.id, createdAt = now, updatedAt = now,
                 authorId = profile.id, deleted = true)
-            val event = purchaseEvent(base, current, now, profile.id, priceOverride,
+            val event = purchaseEvent(base, current, now, profile.id, effectivePrice,
                 impulsive = true, storeId = lentaStoreId())
             val eventId = checkNotNull(decodePurchaseEvent(event)).id
             val bought = base.copy(nameKey = "impulse:$eventId", purchaseEvent = event).also { dao.insertItem(it) }
@@ -623,11 +635,12 @@ class ShoppingRepository(
                 item.productId > 0 -> "lenta:${item.productId}"
                 else -> ""
             }
+            val effectivePrice = priceOverride ?: if (item.productId > 0) latestStorePrice(productKey, storeId) else null
             attachBoughtProductToStore(storeId, productKey, now)
             val boughtItem = if (weightGrams != null) item.copy(weightGrams = weightGrams) else item
             dao.updateItem(boughtItem.copy(deleted = true, updatedAt = now, authorId = profile.id,
                 purchaseEvent = purchaseEvent(boughtItem, product,
-                    now, profile.id, priceOverride, impulsive, storeId)))
+                    now, profile.id, effectivePrice, impulsive, storeId)))
         }
         refreshWidget()
     }

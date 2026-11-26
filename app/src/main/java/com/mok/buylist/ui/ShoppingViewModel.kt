@@ -115,10 +115,17 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     val bought: StateFlow<List<ShoppingItem>> = repository.observeBought()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), lenta.products, lenta.address) { items, products, address ->
+    private val priceInputs = combine(lenta.products, lenta.address, customProducts, customBarcodes, lenta.barcodeRows) { products, address, custom, customCodes, lentaCodes ->
+        Triple(products, address, com.mok.buylist.data.sharedCatalogIdentities(products, custom, lentaCodes, customCodes))
+    }
+    internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), priceInputs, storeProducts, archive, customProducts) { items, input, links, history, custom ->
+        val (products, address, aliases) = input
+        val purchases = expensePurchases(history, items.filter { it.deleted })
         val lines = items.map { item ->
-            val price = if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.unitPrice
-                else products.firstOrNull { it.id == item.productId && address.isNotBlank() && it.address == address && it.channel == "locc" }?.price?.let(::parsePriceKopecks)
+            val key = if (item.customProductId.isNotBlank()) "custom:${item.customProductId}" else "lenta:${item.productId}"
+            val price = if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.unitPrice else
+                cheapestShopPrice(productShopPrices(key, emptyList(), links, purchases, aliases, products, address))?.priceKopecks
+                    ?: custom.firstOrNull { it.id == item.customProductId }?.estimatedPriceKopecks
             PricedLine(item.quantity, item.deleted, price, if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.weightGrams else item.weightGrams)
         }
         calculateShoppingTotals(lines)
@@ -167,7 +174,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
             for (id in ids) {
                 if (lenta.address.value != address) { failed += ids.size - completed; break }
                 try {
-                    lenta.refreshPrice(id)
+                    if (!lenta.hasManualPrice(id)) lenta.refreshPrice(id)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: Exception) { failed++ }
@@ -183,8 +190,8 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         priceRefresh.value = id to "Загрузка"
         viewModelScope.launch {
             priceRefresh.value = try {
-                lenta.refreshPrice(id)
-                id to "Цена обновлена"
+                if (lenta.hasManualPrice(id)) id to "Установлена ручная цена"
+                else { lenta.refreshPrice(id); id to "Цена обновлена" }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {

@@ -158,7 +158,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         }
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
-                val prices = productShopPrices("custom:${product.id}", stores, storeLinks, knownPurchases, identities)
+                val prices = productShopPrices("custom:${product.id}", stores, storeLinks, knownPurchases, identities, products, address)
                 val best = cheapestShopPrice(prices)?.priceKopecks ?: product.estimatedPriceKopecks
                 val subtitle = (listOfNotNull(if (product.isWeighted) "Весовой" else null) + prices.map { it.storeName })
                     .joinToString(" · ").ifBlank { "Свой товар" }
@@ -186,7 +186,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     })
             }
             items(rows.take(shownCount), key = { "lenta:${it.id}" }) { product ->
-                val prices = productShopPrices("lenta:${product.id}", stores, storeLinks, knownPurchases, identities)
+                val prices = productShopPrices("lenta:${product.id}", stores, storeLinks, knownPurchases, identities, products, address)
                 val value = cheapestShopPrice(prices)?.priceKopecks ?: product.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" }?.let { com.mok.buylist.data.parsePriceKopecks(it.price) }
                 val subtitle = (listOf("Лента") + prices.map { it.storeName }).distinct().joinToString(" · ")
                 var menu by remember { mutableStateOf(false) }

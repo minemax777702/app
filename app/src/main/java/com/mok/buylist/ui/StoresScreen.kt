@@ -72,6 +72,7 @@ internal fun StoresScreen(
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val catalog = LocalContext.current.lentaCatalog
     val lenta by catalog.products.collectAsStateWithLifecycle()
+    val address by catalog.address.collectAsStateWithLifecycle()
     val lentaCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
     val products = remember(archive, bought, lenta, custom, lentaCodes, customCodes) {
         mergeCatalogPriceHistory(
@@ -80,6 +81,7 @@ internal fun StoresScreen(
                     receipt.copy(storeId = lentaStoreId()) else receipt
             }, custom, lenta, lentaCodes, customCodes)
     }
+    val identities = remember(lenta, custom, lentaCodes, customCodes) { com.mok.buylist.data.sharedCatalogIdentities(lenta, custom, lentaCodes, customCodes) }
     var openedStore by rememberSaveable { mutableStateOf<String?>(null) }
     var shown by remember(openedStore) { mutableIntStateOf(8) }
     var productQuery by remember(openedStore) { mutableStateOf("") }
@@ -108,8 +110,8 @@ internal fun StoresScreen(
             val storePurchases = products.filter { it.storeId == store.id }
             val storeCount = (storePurchases.map { it.productKey } +
                 storeLinks.filter { it.storeId == store.id && !it.deleted }.map { it.productKey } +
-                if (store.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList()).distinct().size
-            Text("$storeCount товаров · ${storePurchases.size} покупок",
+                if (store.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList()).map { identities[it] ?: it }.distinct().size
+            Text("$storeCount товаров",
                 Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp), color = p.textSecondary, fontSize = 13.sp)
         }
         if (store == null) {
@@ -123,9 +125,9 @@ internal fun StoresScreen(
                     val linked = storeLinks.filter { it.storeId == shop.id && !it.deleted }
                     val productCount = (entries.map { it.productKey } + linked.map { it.productKey } +
                         if (shop.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList())
-                        .distinct().size
+                        .map { identities[it] ?: it }.distinct().size
                     var menu by remember { mutableStateOf(false) }
-                    FreshCutListRow(R.drawable.ic_store, shop.name, "$productCount товаров · ${entries.size} покупок",
+                    FreshCutListRow(R.drawable.ic_store, shop.name, "$productCount товаров",
                         onClick = { openedStore = shop.id }, trailing = {
                             if (shop.id != lentaStoreId()) androidx.compose.foundation.layout.Box {
                                 IconButton(onClick = { menu = true }) {
@@ -151,7 +153,7 @@ internal fun StoresScreen(
                 SheetActionButton(onClick = { shopName = ""; error = null; creating = true }) { Text("Добавить магазин") }
             }
         } else {
-            val entries = remember(store.id, products, lenta, custom, storeLinks) {
+            val entries = remember(store.id, products, lenta, custom, storeLinks, address, identities, stores) {
                 val history = products.filter { it.storeId == store.id }
                     .groupBy { it.productKey }
                     .map { (key, purchases) ->
@@ -182,7 +184,12 @@ internal fun StoresScreen(
                     if (manual != null && manual.price != null) line.copy(price = manual.price)
                     else line
                 }
-                (updatedHistory + fromLenta + additions).sortedWith(
+                (updatedHistory + fromLenta + additions)
+                    .distinctBy { identities[it.key] ?: it.key }.map { line ->
+                        val price = productShopPrices(line.key, stores, storeLinks, products, identities, lenta, address)
+                            .firstOrNull { it.storeId == store.id }?.priceKopecks
+                        line.copy(price = price)
+                    }.sortedWith(
                     compareByDescending<StoreProductLine> { it.purchasedAt != null }
                         .thenByDescending { it.purchasedAt ?: 0L }
                         .thenBy { it.name.lowercase() })
@@ -193,7 +200,7 @@ internal fun StoresScreen(
             ProductSearch(productQuery, { productQuery = it }, Modifier.padding(horizontal = 20.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 FreshCutSectionTitle("Товары", Modifier.weight(1f))
-                if (store.id != lentaStoreId()) Text("Добавить", Modifier.clickable {
+                Text("Добавить", Modifier.clickable {
                     choosingProduct = true; chosenProductKey = null; choiceQuery = ""; linkPrice = ""; linkError = null
                 }.padding(8.dp), color = p.text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
@@ -222,7 +229,7 @@ internal fun StoresScreen(
                             if (entry.key.startsWith("custom:")) CustomProductImage(entry.key.removePrefix("custom:"), Modifier.size(44.dp))
                             else LentaImage(catalogItem?.image.orEmpty(), Modifier.size(44.dp))
                         },
-                        trailing = if (store.id == lentaStoreId()) null else ({
+                        trailing = {
                             val attached = storeLinks.any { !it.deleted && it.storeId == store.id && it.productKey == entry.key }
                             androidx.compose.foundation.layout.Box {
                                 IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
@@ -234,11 +241,14 @@ internal fun StoresScreen(
                                         linkPrice = entry.price?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() }.orEmpty()
                                         choiceQuery = ""; linkError = null; choosingProduct = true
                                     })
-                                    if (attached) AppDropdownMenuItem(text = { Text("Убрать из магазина", color = p.error) },
+                                    if (store.id == lentaStoreId() && storeLinks.any { !it.deleted && it.storeId == store.id && (identities[it.productKey] ?: it.productKey) == (identities[entry.key] ?: entry.key) && it.priceKopecks != null }) AppDropdownMenuItem(text = { Text("Сбросить ручную цену") }, onClick = {
+                                        menu = false; viewModel.saveStoreProduct(store.id, entry.key, null) { issue -> linkError = issue }
+                                    })
+                                    if (attached && !(store.id == lentaStoreId() && entry.key.startsWith("lenta:"))) AppDropdownMenuItem(text = { Text("Убрать из магазина", color = p.error) },
                                         onClick = { menu = false; removingLink = entry.key })
                                 }
                             }
-                        }))
+                        })
                 }
                 if (shown < visibleEntries.size) item {
                     TextButton(onClick = { shown += 8 }) {
@@ -300,6 +310,7 @@ internal fun StoresScreen(
                         Text(label, color = p.text, fontWeight = FontWeight.Bold)
                         SheetTextField(linkPrice, { linkPrice = it; linkError = null },
                             "Цена, ₽ (необязательно)")
+                        if (store.id == lentaStoreId()) Text("Ручная цена не меняется при обновлении каталога. Очистите поле, чтобы вернуть цену каталога.", color = p.textSecondary, fontSize = 12.sp)
                         TextButton(onClick = { chosenProductKey = null }) {
                             Text("Выбрать другой товар", color = p.accent)
                         }

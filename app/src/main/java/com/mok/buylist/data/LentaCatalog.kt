@@ -160,7 +160,17 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         LentaProduct.parse(item, product.address, product.storeId, live = true, channel = "locc")
     }
 
-    suspend fun refreshPrice(id: Long) = refreshMutex.withLock {
+    /** A manually configured store price is synced in store_products, not in API metadata. */
+    suspend fun hasManualPrice(id: Long): Boolean {
+        val identities = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() },
+            dao.getCustomProducts(), dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val key = "lenta:$id"
+        return dao.getStoreProducts().any { !it.deleted && it.storeId == lentaStoreId() &&
+            it.priceKopecks != null && (identities[it.productKey] ?: it.productKey) == (identities[key] ?: key) }
+    }
+
+    suspend fun refreshPrice(id: Long): Unit = refreshMutex.withLock {
+        if (hasManualPrice(id)) return@withLock
         val currentAddress = address.value
         require(currentAddress.isNotBlank()) { "Укажите адрес магазина" }
         val product = dao.getLentaProducts().firstOrNull { it.id == id }?.toProduct()
@@ -169,6 +179,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         require(fresh.id == id && fresh.address == currentAddress && fresh.channel == "locc" &&
             parsePriceKopecks(fresh.price) != null) { "Цена для выбранного магазина недоступна" }
         db.withTransaction {
+            if (hasManualPrice(id)) return@withTransaction
             check(address.value == currentAddress) { "Адрес магазина изменился" }
             val existing = dao.getLentaProducts().firstOrNull { it.id == id }?.toProduct()
                 ?: error("Товар удалён из базы")
