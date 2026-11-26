@@ -134,6 +134,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val customBarcodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val plannedStores by viewModel.plannedStores.collectAsStateWithLifecycle()
+    val customStoreRequest by viewModel.customStoreRequest.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val totals by viewModel.totals.collectAsStateWithLifecycle()
@@ -278,6 +280,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 row = row,
                                 product = lentaById[row.item.productId],
                                 shopPrices = shopPricesByKey[row.item.id].orEmpty(),
+                                plannedStoreId = plannedStores[row.item.id],
                                 ownEstimate = customProducts.firstOrNull { it.id == row.item.customProductId }?.estimatedPriceKopecks,
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
@@ -386,11 +389,27 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onAddressSettings = { showAdd = false; navigate(FreshCutDestination.PROFILE); addressRequest++ },
         )
     }
+    customStoreRequest?.let { request ->
+        AppSheet(onDismissRequest = viewModel::cancelCustomStore, containerColor = p.sheet,
+            title = { SheetHeader("Выбрать магазин") }, text = {
+                Text(request.product.name, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    request.prices.forEach { option ->
+                        FreshCutListRow(R.drawable.ic_store, option.storeName,
+                            value = option.priceKopecks?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" } ?: "—",
+                            showChevron = false, onClick = { viewModel.confirmCustomStore(option.storeId) })
+                    }
+                }
+            }, confirmButton = {
+                SheetActionButton(onClick = { viewModel.confirmCustomStore(null) }) { Text("Без выбора магазина") }
+            })
+    }
     pendingPurchase?.let { item ->
         val ownProduct = customProducts.firstOrNull { it.id == item.customProductId }
-        val suggestedPrice = if (item.productId > 0)
-            shopPricesByKey[item.id]?.firstOrNull { it.storeId == com.mok.buylist.data.lentaStoreId() }?.priceKopecks
-        else ownProduct?.estimatedPriceKopecks
+        val preferred = displayShopPrice(
+            if (item.productId > 0) "lenta:${item.productId}" else "custom:${item.customProductId}",
+            shopPricesByKey[item.id].orEmpty(), plannedStores[item.id])
+        val suggestedPrice = preferred?.priceKopecks ?: ownProduct?.estimatedPriceKopecks
         val isLenta = item.productId > 0
         val isWeighted = ownProduct?.isWeighted == true || item.weightGrams != null
         var price by remember(item.id) {
@@ -398,7 +417,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
             }.orEmpty())
         }
-        var selectedStore by remember(item.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+        var selectedStore by remember(item.id) { mutableStateOf(stores.firstOrNull { it.id == preferred?.storeId }) }
         var priceRevision by remember(item.id) { mutableIntStateOf(0) }
         var weightText by remember(item.id) {
             mutableStateOf(java.math.BigDecimal.valueOf(
@@ -879,6 +898,7 @@ private fun ItemRow(
     row: ListRow,
     product: LentaProduct?,
     shopPrices: List<ProductShopPrice>,
+    plannedStoreId: String?,
     ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
@@ -891,8 +911,8 @@ private fun ItemRow(
 ) {
     // Обёртка свайпа есть всегда (просто выключается), чтобы строка не пересоздавалась и её цвет и значок
     // плавно перетекали из «в списке» в «куплено».
-    SwipeToRemove(enabled = row.state == RowState.ACTIVE, onRemove = onRemove, modifier = modifier) {
-        ItemRowContent(row, onBuy, onUndo, product, shopPrices, ownEstimate,
+    SwipeToRemove(enabled = row.state == RowState.ACTIVE, onRemove = onRemove, onBuy = onBuy, modifier = modifier) {
+        ItemRowContent(row, onBuy, onUndo, product, shopPrices, plannedStoreId, ownEstimate,
             address, onQuantity, onWeight, onDetails, onRemove)
     }
 }
@@ -913,6 +933,7 @@ private fun ItemRow(
 private fun SwipeToRemove(
     enabled: Boolean,
     onRemove: () -> Unit,
+    onBuy: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -927,7 +948,9 @@ private fun SwipeToRemove(
             appear.animateTo(1f, Motion.smooth())
         }
     }
-    val swiping by remember { derivedStateOf { offset.value < 0f } }
+    val swiping by remember { derivedStateOf { offset.value != 0f } }
+    val buyAction = androidx.compose.runtime.rememberUpdatedState(onBuy)
+    val removeAction = androidx.compose.runtime.rememberUpdatedState(onRemove)
     val removeLabel = stringResource(R.string.swipe_delete)
 
     Box(
@@ -936,7 +959,7 @@ private fun SwipeToRemove(
             .heightIn(min = 64.dp)
             .then(
                 if (enabled) {
-                    Modifier.semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }) }
+                    Modifier.semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }, CustomAccessibilityAction("Отметить покупку") { onBuy(); true }) }
                 } else {
                     Modifier
                 },
@@ -955,14 +978,17 @@ private fun SwipeToRemove(
                     detectHorizontalDragGestures(
                         onHorizontalDrag = { change, delta ->
                             change.consume()
-                            scope.launch { offset.snapTo((offset.value + delta).coerceIn(-size.width.toFloat(), 0f)) }
+                            scope.launch { offset.snapTo((offset.value + delta).coerceIn(-size.width.toFloat(), size.width.toFloat())) }
                         },
                         onDragEnd = {
                             scope.launch {
                                 if (offset.value <= -size.width * SWIPE_REMOVE_FRACTION) {
                                     // Строка уезжает за край и остаётся там, пока на её месте не появится «Удалено».
                                     offset.animateTo(-size.width.toFloat(), tween(150))
-                                    onRemove()
+                                    removeAction.value()
+                                } else if (offset.value >= size.width * SWIPE_REMOVE_FRACTION) {
+                                    offset.snapTo(0f)
+                                    buyAction.value()
                                 } else {
                                     offset.animateTo(0f, spring())
                                 }
@@ -984,8 +1010,9 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
     var width by remember { mutableIntStateOf(0) }
     val threshold = width * SWIPE_REMOVE_FRACTION
     val progress = remember(threshold) {
-        derivedStateOf { if (threshold > 0f) (-offset.value / threshold).coerceIn(0f, 1f) else 0f }
+        derivedStateOf { if (threshold > 0f) (kotlin.math.abs(offset.value) / threshold).coerceIn(0f, 1f) else 0f }
     }
+    val buying by remember { derivedStateOf { offset.value > 0f } }
     val armed by remember(threshold) { derivedStateOf { progress.value >= 1f } }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(armed) {
@@ -996,7 +1023,7 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
             .onSizeChanged { width = it.width }
             .drawBehind {
                 drawRoundRect(
-                    color = p.danger.copy(alpha = 0.3f + 0.7f * progress.value),
+                    color = (if (buying) p.actionFill else p.danger).copy(alpha = 0.3f + 0.7f * progress.value),
                     cornerRadius = CornerRadius(20.dp.toPx()),
                 )
             },
@@ -1005,23 +1032,20 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
             Modifier
                 .matchParentSize()
                 .graphicsLayer { alpha = progress.value }
-                .padding(end = 22.dp),
-            horizontalArrangement = Arrangement.End,
+                .padding(horizontal = 22.dp),
+            horizontalArrangement = if (buying) Arrangement.Start else Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                stringResource(if (armed) R.string.swipe_release else R.string.swipe_delete),
-                color = p.onDanger,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold,
-            )
-            Spacer(Modifier.width(10.dp))
-            Icon(
-                painterResource(R.drawable.ic_trash),
-                contentDescription = null,
-                Modifier.size(if (armed) 28.dp else 24.dp),
-                tint = p.onDanger,
-            )
+            if (buying) {
+                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = p.actionInk)
+                Spacer(Modifier.width(10.dp))
+                Text(if (armed) "Отпустите" else "Куплено", color = p.actionInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            } else {
+                Text(stringResource(if (armed) R.string.swipe_release else R.string.swipe_delete),
+                    color = p.onDanger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(10.dp))
+                Icon(painterResource(R.drawable.ic_trash), null, Modifier.size(24.dp), tint = p.onDanger)
+            }
         }
     }
 }
@@ -1041,6 +1065,7 @@ private fun ItemRowContent(
     onUndo: () -> Unit,
     product: LentaProduct?,
     shopPrices: List<ProductShopPrice>,
+    plannedStoreId: String?,
     ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
@@ -1060,7 +1085,7 @@ private fun ItemRowContent(
         address.isNotBlank() && it.address == address && it.channel == "locc" &&
             it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null
     }
-    val lowest = displayShopPrice(if (row.item.productId > 0) "lenta:${row.item.productId}" else "custom:${row.item.customProductId}", shopPrices)
+    val lowest = displayShopPrice(if (row.item.productId > 0) "lenta:${row.item.productId}" else "custom:${row.item.customProductId}", shopPrices, plannedStoreId)
     val ownPrice = lowest?.priceKopecks ?: ownEstimate
     val subtitle = when {
         ownPrice != null -> {

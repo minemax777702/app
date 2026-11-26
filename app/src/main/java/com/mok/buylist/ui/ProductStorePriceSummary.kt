@@ -62,7 +62,12 @@ internal fun cheapestShopPrice(prices: List<ProductShopPrice>): ProductShopPrice
     prices.filter { it.priceKopecks != null }.minWithOrNull(
         compareBy<ProductShopPrice> { it.priceKopecks!! }.thenBy { it.storeName.lowercase() })
 
-/** Lenta catalog items are purchased in Lenta; custom products use their cheapest store. */
-internal fun displayShopPrice(key: String, prices: List<ProductShopPrice>): ProductShopPrice? =
+/** Budget conservatively when a custom product has no selected store. */
+internal fun highestShopPrice(prices: List<ProductShopPrice>): ProductShopPrice? =
+    prices.filter { it.priceKopecks != null }.maxWithOrNull(
+        compareBy<ProductShopPrice> { it.priceKopecks ?: 0L }.thenBy { it.storeName.lowercase() })
+        ?: prices.singleOrNull()
+
+internal fun displayShopPrice(key: String, prices: List<ProductShopPrice>, preferredStoreId: String? = null): ProductShopPrice? =
     if (key.startsWith("lenta:")) prices.firstOrNull { it.storeId == com.mok.buylist.data.lentaStoreId() && it.priceKopecks != null }
-    else cheapestShopPrice(prices)
+    else prices.firstOrNull { it.storeId == preferredStoreId } ?: highestShopPrice(prices)

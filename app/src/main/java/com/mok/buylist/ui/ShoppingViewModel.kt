@@ -71,6 +71,19 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     private val journal = ActionJournal.get(application)
     private val actionMutex = kotlinx.coroutines.sync.Mutex()
     internal val actions = journal.entries
+    private val plannedPrefs = application.getSharedPreferences("planned_shopping_stores", android.content.Context.MODE_PRIVATE)
+    internal val plannedStores = MutableStateFlow(plannedPrefs.all.mapNotNull { (id, value) ->
+        (value as? String)?.let { id to it }
+    }.toMap())
+    internal data class CustomStoreRequest(val product: CustomProduct, val prices: List<ProductShopPrice>, val onResult: (Boolean) -> Unit)
+    internal val customStoreRequest = MutableStateFlow<CustomStoreRequest?>(null)
+
+    private fun rememberPlannedStore(itemId: String, storeId: String?) {
+        val updated = plannedStores.value.toMutableMap()
+        if (storeId == null) updated.remove(itemId) else updated[itemId] = storeId
+        plannedPrefs.edit().apply { if (storeId == null) remove(itemId) else putString(itemId, storeId) }.apply()
+        plannedStores.value = updated.toMap()
+    }
 
     private val activeItems: StateFlow<List<ShoppingItem>?> = repository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -118,13 +131,14 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     private val priceInputs = combine(lenta.products, lenta.address, customProducts, customBarcodes, lenta.barcodeRows) { products, address, custom, customCodes, lentaCodes ->
         Triple(products, address, com.mok.buylist.data.sharedCatalogIdentities(products, custom, lentaCodes, customCodes))
     }
-    internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), priceInputs, storeProducts, archive, customProducts) { items, input, links, history, custom ->
+    internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), combine(priceInputs, plannedStores) { input, planned -> input to planned }, storeProducts, archive, customProducts) { items, inputAndPlan, links, history, custom ->
+        val (input, planned) = inputAndPlan
         val (products, address, aliases) = input
         val purchases = expensePurchases(history, items.filter { it.deleted })
         val lines = items.map { item ->
             val key = if (item.customProductId.isNotBlank()) "custom:${item.customProductId}" else "lenta:${item.productId}"
             val price = if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.unitPrice else
-                displayShopPrice(key, productShopPrices(key, emptyList(), links, purchases, aliases, products, address))?.priceKopecks
+                displayShopPrice(key, productShopPrices(key, emptyList(), links, purchases, aliases, products, address), planned[item.id])?.priceKopecks
                     ?: custom.firstOrNull { it.id == item.customProductId }?.estimatedPriceKopecks
             PricedLine(item.quantity, item.deleted, price, if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.weightGrams else item.weightGrams)
         }
@@ -296,9 +310,30 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {
+        val aliases = com.mok.buylist.data.sharedCatalogIdentities(lenta.products.value, customProducts.value,
+            lenta.barcodeRows.value, customBarcodes.value)
+        val prices = productShopPrices("custom:${product.id}", stores.value, storeProducts.value,
+            expensePurchases(archive.value, bought.value), aliases, lenta.products.value, lenta.address.value)
+            .filter { price -> stores.value.any { it.id == price.storeId && !it.deleted } }
+        if (prices.size > 1) customStoreRequest.value = CustomStoreRequest(product, prices, onResult)
+        else addCustomWithStore(product, prices.singleOrNull()?.storeId, onResult)
+    }
+
+    internal fun confirmCustomStore(storeId: String?) {
+        val request = customStoreRequest.value ?: return
+        customStoreRequest.value = null
+        addCustomWithStore(request.product, storeId ?: highestShopPrice(request.prices)?.storeId, request.onResult)
+    }
+
+    internal fun cancelCustomStore() { customStoreRequest.value = null }
+
+    private fun addCustomWithStore(product: CustomProduct, storeId: String?, onResult: (Boolean) -> Unit) {
         viewModelScope.launch { actionMutex.withLock {
             val added = repository.addCustomToList(product)
-            if (added) repository.actionItemByKey("custom:${product.id}")?.let { journal.record("Добавлен товар", it.name, after = it) }
+            if (added) repository.actionItemByKey("custom:${product.id}")?.let {
+                rememberPlannedStore(it.id, storeId)
+                journal.record("Добавлен товар", it.name, after = it)
+            }
             onResult(added)
         } }
     }

@@ -49,32 +49,40 @@ internal fun StoreSelectField(
             Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать магазин", Modifier.size(20.dp), tint = p.textSecondary)
         }
     }
-    if (expanded) AppModalSheet(onDismissRequest = { close() }, containerColor = p.sheet) {
+    if (expanded && !adding) AppModalSheet(onDismissRequest = { close() }, containerColor = p.sheet) {
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetHeader("Выбрать магазин")
             Spacer(Modifier.height(12.dp))
-            if (adding) {
-                SheetTextField(newName, { newName = it; error = false }, "Название магазина", isError = error)
-                SheetActionButton(enabled = !saving && newName.isNotBlank() && newName.length <= 100, onClick = {
-                    saving = true
-                    onCreate(newName.trim()) { store ->
-                        saving = false
-                        if (store != null) choose(store) else error = true
-                    }
-                }) { Text(if (saving) "Сохранение…" else "Сохранить магазин") }
-                if (error) Text("Не удалось сохранить магазин", color = p.error, fontSize = 12.sp)
-            }
             available.forEach { store ->
                 FreshCutListRow(R.drawable.ic_store, store.name, if (selectedStore?.id == store.id) "Выбран" else "",
-                    selected = selectedStore?.id == store.id, onClick = { choose(store) })
+                    selected = selectedStore?.id == store.id, showChevron = false, onClick = { choose(store) })
             }
             FreshCutListRow(R.drawable.ic_store, "Без магазина", "Не указывать", selected = selectedStore == null,
-                onClick = { choose(null) })
+                showChevron = false, onClick = { choose(null) })
             Spacer(Modifier.height(20.dp))
-            SheetActionButton(onClick = { adding = !adding; newName = ""; error = false }) {
-                Text(if (adding) "Отменить добавление" else "Добавить магазин")
+            SheetActionButton(onClick = { adding = true; newName = ""; error = false }) {
+                Text("Добавить магазин")
             }
         }
     }
+    if (adding) AppSheet(
+        onDismissRequest = { if (!saving) adding = false },
+        containerColor = p.sheet,
+        title = { SheetHeader("Новый магазин") },
+        text = {
+            SheetTextField(newName, { newName = it; error = false }, "Название магазина", isError = error)
+            if (error) Text("Не удалось сохранить магазин", color = p.error, fontSize = 12.sp)
+        },
+        confirmButton = {
+            SheetActionButton(enabled = !saving && newName.isNotBlank() && newName.length <= 100, onClick = {
+                saving = true
+                onCreate(newName.trim()) { store ->
+                    saving = false
+                    if (store != null) choose(store) else error = true
+                }
+            }) { Text(if (saving) "Сохранение…" else "Добавить магазин") }
+        },
+    )
+
 }
