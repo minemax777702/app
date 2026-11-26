@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -130,8 +134,8 @@ fun AddItemSheet(
         Column(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .imePadding()
+                .fillMaxHeight(if (text.isNotBlank() && !voice.listening) 0.68f else 0.54f)
+                .imePadding().navigationBarsPadding()
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
@@ -139,24 +143,17 @@ fun AddItemSheet(
             SheetHeader(stringResource(R.string.add_title))
 
 
-            AnimatedVisibility(
-                visible = voice.listening,
-                enter = expandVertically(Motion.smooth()) + fadeIn(Motion.smooth()),
-                exit = shrinkVertically(Motion.smooth(Motion.Quick)) + fadeOut(Motion.smooth(Motion.Quick)),
-            ) {
-                ListeningIndicator(voice.levels)
-            }
-
             Row(
                 Modifier
                     .fillMaxWidth()
                     .height(54.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .background(p.card)
-                    .padding(start = 18.dp, end = 8.dp),
+                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp), tint = p.textSecondary)
                 BasicTextField(
                     value = text,
                     onValueChange = {
@@ -187,15 +184,16 @@ fun AddItemSheet(
                         }
                     },
                 )
-                AnimatedVisibility(
-                    visible = voice.available,
-                    enter = fadeIn(Motion.smooth(Motion.Quick)) + scaleIn(Motion.smooth(Motion.Quick), initialScale = 0.8f),
-                ) {
-                    MicButton(voice)
-                }
-                IconButton(onClick = { scanning = true }) {
-                    Icon(painterResource(R.drawable.ic_scan_barcode), contentDescription = "Сканировать штрихкод", tint = p.text)
-                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SearchModeAction(R.drawable.ic_mic, if (voice.listening) "Остановить" else "Голосом",
+                    Modifier.weight(1f), enabled = voice.available, onClick = voice::toggle)
+                SearchModeAction(R.drawable.ic_scan_barcode, "Штрихкод", Modifier.weight(1f),
+                    onClick = { scanning = true })
+            }
+            if (voice.listening) {
+                ListeningIndicator(voice.levels)
+                Spacer(Modifier.weight(1f))
             }
 
             val matches = remember(customProducts, customBarcodes, text) {
@@ -206,63 +204,49 @@ fun AddItemSheet(
                         (it.barcode == text.trim() && customBarcodes.none { barcode ->
                             barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }.take(5)
             }
-            if (!voice.listening && matches.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    matches.forEach { custom ->
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                                .background(p.card)
-                                .clickable {
-                                    onAddCustom(custom) { added ->
-                                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                                        if (added) { text = ""; onQueryChange(""); scannedCode = null }
-                                    }
-                                }
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            LentaImage("", Modifier.size(52.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(custom.name, color = p.text, fontSize = 13.sp,
-                                    lineHeight = 17.sp, fontWeight = FontWeight.Bold)
-                                custom.estimatedPriceKopecks?.let { price ->
-                                    Text("${java.math.BigDecimal.valueOf(price, 2).stripTrailingZeros().toPlainString()} ₽",
-                                        color = p.accent, fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold)
-                                }
+            if (!voice.listening) {
+                LentaSuggestions(
+                    query = text,
+                    modifier = Modifier.weight(1f),
+                    hasOtherResults = matches.isNotEmpty(),
+                    leadingResults = {
+                        matches.forEach { custom ->
+                            item(key = "custom:${custom.id}") {
+                                FreshCutListRow(
+                                    icon = R.drawable.ic_package,
+                                    title = custom.name,
+                                    subtitle = if (custom.isWeighted) "Весовой товар" else "Свой товар",
+                                    value = custom.estimatedPriceKopecks?.let {
+                                        java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
+                                    },
+                                    onClick = {
+                                        onAddCustom(custom) { added ->
+                                            activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                            if (added) { text = ""; onQueryChange(""); scannedCode = null }
+                                        }
+                                    },
+                                )
                             }
                         }
-                    }
-                }
-            }
-            if (!voice.listening) {
-                CreateCustomProductAction(
-                    onClick = {
-                        newName = if (scannedCode == text) "" else text
-                        newBarcode = scannedCode.orEmpty()
-                        createOpen = true
                     },
-                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
-                )
-            }
-
-            if (!voice.listening) LentaSuggestions(
-                query = text,
-                modifier = Modifier.weight(1f),
-                hasOtherResults = matches.isNotEmpty(),
-                onSettings = onAddressSettings,
-                onAdd = { product ->
-                    scope.launch {
-                        val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
-                        saveLenta(chosen, scannedCode?.takeIf { it == text })
-                        onAdd(chosen) { added ->
-                            activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                            if (added) { text = ""; scannedCode = null; onQueryChange("") }
+                    onSettings = onAddressSettings,
+                    onAdd = { product ->
+                        scope.launch {
+                            val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
+                            saveLenta(chosen, scannedCode?.takeIf { it == text })
+                            onAdd(chosen) { added ->
+                                activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                if (added) { text = ""; scannedCode = null; onQueryChange("") }
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+                SheetActionButton(onClick = {
+                    newName = if (scannedCode == text) "" else text
+                    newBarcode = scannedCode.orEmpty()
+                    createOpen = true
+                }) { Text("Создать свой товар", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+            }
 
         }
     }
@@ -301,7 +285,7 @@ fun AddItemSheet(
 internal fun SheetHeader(title: String) {
     val p = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        Modifier.fillMaxWidth().heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -312,6 +296,7 @@ internal fun SheetHeader(title: String) {
             lineHeight = 30.sp,
             fontWeight = FontWeight.SemiBold,
         )
+        LocalSheetClose.current?.let { SheetCloseButton(it) }
     }
 }
 
@@ -381,5 +366,16 @@ private fun ListeningIndicator(levels: List<Float>) {
                 fontWeight = FontWeight.Bold,
             )
         }
+    }
+}
+
+@Composable
+private fun SearchModeAction(icon: Int, title: String, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Row(modifier.height(48.dp).clip(RoundedCornerShape(16.dp)).background(p.card)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(painterResource(icon), null, Modifier.size(24.dp), tint = if (enabled) p.text else p.textSecondary)
+        Text(title, color = if (enabled) p.text else p.textSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

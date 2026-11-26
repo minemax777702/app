@@ -28,6 +28,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.mok.buylist.R
+import com.mok.buylist.ui.theme.LocalPalette
+import com.mok.buylist.data.validProductBarcode
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
@@ -42,48 +48,58 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
     var cameraError by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { if (!granted) permission.launch(Manifest.permission.CAMERA) }
     DisposableEffect(Unit) { onDispose { active.set(false) } }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+    val p = LocalPalette.current
+    var manual by remember { mutableStateOf(false) }
+    var manualCode by remember { mutableStateOf("") }
+    AppModalSheet(onDismissRequest = onDismiss, containerColor = p.sheet) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
+            .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
             NoticeInSheet()
-            if (granted && !cameraError) {
-                QrScanner(useFront = false, barcode = true, modifier = Modifier.fillMaxSize(), onCameraError = { cameraError = true }, onText = { code ->
-                    if (accepted.compareAndSet(false, true)) handler.post { if (active.get()) currentOnCode(code) }
-                })
-            }
-            Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-                Row(Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.65f)).padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDismiss) {
-                        Icon(painterResource(R.drawable.ic_back), contentDescription = "Назад", tint = Color.White)
-                    }
-                    Text("Сканировать штрихкод", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                }
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            SheetHeader("Сканировать штрихкод")
+            if (manual) {
+                SheetTextField(manualCode, { manualCode = it.filter(Char::isDigit).take(32) },
+                    "EAN-8, UPC-A или EAN-13", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = manualCode.isNotEmpty() && !validProductBarcode(manualCode))
+                SheetActionButton(enabled = validProductBarcode(manualCode), onClick = {
+                    if (accepted.compareAndSet(false, true)) currentOnCode(manualCode)
+                }) { Text("Подтвердить") }
+                SearchModeActionForScanner("Вернуться к камере") { manual = false }
+            } else {
+                Box(Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 340.dp)
+                    .aspectRatio(350f / 340f).clip(RoundedCornerShape(24.dp))
+                    .background(Color(0xFF141916)), contentAlignment = Alignment.Center) {
                     if (granted && !cameraError) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(Modifier.fillMaxWidth(0.84f).height(150.dp).clip(RoundedCornerShape(18.dp))
-                                .border(2.dp, Color.White, RoundedCornerShape(18.dp)))
-                            Text("Наведите на штрихкод", Modifier.padding(top = 16.dp)
-                                .clip(RoundedCornerShape(20.dp)).background(Color.Black.copy(alpha = 0.7f))
-                                .padding(horizontal = 16.dp, vertical = 8.dp), color = Color.White, textAlign = TextAlign.Center)
-                        }
-                    } else if (cameraError) {
-                        Column(Modifier.padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Icon(painterResource(R.drawable.ic_camera), null, Modifier.size(48.dp), tint = Color.White)
-                            Text("Не удалось открыть камеру", color = Color.White, textAlign = TextAlign.Center, fontSize = 20.sp)
-                            SheetActionButton(onClick = { cameraError = false }) { Text("Повторить") }
+                        QrScanner(useFront = false, barcode = true, modifier = Modifier.fillMaxSize(),
+                            onCameraError = { cameraError = true }, onText = { code ->
+                                if (accepted.compareAndSet(false, true)) handler.post { if (active.get()) currentOnCode(code) }
+                            })
+                        Box(Modifier.fillMaxWidth(0.80f).height(102.dp)
+                            .border(2.dp, Color.White, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
+                            Box(Modifier.fillMaxWidth(0.94f).height(2.dp).background(p.actionFill))
                         }
                     } else {
-                        Column(Modifier.padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(painterResource(R.drawable.ic_camera), null, Modifier.size(48.dp), tint = Color.White)
-                            Text("Нужен доступ к камере", color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center)
-                            SheetActionButton(onClick = { permission.launch(Manifest.permission.CAMERA) }) { Text("Разрешить камеру") }
+                            Icon(painterResource(R.drawable.ic_camera), null, Modifier.size(40.dp), tint = Color.White)
+                            Text(if (cameraError) "Не удалось открыть камеру" else "Нужен доступ к камере",
+                                color = Color.White, fontSize = 16.sp, textAlign = TextAlign.Center)
+                            SheetActionButton(onClick = {
+                                if (cameraError) cameraError = false else permission.launch(Manifest.permission.CAMERA)
+                            }) { Text(if (cameraError) "Повторить" else "Разрешить камеру") }
                         }
                     }
                 }
+                Text("Наведите камеру на штрихкод", Modifier.fillMaxWidth(),
+                    color = p.textSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(32.dp))
+                SheetActionButton(onClick = { manual = true }) { Text("Ввести вручную") }
             }
         }
     }
+}
+
+@Composable
+private fun SearchModeActionForScanner(title: String, onClick: () -> Unit) {
+    androidx.compose.material3.TextButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(title) }
 }

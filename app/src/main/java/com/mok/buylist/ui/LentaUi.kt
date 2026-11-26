@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -54,7 +55,8 @@ fun LentaSettings(onDismiss: () -> Unit) {
 @Composable
 fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
-    onlineOnly: Boolean = false, hasOtherResults: Boolean = false) {
+    onlineOnly: Boolean = false, hasOtherResults: Boolean = false,
+    leadingResults: LazyListScope.() -> Unit = {}) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
@@ -85,10 +87,11 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
             }
             if (state.failed && !state.loading) Text("Не удалось выполнить поиск. Сохранённые товары доступны.",
                 color = p.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
-            if (state.local.isNotEmpty() || state.online.isNotEmpty()) {
+            if (hasOtherResults || state.local.isNotEmpty() || state.online.isNotEmpty()) {
                 FreshCutSectionTitle("Найденные товары", Modifier.padding(bottom = 8.dp))
             }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                leadingResults()
                 items(state.local, key = { "local:${it.id}" }) { product ->
                     LentaResult(product, address, onClick = { onAdd(product) })
                 }

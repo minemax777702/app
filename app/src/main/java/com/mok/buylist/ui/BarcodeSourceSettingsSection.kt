@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Switch
@@ -28,20 +31,21 @@ internal fun BarcodeSourceSettingsSection() {
     val settings = LocalContext.current.barcodeSourceSettings
     val enabled by settings.enabled.collectAsStateWithLifecycle()
     Column(
-        Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text("Поиск по штрихкоду", color = p.text,
             fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-        Text("Выберите источники названий и изображений товаров. Отключённые API не опрашиваются.",
-            color = p.textSecondary, fontSize = 12.sp)
+        Text("Выберите источники названий и изображений. Отключённые API не опрашиваются.",
+            color = p.textSecondary, fontSize = 14.sp, lineHeight = 17.sp)
+        Spacer(Modifier.height(16.dp))
         BarcodeSource.entries.forEach { source ->
-            Row(Modifier.fillMaxWidth(),
+            Row(Modifier.fillMaxWidth().heightIn(min = if (source == BarcodeSource.entries.first()) 80.dp else 100.dp)
+                .background(p.card, RoundedCornerShape(16.dp)).padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(source.title, color = p.text, fontSize = 14.sp,
+                    Text(source.title, color = p.text, fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold)
                     Text(source.description, color = p.textSecondary, fontSize = 12.sp)
                 }
@@ -55,6 +59,7 @@ internal fun BarcodeSourceSettingsSection() {
                 )
             }
         }
+        Spacer(Modifier.height(8.dp))
         Text(if (enabled.isEmpty()) "Все внешние источники отключены." else "DiSAI проверяется по открытой странице товара. Если сайт недоступен или название не распознано, остальные источники продолжат работать.",
             color = p.textSecondary, fontSize = 12.sp)
     }

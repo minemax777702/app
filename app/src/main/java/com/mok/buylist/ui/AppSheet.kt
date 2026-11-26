@@ -38,6 +38,7 @@ import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Manrope
 
 private val LocalSecondaryAction = staticCompositionLocalOf { false }
+internal val LocalSheetClose = staticCompositionLocalOf<(() -> Unit)?> { null }
 
 @Composable
 internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, destructive: Boolean = false, content: @Composable RowScope.() -> Unit) {
@@ -55,14 +56,14 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
 @Composable
 internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint: String,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default, keyboardActions: KeyboardActions = KeyboardActions.Default,
-    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null) {
+    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null, placeholder: String = "") {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     val lineColor = if (isError) p.error else if (focused) p.text else p.line
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(hint, color = if (isError) p.error else p.textSecondary, fontSize = 12.sp,
             fontWeight = FontWeight.Medium)
-        Box(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(16.dp))
+        Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp))
             .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
             .padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange,
@@ -70,7 +71,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
                     .onFocusChanged { focused = it.isFocused }, singleLine = true,
                 textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(p.text), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
-                decorationBox = { inner -> inner() })
+                decorationBox = { inner -> Box { if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, color = p.textSecondary, fontSize = 15.sp); inner() } })
             if (trailingAction != null) Box(Modifier.align(Alignment.CenterEnd)) { trailingAction() }
         }
     }
@@ -79,9 +80,8 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SheetDragHandle(onDismiss: () -> Unit) {
-    Box(Modifier.fillMaxWidth().height(40.dp).clickable(onClickLabel = "Закрыть", onClick = onDismiss),
-        contentAlignment = Alignment.Center) {
-        Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(LocalPalette.current.line))
+    Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.padding(top = 10.dp).size(40.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(LocalPalette.current.textSecondary))
     }
 }
 
@@ -97,6 +97,7 @@ internal fun AppSheet(
     dismissButton: (@Composable () -> Unit)? = null,
     required: Boolean = false,
     showSecondaryAction: Boolean = false,
+    minBodyHeight: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = {
         !required || it != SheetValue.Hidden
@@ -110,10 +111,19 @@ internal fun AppSheet(
     ) {
         BackHandler(enabled = required) { }
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp).padding(top = if (required) 24.dp else 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            .heightIn(min = minBodyHeight).padding(horizontal = 20.dp)
+            .padding(top = if (required) 24.dp else 0.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
             NoticeInSheet()
-            Box(Modifier.fillMaxWidth()) {
-                ProvideTextStyle(MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp, fontWeight = FontWeight.SemiBold)) { title() }
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) {
+                    CompositionLocalProvider(LocalSheetClose provides null) {
+                        ProvideTextStyle(MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp,
+                            lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)) { title() }
+                    }
+                }
+                if (!required) SheetCloseButton(onDismissRequest)
             }
             text()
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -142,7 +152,21 @@ internal fun AppModalSheet(
         contentColor = contentColor,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = dragHandle,
-        content = content,
+        scrimColor = Color.Black.copy(alpha = 0.40f),
+        content = {
+            val scope = this
+            CompositionLocalProvider(LocalSheetClose provides onDismissRequest) { scope.content() }
+        },
     )
 }
 
+
+@Composable
+internal fun SheetCloseButton(onClose: () -> Unit) {
+    val p = LocalPalette.current
+    Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
+        .clickable(onClickLabel = "Закрыть", onClick = onClose), contentAlignment = Alignment.Center) {
+        Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть",
+            tint = p.text, modifier = Modifier.size(24.dp))
+    }
+}

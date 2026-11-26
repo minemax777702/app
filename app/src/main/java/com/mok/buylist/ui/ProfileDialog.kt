@@ -23,16 +23,17 @@ fun ProfileDialog(initialName: String, required: Boolean, onSave: (String) -> Un
     val valid = name.isNotBlank()
     fun submit() { if (valid) onSave(name.trim()) }
     AppSheet(onDismissRequest = onDismiss, required = required, containerColor = p.sheet,
-        title = { SheetHeader(stringResource(if (required) R.string.profile_title else R.string.profile_rename_title)) },
+        title = { SheetHeader(if (required) stringResource(R.string.profile_title) else "Ваше имя") },
+        minBodyHeight = 240.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                SheetTextField(name, { name = it.take(30).replace('\n', ' ') }, stringResource(R.string.profile_name_hint),
+                SheetTextField(name, { name = it.take(30).replace('\n', ' ') }, "Имя",
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { submit() }))
+                    keyboardActions = KeyboardActions(onDone = { submit() }), placeholder = stringResource(R.string.profile_name_hint))
             }
         },
         confirmButton = { SheetActionButton(onClick = { submit() }, enabled = valid) { Text(stringResource(if (required) R.string.profile_continue else R.string.profile_save), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } },
-        showSecondaryAction = !required,
+        showSecondaryAction = false,
         dismissButton = if (required) null else ({ SheetActionButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } }),
     )
 }
