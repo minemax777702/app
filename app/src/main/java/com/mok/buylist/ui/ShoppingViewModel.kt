@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 enum class RowState {
     ACTIVE,
@@ -67,6 +68,9 @@ internal fun mergeRows(active: List<ShoppingItem>, recent: List<ListRow>): List<
 class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = application.repository
     private val lenta = application.lentaCatalog
+    private val journal = ActionJournal.get(application)
+    private val actionMutex = kotlinx.coroutines.sync.Mutex()
+    internal val actions = journal.entries
 
     private val activeItems: StateFlow<List<ShoppingItem>?> = repository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -85,7 +89,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
      * а прогресс пропадает (total = 0), вместо вечного «3 из 3».
      */
     val progress: StateFlow<Progress> = combine(activeItems, repository.observeBoughtCount(), recent) { active, bought, recent ->
-        if (active.isNullOrEmpty() && recent.isEmpty()) {
+        if (active.isNullOrEmpty() && bought == 0) {
             Progress(0, 0)
         } else {
             Progress(bought = bought, total = bought + (active?.size ?: 0))
@@ -141,7 +145,6 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         // дооформляем список — переносим в архив.
         viewModelScope.launch {
             repository.claimLegacyData()
-            repository.finishTripIfDone()
         }
     }
 
@@ -195,7 +198,11 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addProduct(product: com.mok.buylist.data.LentaProduct, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addProduct(product)) }
+        viewModelScope.launch { actionMutex.withLock {
+            val added = repository.addProduct(product)
+            if (added) repository.actionItemByKey("lenta:${product.id}")?.let { journal.record("Добавлен товар", it.name, after = it) }
+            onResult(added)
+        } }
     }
 
     fun editCustomProduct(id: String, name: String, onResult: (String?) -> Unit) {
@@ -274,7 +281,11 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addCustomToList(product)) }
+        viewModelScope.launch { actionMutex.withLock {
+            val added = repository.addCustomToList(product)
+            if (added) repository.actionItemByKey("custom:${product.id}")?.let { journal.record("Добавлен товар", it.name, after = it) }
+            onResult(added)
+        } }
     }
 
     fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String, weightGrams: Int?,
@@ -282,7 +293,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val result = repository.buyScannedCustom(product, price, storeName, weightGrams)
             if (result == null) { onResult(false); return@launch }
-            showUndo(result.item, RowState.BOUGHT)
+            repository.actionItem(result.item.id)?.let { after -> journal.record("Покупка отмечена", after.name, before = result.item.takeUnless { it.deleted }, after = after) }
             onResult(true)
         }
     }
@@ -291,59 +302,66 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val result = repository.buyScanned(product, price)
             if (result == null) { onResult(false); return@launch }
-            showUndo(result.item, RowState.BOUGHT)
+            repository.actionItem(result.item.id)?.let { after -> journal.record("Покупка отмечена", after.name, before = result.item.takeUnless { it.deleted }, after = after) }
             onResult(true)
         }
     }
 
-    /** Куплено: товар остаётся в базе (для прогресса), но из списка уходит. */
-    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "",
-        weightGrams: Int? = null) {
-        showUndo(item, RowState.BOUGHT)
-        viewModelScope.launch { repository.buy(item.id, priceOverride, storeName = storeName, weightGrams = weightGrams) }
+    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "", weightGrams: Int? = null) {
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.actionItem(item.id)?.takeUnless { it.deleted } ?: return@withLock
+            repository.buy(item.id, priceOverride, storeName = storeName, weightGrams = weightGrams)
+            val after = repository.actionItem(item.id)
+            if (after?.deleted == true) journal.record("Покупка отмечена", before.name, before, after)
+        } }
     }
 
     fun setQuantity(item: ShoppingItem, quantity: Int) {
-        viewModelScope.launch { repository.setQuantity(item.id, quantity) }
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.actionItem(item.id)?.takeUnless { it.deleted } ?: return@withLock
+            repository.setQuantity(item.id, quantity)
+            val after = repository.actionItem(item.id)
+            if (after != null && after.quantity != before.quantity)
+                journal.record("Количество изменено", "${before.name} · ${before.quantity} → ${after.quantity}", before, after)
+        } }
     }
 
     fun setWeight(item: ShoppingItem, grams: Int?) {
-        viewModelScope.launch { repository.setWeight(item.id, grams) }
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.actionItem(item.id)?.takeUnless { it.deleted } ?: return@withLock
+            repository.setWeight(item.id, grams)
+            val after = repository.actionItem(item.id)
+            if (after != null && after != before) journal.record("Вес изменён", before.name, before, after)
+        } }
     }
 
     fun finishTrip() {
-        if (recent.value.isEmpty()) viewModelScope.launch { repository.finishTrip() }
+        viewModelScope.launch { actionMutex.withLock {
+            if (bought.value.isNotEmpty()) {
+                repository.finishTrip()
+                journal.record("Список завершён")
+            }
+        } }
     }
 
-    /** Удалено свайпом: товар стирается из списка и в прогресс не входит. */
     fun remove(item: ShoppingItem) {
-        showUndo(item, RowState.REMOVED)
-        viewModelScope.launch { repository.remove(item.id) }
+        viewModelScope.launch { actionMutex.withLock {
+            val (before, at) = repository.remove(item.id) ?: return@withLock
+            journal.record("Товар удалён", before.name, before = before, removedAt = at)
+        } }
     }
 
     fun restore(item: ShoppingItem) {
-        undoTimers.remove(item.id)?.cancel()
-        viewModelScope.launch {
-            repository.restore(item)
-            // Строку убираем из «отменяемых» после записи в базу, иначе она на миг пропадёт из списка.
-            forgetRow(item.id)
-        }
+        actions.value.firstOrNull { it.canUndo && (it.before?.id == item.id || it.after?.id == item.id) }
+            ?.let { undoAction(it.id) }
     }
 
-    private fun showUndo(item: ShoppingItem, state: RowState) {
-        recent.value = recent.value.filter { it.item.id != item.id } + ListRow(item, state)
-        undoTimers[item.id]?.cancel()
-        undoTimers[item.id] = viewModelScope.launch {
-            delay(UNDO_WINDOW_MS)
-            undoTimers.remove(item.id)
-            forgetRow(item.id)
-        }
-    }
-
-    private fun forgetRow(id: String) {
-        recent.value = recent.value.filter { it.item.id != id }
-        // Последняя строка с «Отменить» исчезла: если покупать больше нечего, список завершён.
-        if (recent.value.isEmpty()) viewModelScope.launch { repository.finishTripIfDone() }
+    internal fun undoAction(id: String) {
+        viewModelScope.launch { actionMutex.withLock {
+            val action = actions.value.firstOrNull { it.id == id && it.canUndo } ?: return@withLock
+            val success = repository.undoListAction(action.before, action.after, action.removedAt)
+            journal.completeUndo(id, success)
+        } }
     }
 
     fun deleteArchived(list: ArchivedList) {

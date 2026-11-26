@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
     internal var noticeOwner by mutableStateOf<Any?>(null)
         private set
     internal fun notifyUser(message: String) {
+        ActionJournal.get(applicationContext).notice(message)
         noticeOwner = noticeSheets.lastOrNull()
         notice = ++noticeId to message
     }

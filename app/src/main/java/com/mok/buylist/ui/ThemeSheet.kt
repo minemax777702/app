@@ -113,5 +113,5 @@ private fun ThemeOption(
     modifier: Modifier = Modifier,
 ) {
     FreshCutListRow(icon, stringResource(label), if (mode == ThemeMode.AUTO) "Как на устройстве" else "",
-        selected = mode == selected, onClick = { onSelect(mode) })
+        selected = mode == selected, onClick = { onSelect(mode) }, showChevron = false)
 }

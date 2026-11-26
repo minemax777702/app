@@ -190,13 +190,13 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var pendingPurchase by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
     var scannedCustom by remember { mutableStateOf<com.mok.buylist.data.CustomProduct?>(null) }
 
-    var showRecent by rememberSaveable { mutableStateOf(false) }
-    val visibleRows = remember(rows, showRecent) {
-        rows?.filter { showRecent || it.state == RowState.ACTIVE }
-    }
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
+    val actions by viewModel.actions.collectAsStateWithLifecycle()
+    val visibleRows = remember(rows) { rows?.filter { it.state == RowState.ACTIVE } }
     val allPurchased = progress.total > 0 && progress.bought == progress.total
 
     fun navigate(destination: FreshCutDestination) {
+        showNotifications = false
         showArchive = destination == FreshCutDestination.ARCHIVE
         showStats = destination == FreshCutDestination.STATS
         showSettings = destination == FreshCutDestination.CATALOG || destination == FreshCutDestination.PROFILE
@@ -215,7 +215,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (destination) {
                 FreshCutDestination.LIST -> screenStates.SaveableStateProvider("list") {
-        Column(Modifier.fillMaxSize()) {
+        if (showNotifications) {
+            BackHandler { showNotifications = false }
+            NotificationsScreen(actions, onBack = { showNotifications = false }, onUndo = viewModel::undoAction)
+        } else Column(Modifier.fillMaxSize()) {
             Header(
                 progress = progress,
                 totals = totals,
@@ -228,12 +231,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     scope.launch { ShoppingWidget().updateAll(context) }
                 },
                 onOpenThemeSettings = { showTheme = true },
-                showRecent = showRecent,
-                onToggleRecent = { showRecent = !showRecent },
+                onNotifications = { showNotifications = true },
                 canFinish = canFinish && finishEnabled,
                 onFinish = viewModel::finishTrip,
-                onAddFromMenu = { showAdd = true },
-                onScanFromMenu = { scanPurchase = true },
+
             )
             // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
             Crossfade(
@@ -271,7 +272,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     ) {
                         item(key = "fresh-cut-section") {
                             Text(
-                                if (showRecent) "Все позиции" else "Нужно купить · ${list.size}",
+                                "Нужно купить · ${list.size}",
                                 color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(bottom = 4.dp),
                             )
@@ -690,12 +691,9 @@ private fun Header(
     themeEnabled: Boolean,
     onToggleTheme: () -> Unit,
     onOpenThemeSettings: () -> Unit,
-    showRecent: Boolean,
-    onToggleRecent: () -> Unit,
+    onNotifications: () -> Unit,
     canFinish: Boolean,
     onFinish: () -> Unit,
-    onAddFromMenu: () -> Unit,
-    onScanFromMenu: () -> Unit,
 ) {
     val p = LocalPalette.current
     var expanded by remember { mutableStateOf(false) }
@@ -706,6 +704,7 @@ private fun Header(
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Покупки", Modifier.weight(1f), color = p.text, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
+            FreshCutToolbarAction(R.drawable.ic_bell, "Уведомления", onNotifications)
             Box {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
                     .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
@@ -714,18 +713,10 @@ private fun Header(
                     Icon(painterResource(R.drawable.ic_more), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
                 }
                 AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    AppDropdownMenuItem(
-                        text = { Text(if (showRecent) "Скрыть купленные и удалённые" else "Показать последние действия") },
-                        onClick = { expanded = false; onToggleRecent() },
-                    )
-                    AppDropdownMenuItem(text = { Text("Добавить товар") },
-                        onClick = { expanded = false; onAddFromMenu() })
-                    AppDropdownMenuItem(text = { Text("Сканировать штрихкод") },
-                        onClick = { expanded = false; onScanFromMenu() })
                     AppDropdownMenuItem(text = { Text("Переключить тему") },
                         onClick = { expanded = false; onToggleTheme() })
-                    AppDropdownMenuItem(text = { Text("Настройки темы") },
-                        onClick = { expanded = false; onOpenThemeSettings() })
+                    AppDropdownMenuItem(text = { Text("Уведомления") },
+                        onClick = { expanded = false; onNotifications() })
                     AppDropdownMenuItem(text = { Text("Завершить список") },
                         enabled = canFinish, onClick = { expanded = false; onFinish() })
                 }

@@ -450,6 +450,8 @@ class ShoppingRepository(
     fun observeAllItems(): Flow<List<ShoppingItem>> = dao.observeAllItems()
 
     suspend fun getItems(): List<ShoppingItem> = dao.getItems()
+    suspend fun actionItem(id: String): ShoppingItem? = dao.findById(id)
+    suspend fun actionItemByKey(key: String): ShoppingItem? = dao.findByKey(key)
 
     /** Сколько товаров куплено в текущем списке — для полосы прогресса. */
     fun observeBoughtCount(): Flow<Int> = dao.observeBoughtCount()
@@ -695,14 +697,44 @@ class ShoppingRepository(
     }
 
     /** Удаление из списка без покупки: строка стирается, в историю подсказок товар остаётся. */
-    suspend fun remove(id: String) {
-        db.withTransaction {
-            val item = dao.findById(id)
+    suspend fun remove(id: String): Pair<ShoppingItem, Long>? {
+        val removed = db.withTransaction {
+            val item = dao.findById(id)?.takeUnless { it.deleted } ?: return@withTransaction null
+            val at = maxOf(System.currentTimeMillis(), item.updatedAt + 1)
             dao.deleteById(id)
-            // Без надгробия второй телефон вернул бы товар при следующем обмене.
-            if (item != null) dao.upsertTombstone(tomb(TombKind.ITEM, item.nameKey, System.currentTimeMillis()))
+            dao.upsertTombstone(tomb(TombKind.ITEM, item.nameKey, at))
+            item to at
         }
-        refreshWidget()
+        if (removed != null) refreshWidget()
+        return removed
+    }
+
+    /** Exact revision guard prevents undo from changing a newer or archived purchase. */
+    suspend fun undoListAction(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean {
+        val snapshot = before ?: after ?: return false
+        val changed = db.withTransaction {
+            val current = dao.findById(snapshot.id)
+            val marker = dao.getTombstones().firstOrNull { it.kind == TombKind.ITEM.code && it.target == snapshot.nameKey }
+            if (after != null) {
+                if (current != after || (marker != null && marker.deletedAt >= after.updatedAt)) return@withTransaction false
+            } else if (before == null || current != null || removedAt == null || marker?.deletedAt != removedAt)
+                return@withTransaction false
+            val now = maxOf(System.currentTimeMillis(), snapshot.updatedAt + 1,
+                (after?.updatedAt ?: 0L) + 1, (marker?.deletedAt ?: 0L) + 1)
+            if (before == null) {
+                dao.deleteById(snapshot.id)
+                dao.upsertTombstone(tomb(TombKind.ITEM, snapshot.nameKey, now))
+            } else {
+                val existing = dao.findByKey(before.nameKey)
+                if (existing != null && existing.id != before.id) return@withTransaction false
+                if (current == null && hasActiveIdentity(before.nameKey)) return@withTransaction false
+                val restored = before.copy(updatedAt = now, authorId = profile.id)
+                if (current == null) dao.insertItem(restored) else dao.updateItem(restored)
+            }
+            true
+        }
+        if (changed) refreshWidget()
+        return changed
     }
 
     /** Отмена покупки или удаления: товар возвращается на прежнее место. */
