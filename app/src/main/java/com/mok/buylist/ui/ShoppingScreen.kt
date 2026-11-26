@@ -312,7 +312,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
                     .clickable(role = Role.Button) { scanPurchase = true },
                     contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_camera), contentDescription = "Отметить покупку по штрихкоду",
+                    Icon(painterResource(R.drawable.ic_scan_barcode), contentDescription = "Отметить покупку по штрихкоду",
                         tint = p.text, modifier = Modifier.size(24.dp))
                 }
             }
@@ -321,13 +321,13 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     .background(p.card).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(horizontal = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FreshCutTab(R.drawable.ic_list_check, "Список", true, Modifier.weight(1f)) {}
-                FreshCutTab(R.drawable.ic_store, "Товары", false, Modifier.weight(1f)) {
+                FreshCutTab(R.drawable.ic_shopping_cart, "Список", true, Modifier.weight(1f)) {}
+                FreshCutTab(R.drawable.ic_package, "Товары", false, Modifier.weight(1f)) {
                     settingsTab = 0; showSettings = true
                 }
-                FreshCutTab(R.drawable.ic_history, "Архив", false, Modifier.weight(1f)) { showArchive = true }
+                FreshCutTab(R.drawable.ic_archive, "Архив", false, Modifier.weight(1f)) { showArchive = true }
                 FreshCutTab(R.drawable.ic_chart, "Статистика", false, Modifier.weight(1f)) { showStats = true }
-                FreshCutTab(R.drawable.ic_settings, "Профиль", false, Modifier.weight(1f)) {
+                FreshCutTab(R.drawable.ic_user_round, "Профиль", false, Modifier.weight(1f)) {
                     settingsTab = 1; showSettings = true
                 }
             }
