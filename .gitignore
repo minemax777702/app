@@ -1,1 +1,11 @@
 TokenGIT.txt
+
+# Private Android signing credentials
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pkcs12
+keystore.properties
+signing.properties
+local.properties

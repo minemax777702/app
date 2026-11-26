@@ -4,6 +4,18 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+/*
+ * Release credentials come from CI environment variables or the developer's
+ * private ~/.gradle/gradle.properties. Never use the generated debug key.
+ */
+fun signingValue(name: String) =
+    providers.environmentVariable(name).orElse(providers.gradleProperty(name))
+
+val releaseStoreFile = signingValue("BUYLIST_STORE_FILE")
+val releaseStorePassword = signingValue("BUYLIST_STORE_PASSWORD")
+val releaseKeyAlias = signingValue("BUYLIST_KEY_ALIAS")
+val releaseKeyPassword = signingValue("BUYLIST_KEY_PASSWORD")
+
 android {
     namespace = "com.mok.buylist"
     compileSdk {
@@ -14,17 +26,25 @@ android {
         applicationId = "com.mok.buylist"
         minSdk = 29
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = releaseStoreFile.orNull?.let { rootProject.file(it) }
+            storePassword = releaseStorePassword.orNull
+            keyAlias = releaseKeyAlias.orNull
+            keyPassword = releaseKeyPassword.orNull
+        }
+    }
+
     buildTypes {
         release {
-            // Подпись отладочным ключом — чтобы оптимизированную сборку можно было поставить на телефон и проверить плавность.
-            // Для публикации заменить настоящим ключом.
-            signingConfig = signingConfigs.getByName("debug")
+            // Один постоянный ключ для всех обновлений приложения.
+            signingConfig = signingConfigs.getByName("release")
             // Без packageScope: с ним R8 переименовывал классы Kotlin так, что приложение падало при запуске
             // (IllegalAccessError: kotlin.collections.h ... inaccessible).
             optimization {
