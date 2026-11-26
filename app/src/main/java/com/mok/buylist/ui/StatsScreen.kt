@@ -93,6 +93,7 @@ fun StatsScreen(
     }
     var selectedUser by rememberSaveable { mutableStateOf<String?>(null) }
     var period by rememberSaveable { mutableStateOf(ExpensePeriod.MONTH) }
+    var section by rememberSaveable { mutableStateOf(0) }
     val zone = ZoneId.systemDefault()
     val today = remember { java.time.LocalDate.now(zone) }
     // Выбранного человека могло не стать (например, после обмена): тогда снова показываем всех.
@@ -127,13 +128,15 @@ fun StatsScreen(
     }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
-        FreshCutRootHeader("ВАШИ ПОКУПКИ", stringResource(R.string.stats_title), "Расходы и привычки за выбранный период")
+        FreshCutRootHeader("ВАШИ ПОКУПКИ", stringResource(R.string.stats_title), "Расходы и привычки") {
+            FreshCutToolbarAction(R.drawable.ic_history, "История покупок", { showHistory = true })
+        }
         if (buyers.size > 1) {
             Row(
                 Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
+                    .padding(horizontal = 20.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 UserChip(stringResource(R.string.stats_everyone), selected = userId == null) { selectedUser = null }
@@ -145,21 +148,25 @@ fun StatsScreen(
                 }
             }
         }
+        FreshCutSegments(ExpensePeriod.entries.map { it.title }, ExpensePeriod.entries.indexOf(period),
+            { period = ExpensePeriod.entries[it] }, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        FreshCutSegments(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         if (stats.lists == 0 && purchases.none { userId == null || it.buyer == userId }) {
             EmptyStats(Modifier.weight(1f))
         } else {
+            androidx.compose.runtime.key(section) {
             LazyColumn(
                 Modifier
                     .weight(1f),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 0.dp,
-                    bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ExpenseStatsPanel(purchases, userId, period, stores = stores,
-                        onProductClick = { selectedProduct = it }) { period = it }
+                        onProductClick = { selectedProduct = it }, section = section) { period = it }
                 } }
-                if (stats.lists > 0) item { Card {
+                if (section == 0 && stats.lists > 0) item { Card {
                     Text(stringResource(R.string.stats_overview), color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         NumberCard(stats.lists.toString(), stringResource(R.string.stats_lists), Modifier.weight(1f))
@@ -167,9 +174,9 @@ fun StatsScreen(
                         NumberCard(stats.averageItems.toString(), stringResource(R.string.stats_average_label), Modifier.weight(1f))
                     }
                 } }
-                item { HistoryButton(onClick = { showHistory = true }) }
-                item { WeeksCard(if (monthly) stats.months else stats.weeks, shown, monthly) { monthly = it } }
-                stats.busiestDay?.let { day ->
+                if (section == 2) item { HistoryButton(onClick = { showHistory = true }) }
+                if (section == 3) item { WeeksCard(if (monthly) stats.months else stats.weeks, shown, monthly) { monthly = it } }
+                if (section == 0) stats.busiestDay?.let { day ->
                     item {
                     val name = day.getDisplayName(TextStyle.FULL_STANDALONE, LocalConfiguration.current.locales[0])
                     Card {
@@ -188,6 +195,7 @@ fun StatsScreen(
                     } }
                 }
             }
+            }
         }
         navigation()
     }
@@ -203,7 +211,7 @@ private fun HistoryButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(p.boughtBg), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_history), contentDescription = null, modifier = Modifier.size(21.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_history), contentDescription = null, modifier = Modifier.size(21.dp), tint = p.text)
         }
         Text(stringResource(R.string.stats_product_history), Modifier.weight(1f), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
         Text("›", color = p.textSecondary, fontSize = 24.sp)
@@ -254,7 +262,7 @@ private fun NumberCard(value: String, label: String, modifier: Modifier = Modifi
         modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(value, color = p.accent, fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, color = p.text, fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(label, color = p.textSecondary, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
     }
 }
@@ -358,7 +366,7 @@ private fun EmptyStats(modifier: Modifier = Modifier) {
             Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_chart), contentDescription = null, Modifier.size(64.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_chart), contentDescription = null, Modifier.size(64.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.stats_empty_title),

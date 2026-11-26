@@ -103,7 +103,6 @@ fun AddItemSheet(
     val p = LocalPalette.current
     val keyboard = LocalSoftwareKeyboardController.current
     val focus = LocalFocusManager.current
-    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
     fun dismissKeyboard() { focus.clearFocus(); keyboard?.hide() }
     var text by rememberSaveable { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }

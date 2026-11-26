@@ -173,7 +173,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var purchaseStore by remember(productKey) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
     var purchasePriceRevision by remember(productKey) { mutableIntStateOf(0) }
     var purchaseError by remember(productKey) { mutableStateOf<String?>(null) }
-    var historyOpen by rememberSaveable(productKey) { mutableStateOf(false) }
+    var detailTab by rememberSaveable(productKey) { mutableIntStateOf(0) }
+    val historyOpen = detailTab == 1
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var openedTrip by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
@@ -470,33 +471,15 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
         )
     }
     val title = product?.name ?: ownProduct?.name ?: rows.firstOrNull()?.name ?: "Товар не найден"
-    val back: () -> Unit = { if (historyOpen) historyOpen = false else onBack() }
+    val back: () -> Unit = { if (detailTab != 0) detailTab = 0 else onBack() }
     BackHandler(onBack = back)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader(if (historyOpen) "История покупок" else "Информация о товаре", back)
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp,
-            bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!historyOpen) item {
-                val current = product?.takeIf { it.address == address && address.isNotBlank() && it.channel == "locc" }
-                val best = cheapestShopPrice(shopPrices)
-                val cost = best?.priceKopecks?.let(::historyMoney)
-                    ?: ownProduct?.estimatedPriceKopecks?.let(::historyMoney)
-                    ?: current?.price?.takeIf { it.isNotBlank() && it != "null" }?.plus(" ₽")
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(80.dp))
-                    else LentaImage(product?.image.orEmpty(), Modifier.size(80.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(title, color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 27.sp)
-                        Text(listOfNotNull(product?.pack?.takeIf { it.isNotBlank() },
-                            if (ownProduct != null) "Свой товар" else if (product != null) "Лента" else null)
-                            .joinToString(" · "), color = p.textSecondary, fontSize = 13.sp)
-                        Text(if (best != null) "МИНИМАЛЬНАЯ ЦЕНА" else "ЦЕНА", color = p.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                        Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "—", color = p.text,
-                            fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold)
-                    }
+        SubScreenHeader("Информация о товаре", back) {
+            if (product != null) {
+                val refreshing = refresh?.takeIf { it.first == product.id }?.second == "Загрузка"
+                FreshCutToolbarAction(R.drawable.ic_sync, if (refreshing) "Обновление цены" else "Обновить цену",
+                    { viewModel.refreshPrice(product.id) }, enabled = !refreshing)
+            }
                         if (ownProduct != null) {
                             Box {
                                 IconButton(
@@ -540,18 +523,43 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 }
                             }
                         }
+        }
+        FreshCutSegments(listOf("Цены", "История", "Штрихкоды"), detailTab, { detailTab = it },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        androidx.compose.runtime.key(detailTab) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(64.dp))
+                    else LentaImage(product?.image.orEmpty(), Modifier.size(64.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(title, color = p.text, fontSize = 19.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
+                        val subtitle = listOfNotNull(product?.pack?.takeIf { it.isNotBlank() },
+                            if (ownProduct != null) (if (ownProduct.isWeighted) "Весовой товар" else "Свой товар") else if (product != null) "Лента" else null)
+                            .joinToString(" · ")
+                        if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp)
+                    }
                 }
             }
-            if (!historyOpen && (ownProduct != null || product != null)) item {
-                SheetActionButton(onClick = {
-                    if (ownProduct != null) viewModel.addCustomProduct(ownProduct) { added ->
-                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                    } else if (product != null) viewModel.addProduct(product) { added ->
-                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                    }
-                }) { Text("Добавить в список", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+            if (detailTab == 0) item {
+                val current = product?.takeIf { it.address == address && address.isNotBlank() && it.channel == "locc" }
+                val best = cheapestShopPrice(shopPrices)
+                val cost = best?.priceKopecks?.let(::historyMoney)
+                    ?: ownProduct?.estimatedPriceKopecks?.let(::historyMoney)
+                    ?: current?.price?.takeIf { it.isNotBlank() && it != "null" }?.plus(" ₽")
+                HistoryCard {
+                    Text(if (best != null) "Минимальная известная цена" else "Цена", color = p.textSecondary, fontSize = 13.sp)
+                    Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "Не указана",
+                        color = p.text, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold)
+                    best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 13.sp) }
+                    val lastPurchase = rows.firstOrNull()
+                    if (lastPurchase != null) FreshCutDetailLine("Последняя покупка",
+                        DateTimeFormatter.ofPattern("dd.MM.yyyy").format(Instant.ofEpochMilli(lastPurchase.at).atZone(zone)))
+                }
             }
-            if (!historyOpen && (product != null || ownProduct != null)) {
+            if (detailTab == 0 && (product != null || ownProduct != null)) {
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         FreshCutSectionTitle("Магазины и цены", Modifier.weight(1f))
@@ -593,8 +601,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }) else null)
                 }
             }
-            if (historyOpen) item { Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold) }
-            if (historyOpen && (product != null || ownProduct != null)) item {
+            if (detailTab == 2 && product == null && ownProduct == null) item { Text("Карточка товара отсутствует в каталоге", color = p.textSecondary) }
+            if (detailTab == 2 && (product != null || ownProduct != null)) item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween) {
@@ -642,13 +650,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }
             }
-            if (historyOpen && interval != null) item {
+            if (historyOpen) item {
                 HistoryCard {
-                    Text("Интервал покупок: $interval дн.", color = p.text)
+                    FreshCutDetailLine("Покупок", rows.size.toString())
+                    FreshCutDetailLine("Средний интервал", interval?.let { "$it дн." } ?: "—")
                 }
             }
-            if (!historyOpen) item { FreshCutSectionTitle("Динамика цен", Modifier.padding(top = 12.dp)) }
-            if (!historyOpen) item {
+            if (detailTab == 0) item { FreshCutSectionTitle("Динамика цен", Modifier.padding(top = 8.dp)) }
+            if (detailTab == 0) item {
                 HistoryCard {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         PricePeriod.entries.forEach { option ->
@@ -670,15 +679,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }
             }
-            if (!historyOpen) item {
-                FreshCutSecondaryButton("История покупок", { historyOpen = true })
-                if (product != null) {
-                    val message = refresh?.takeIf { it.first == product.id }?.second
-                    TextButton(onClick = { viewModel.refreshPrice(product.id) }, enabled = message != "Загрузка") {
-                        Text(if (message == "Загрузка") "Обновление…" else "Обновить цену")
-                    }
-                }
-                if (ownProduct != null) CustomProductImageActions(ownProduct.id, barcodes.firstOrNull() ?: ownProduct.barcode)
+            if (detailTab == 2 && ownProduct != null) item {
+                FreshCutSectionTitle("Изображение товара")
+                CustomProductImageActions(ownProduct.id, barcodes.firstOrNull() ?: ownProduct.barcode)
             }
             if (historyOpen) {
             val storePrices = rows.filter { it.unitPrice != null }.groupBy { it.storeId }.toList()
@@ -707,7 +710,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 val shop = stores.firstOrNull { it.id == row.storeId }?.name ?: "Без магазина"
                 val amount = row.weightGrams?.let { BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString() + " кг" } ?: "${row.quantity} шт."
                 FreshCutListRow(R.drawable.ic_history, formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)),
-                    "$shop · $amount" + (if (row.impulsive) " · Импульсивная покупка" else ""),
+                    listOfNotNull("$shop · $amount", row.total?.let { "Итого: ${historyMoney(it)}" }, buyers[row.buyer], if (row.impulsive) "Импульсивная покупка" else null).joinToString(" · "),
                     row.unitPrice?.let(::historyMoney) ?: "Без цены",
                     onClick = {
                         editingPurchase = row
@@ -731,6 +734,16 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             }
             }
         }
+        }
+        if (detailTab == 0 && (ownProduct != null || product != null)) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            SheetActionButton(onClick = {
+                if (ownProduct != null) viewModel.addCustomProduct(ownProduct) { added ->
+                    activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                } else if (product != null) viewModel.addProduct(product) { added ->
+                    activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                }
+            }) { Text("Добавить в список", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+        }
         navigation()
     }
 }
@@ -738,9 +751,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
 @Composable
 private fun HistoryChoice(label: String, selected: Boolean, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Text(label, Modifier.clip(RoundedCornerShape(20.dp)).background(if (selected) p.accent else p.chipBg)
+    Text(label, Modifier.clip(RoundedCornerShape(20.dp)).background(if (selected) p.actionFill else p.field)
         .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
-        color = if (selected) p.onAccent else p.chipText, fontSize = 13.sp)
+        color = if (selected) p.actionInk else p.textSecondary, fontSize = 13.sp)
 }
 
 @Composable

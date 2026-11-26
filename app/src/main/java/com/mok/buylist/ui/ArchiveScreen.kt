@@ -209,7 +209,7 @@ internal fun durationText(minutes: Int): String = when {
 @Composable
 internal fun SubScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
+    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         HeaderButton(R.drawable.ic_back, "Назад", onBack)
         Spacer(Modifier.width(12.dp))

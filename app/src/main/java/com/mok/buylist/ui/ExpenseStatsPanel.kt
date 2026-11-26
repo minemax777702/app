@@ -34,7 +34,7 @@ private fun money(value: Long): String = NumberFormat.getNumberInstance(Locale.f
     .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(BigDecimal.valueOf(value, 2)) + " ₽"
 
 @Composable
-internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, period: ExpensePeriod, stores: List<ShoppingStore> = emptyList(), onProductClick: (String) -> Unit, onPeriodChange: (ExpensePeriod) -> Unit) {
+internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, period: ExpensePeriod, stores: List<ShoppingStore> = emptyList(), onProductClick: (String) -> Unit, section: Int = 0, onPeriodChange: (ExpensePeriod) -> Unit) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val today = remember { LocalDate.now(zone) }
@@ -45,13 +45,11 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     val allCoverage = remember(mine) { purchaseCoverage(mine) }
     val coverage = remember(selected) { purchaseCoverage(selected) }
     val pricedTrips = selected.filter { it.total != null }.map { it.trip }.distinct().size
-    var showMoreStores by rememberSaveable { mutableStateOf(false) }
-    var showMoreProducts by rememberSaveable { mutableStateOf(false) }
-    var showMoreImpulse by rememberSaveable { mutableStateOf(false) }
+    var storeLimit by rememberSaveable { mutableIntStateOf(5) }
+    var productLimit by rememberSaveable { mutableIntStateOf(5) }
+    var impulseLimit by rememberSaveable { mutableIntStateOf(3) }
 
-    FreshCutSegments(ExpensePeriod.entries.map { it.title }, ExpensePeriod.entries.indexOf(period),
-        { onPeriodChange(ExpensePeriod.entries[it]) })
-    PanelCard {
+    if (section == 0) PanelCard {
         Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Text(if (coverage.priced > 0) money(coverage.amount) else "—", color = p.text,
             fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold)
@@ -88,7 +86,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         }
         buckets.getOrNull(activeBucket)?.third?.let { Text(money(it), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
     }
-    if (coverage.purchases > 0) {
+    if (section == 0 && coverage.purchases > 0) {
         FreshCutSectionTitle("Что купили", Modifier.padding(top = 8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ExpenseMetric("Покупок", coverage.purchases.toString(), Modifier.weight(1f))
@@ -98,9 +96,10 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     }
 
     val byStore = remember(selected) { expenseByStore(selected) }
-    if (byStore.isNotEmpty()) {
+    if (section == 1 && byStore.isEmpty()) Text("Нет покупок по магазинам за период", color = p.textSecondary)
+    if (section == 1 && byStore.isNotEmpty()) {
         FreshCutSectionTitle("По магазинам", Modifier.padding(top = 8.dp))
-        val visible = if (showMoreStores) byStore.take(15) else byStore.take(4)
+        val visible = byStore.take(storeLimit)
         visible.forEach { store ->
             val title = when {
                 store.id.isBlank() -> "Магазин не указан"
@@ -110,10 +109,10 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
             FreshCutListRow(R.drawable.ic_store, title, "${store.events} покупок",
                 value = if (store.priced > 0) money(store.total) else "Без цен")
         }
-        if (byStore.size > 4) FreshCutSecondaryButton(if (showMoreStores) "Свернуть" else "Показать ещё", { showMoreStores = !showMoreStores })
+        if (byStore.size > storeLimit) FreshCutSecondaryButton("Показать ещё", { storeLimit += 10 })
     }
-    PanelCard {
-        Text("Дополнительно", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+    if (section == 0) PanelCard {
+        Text("Расходы подробнее", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         FreshCutDetailLine("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—")
         if (pricedTrips > 0) FreshCutDetailLine("Средний чек", money(coverage.amount / pricedTrips))
         if (coverage.purchases > 0) MetricBar("Покупки с известной ценой", "${coverage.priced} из ${coverage.purchases}",
@@ -123,27 +122,29 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     }
 
     val topProducts = remember(selected) { frequentProducts(selected) }
-    if (topProducts.isNotEmpty()) PanelCard {
-        Text("Чаще всего покупаю", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        val maxCount = topProducts.maxOf { it.purchases }.coerceAtLeast(1)
-        (if (showMoreProducts) topProducts.take(15) else topProducts.take(5)).forEach { product ->
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .clickable { onProductClick(product.key) }.padding(vertical = 5.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                MetricBar(product.name,
-                    "${product.purchases} покупок · ${product.units} ед." +
-                        if (product.knownTotal > 0L) " · ${money(product.knownTotal)}" else "",
-                    product.purchases.toFloat() / maxCount)
+    if (section == 2) {
+        FreshCutSectionTitle("Чаще всего покупаю")
+        if (topProducts.isEmpty()) Text("Нет покупок за выбранный период", color = p.textSecondary)
+        topProducts.take(productLimit).forEach { product ->
+            FreshCutListRow(R.drawable.ic_package, product.name,
+                "${product.purchases} покупок · ${product.units} ед.",
+                value = product.knownTotal.takeIf { it > 0L }?.let(::money),
+                onClick = { onProductClick(product.key) })
+        }
+        if (topProducts.size > productLimit) FreshCutSecondaryButton("Показать ещё", { productLimit += 10 })
+        val priced = selected.filter { it.unitPrice != null }
+        if (priced.isNotEmpty()) {
+            FreshCutSectionTitle("Цены покупок")
+            listOf("Самая низкая цена" to priced.minBy { it.unitPrice!! },
+                "Самая высокая цена" to priced.maxBy { it.unitPrice!! }).forEach { (label, row) ->
+                FreshCutListRow(R.drawable.ic_tag, row.name, label, value = row.unitPrice?.let(::money),
+                    onClick = { onProductClick(row.productKey) })
             }
         }
-        if (topProducts.size > 5) Text(
-            if (showMoreProducts) "Свернуть" else "Показать ещё",
-            Modifier.clickable { showMoreProducts = !showMoreProducts }.padding(vertical = 8.dp),
-            color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     }
 
     val impulsive = selected.filter { it.impulsive }
-    if (impulsive.isNotEmpty()) PanelCard {
+    if (section == 2 && impulsive.isNotEmpty()) PanelCard {
         Text("Импульсивные покупки", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         val impulseCoverage = purchaseCoverage(impulsive)
         Text(impulseCoverage.purchases.toString() + " покупок" +
@@ -152,20 +153,17 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         val date = DateTimeFormatter.ofPattern("dd.MM.yyyy")
         val groups = impulsive.groupBy { it.trip }.values
             .sortedByDescending { rows -> rows.maxOf { it.at } }
-        (if (showMoreImpulse) groups.take(15) else groups.take(3)).forEach { rows ->
+        groups.take(impulseLimit).forEach { rows ->
             val name = if (rows.first().trip == "active") "Текущий список" else date.format(expenseDate(rows.maxBy { it.at }, zone))
             val priced = rows.filter { it.total != null }
             Text(listOfNotNull(name, rows.size.toString(),
                 priced.takeIf { it.isNotEmpty() }?.let { money(expenseSum(it)) })
                 .joinToString(" · "), color = p.textSecondary, fontSize = 14.sp)
         }
-        if (groups.size > 3) Text(
-            if (showMoreImpulse) "Свернуть" else "Показать ещё",
-            Modifier.clickable { showMoreImpulse = !showMoreImpulse }.padding(vertical = 8.dp),
-            color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        if (groups.size > impulseLimit) FreshCutSecondaryButton("Показать ещё", { impulseLimit += 10 })
     }
 
-    PanelCard {
+    if (section == 3) PanelCard {
         Text("Динамика расходов", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ExpenseInterval.entries.forEach { option -> Choice(option.title, option == interval) { interval = option } }
