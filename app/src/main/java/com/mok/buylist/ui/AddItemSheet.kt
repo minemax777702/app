@@ -98,9 +98,6 @@ fun AddItemSheet(
     onAddressSettings: () -> Unit,
 ) {
     val p = LocalPalette.current
-    val keyboard = LocalSoftwareKeyboardController.current
-    val focus = LocalFocusManager.current
-    fun dismissKeyboard() { focus.clearFocus(); keyboard?.hide() }
     var text by rememberSaveable { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
@@ -137,6 +134,17 @@ fun AddItemSheet(
         dragHandle = { SearchSheetDragHandle(onDismiss) },
         sheetGesturesEnabled = false,
     ) {
+        // ModalBottomSheet uses its own window and focus owner.
+        val keyboard = LocalSoftwareKeyboardController.current
+        val focus = LocalFocusManager.current
+        val view = androidx.compose.ui.platform.LocalView.current
+        fun dismissKeyboard() {
+            focus.clearFocus(force = true)
+            keyboard?.hide()
+            val imm = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as? android.view.inputmethod.InputMethodManager
+            imm?.hideSoftInputFromWindow(view.windowToken, 0)
+        }
         Column(
             Modifier
                 .fillMaxWidth()
@@ -232,6 +240,7 @@ fun AddItemSheet(
                                         java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
                                     },
                                     onClick = {
+                                        dismissKeyboard()
                                         onAddCustom(custom) { added ->
                                             activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                                             if (added) { text = ""; onQueryChange(""); scannedCode = null }
@@ -251,6 +260,7 @@ fun AddItemSheet(
                     },
                     onSettings = onAddressSettings,
                     onAdd = { product ->
+                        dismissKeyboard()
                         scope.launch {
                             val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
                             saveLenta(chosen, scannedCode?.takeIf { it == text })

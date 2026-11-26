@@ -68,15 +68,14 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
                 }) { Text("Подтвердить") }
                 SearchModeActionForScanner("Вернуться к камере") { manual = false }
             } else {
-                Box(Modifier.fillMaxWidth().heightIn(min = 180.dp, max = 340.dp)
-                    .aspectRatio(350f / 340f).clip(RoundedCornerShape(24.dp))
+                Box(Modifier.fillMaxWidth().height(350.dp).clip(RoundedCornerShape(24.dp))
                     .background(Color(0xFF141916)), contentAlignment = Alignment.Center) {
                     if (granted && !cameraError) {
                         QrScanner(useFront = false, barcode = true, modifier = Modifier.fillMaxSize(),
                             onCameraError = { cameraError = true }, onText = { code ->
                                 if (accepted.compareAndSet(false, true)) handler.post { if (active.get()) currentOnCode(code) }
                             })
-                        Box(Modifier.fillMaxWidth(0.80f).height(102.dp)
+                        Box(Modifier.fillMaxWidth(0.90f).height(92.dp)
                             .border(2.dp, Color.White, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
                             Box(Modifier.fillMaxWidth(0.94f).height(2.dp).background(p.actionFill))
                         }
@@ -94,7 +93,7 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
                 }
                 Text("Наведите камеру на штрихкод", Modifier.fillMaxWidth(),
                     color = p.textSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(8.dp))
                 SheetActionButton(onClick = { manual = true }) { Text("Ввести вручную") }
             }
         }

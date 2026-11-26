@@ -33,6 +33,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -97,6 +99,7 @@ fun ArchiveScreen(
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
     var selectedProduct by rememberSaveable { mutableStateOf<String?>(null) }
     var skippedForRepeat by rememberSaveable(expandedId) { mutableStateOf(arrayListOf<Int>()) }
+    var choosingForRepeat by rememberSaveable(expandedId) { mutableStateOf(false) }
     val allArchive by viewModel.archive.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
@@ -143,6 +146,8 @@ fun ArchiveScreen(
                         featured = index == 0,
                         onToggle = { expandedId = if (expandedId == list.id) null else list.id },
                         skipped = if (expandedId == list.id) skippedForRepeat.toSet() else emptySet(),
+                        choosing = expandedId == list.id && choosingForRepeat,
+                        onChoose = { choosingForRepeat = true; skippedForRepeat = ArrayList(list.names.indices.toList()) },
                         onSelectionChange = { skippedForRepeat = ArrayList(it) },
                         onRepeat = {
                             val indices = list.names.indices.filter { it !in skippedForRepeat }
@@ -160,7 +165,7 @@ fun ArchiveScreen(
                         stores = stores,
                         modifier = Modifier.animateItem(
                             fadeInSpec = Motion.smooth(),
-                            placementSpec = Motion.settle(),
+                            placementSpec = null,
                             fadeOutSpec = Motion.smooth(Motion.Quick),
                         ),
                     )
@@ -234,6 +239,8 @@ private fun ArchiveCard(
     expanded: Boolean,
     featured: Boolean,
     skipped: Set<Int>,
+    choosing: Boolean,
+    onChoose: () -> Unit,
     onSelectionChange: (Set<Int>) -> Unit,
     onToggle: () -> Unit,
     onRepeat: () -> Unit,
@@ -286,12 +293,11 @@ private fun ArchiveCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(p.card)
-            .clickable(role = Role.Button, onClick = onToggle)
             .animateContentSize(Motion.smooth())
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 val subtitle = (storeNames + listOfNotNull(listLabel)).joinToString(" · ")
@@ -300,11 +306,13 @@ private fun ArchiveCard(
             Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = if (expanded) "Свернуть" else "Развернуть",
                 Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value }, tint = p.textSecondary)
         }
-        Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
-        Text(countLabel + if (spent.known == 0) " · Без указанных цен" else "",
-            color = p.textSecondary, fontSize = 12.sp)
+        Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle)) {
+            Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+            Text(countLabel, color = p.textSecondary, fontSize = 12.sp)
+        }
         if (expanded) {
             Column(Modifier.padding(top = 8.dp)) {
+                if (!choosing) FreshCutSecondaryButton("Выбрать товары", onChoose)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Выбрано $chosen из ${names.size}", Modifier.weight(1f),
                         color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
@@ -372,7 +380,6 @@ private fun ArchiveCard(
 @Composable
 private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
     val p = LocalPalette.current
-    val on = animateFloatAsState(if (checked) 1f else 0f, Motion.smooth(Motion.Quick), label = "archive-check")
     Row(
         Modifier
             .fillMaxWidth()
@@ -382,30 +389,13 @@ private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, che
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = 1f - on.value }
-                    .border(2.dp, p.ring, CircleShape),
-            )
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        val scale = 0.6f + 0.4f * on.value
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = on.value
-                    }
-                    .clip(CircleShape)
-                    .background(p.actionFill),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_check), contentDescription = null, Modifier.size(15.dp), tint = p.actionInk)
-            }
-        }
-        Spacer(Modifier.width(14.dp))
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(checkedColor = p.actionFill, checkmarkColor = p.actionInk,
+                uncheckedColor = p.textSecondary),
+        )
+        Spacer(Modifier.width(4.dp))
         Column(Modifier.weight(1f)) {
             Text(name, color = if (checked) p.text else p.textSecondary,
                 fontSize = 14.sp, fontWeight = FontWeight.Medium)

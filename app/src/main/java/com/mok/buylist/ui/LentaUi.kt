@@ -9,7 +9,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -69,11 +73,6 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     val trimmed = query.trim()
     val listState = rememberLazyListState()
     val scrollCallback by rememberUpdatedState(onUserScroll)
-    LaunchedEffect(listState) {
-        listState.interactionSource.interactions.collect { interaction ->
-            if (interaction is DragInteraction.Start) scrollCallback()
-        }
-    }
     val scope = rememberCoroutineScope()
     val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
     val state by controller.state.collectAsStateWithLifecycle()
@@ -87,7 +86,26 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (trimmed.length >= 2 || hasOtherResults || footer != null) {
             // Вспомогательные действия прокручиваются вместе с результатами.
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), state = listState, overscrollEffect = null, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(
+                Modifier.fillMaxWidth().weight(1f).pointerInput(Unit) {
+                    // Observe, never consume: the list retains its own scrolling and fling.
+                    // Also fires at either edge and when results fit without scrolling.
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        var notified = false
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            val delta = change.position - down.position
+                            if (!notified && abs(delta.y) > viewConfiguration.touchSlop && abs(delta.y) > abs(delta.x)) {
+                                notified = true
+                                scrollCallback()
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                },
+                state = listState, overscrollEffect = null, verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
                 if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
                 if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())

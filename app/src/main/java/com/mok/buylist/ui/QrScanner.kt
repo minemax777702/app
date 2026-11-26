@@ -34,7 +34,11 @@ fun QrScanner(useFront: Boolean, onText: (String) -> Unit, modifier: Modifier = 
     val latestOnText by rememberUpdatedState(onText)
     val latestOnCameraError by rememberUpdatedState(onCameraError)
     val previewView = remember(barcode) { PreviewView(context).apply {
-        scaleType = if (barcode) PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
+        if (barcode) {
+            // TextureView respects Compose bounds and FIT_CENTER without clipping the camera frame.
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            scaleType = PreviewView.ScaleType.FIT_CENTER
+        } else scaleType = PreviewView.ScaleType.FILL_CENTER
     } }
     val executor = remember { Executors.newSingleThreadExecutor() }
 

@@ -141,9 +141,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     Column(Modifier.fillMaxSize().background(p.background)) {
         when (page) {
             "sources" -> SubScreenHeader("Источники поиска", { page = "profile" })
-            "nearby" -> FreshCutRootHeader("НАСТРОЙКИ", "Обмен рядом", "Синхронизация без интернета") {
-                HeaderButton(R.drawable.ic_back, "Назад") { page = "profile" }
-            }
+            "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
