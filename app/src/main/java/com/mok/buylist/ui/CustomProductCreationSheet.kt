@@ -279,12 +279,8 @@ internal fun CustomProductCreationSheet(
                         Text("Посмотреть товар в DiSAI", color = p.accent)
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !isWeighted, onClick = { isWeighted = false },
-                        label = { Text("Штучный") })
-                    FilterChip(selected = isWeighted, onClick = { isWeighted = true },
-                        label = { Text("Весовой") })
-                }
+                FreshCutSegments(listOf("Штучный", "Весовой"), if (isWeighted) 1 else 0,
+                    { isWeighted = it == 1 })
                 SheetTextField(
                     price,
                     { price = it; error = null },

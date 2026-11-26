@@ -92,7 +92,7 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
     }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader("История продуктов", onBack)
+        SubScreenHeader("История покупок", onBack)
         ProductSearch(query, { query = it }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp,
             bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
@@ -314,12 +314,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     Text("Название", color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownNameInput,
                         { ownNameInput = it; ownDetailsError = null }, "Название товара")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(selected = !ownWeighted, onClick = { ownWeighted = false },
-                            label = { Text("Штучный") })
-                        FilterChip(selected = ownWeighted, onClick = { ownWeighted = true },
-                            label = { Text("Весовой") })
-                    }
+                    FreshCutSegments(listOf("Штучный", "Весовой"), if (ownWeighted) 1 else 0, { ownWeighted = it == 1 })
                     Text(if (ownWeighted) "Ориентировочная цена за кг" else "Ориентировочная цена",
                         color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownPriceInput,
@@ -606,7 +601,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 "Ориентировочная цена" else "Текущая цена",
                                 color = p.textSecondary, fontSize = 12.sp)
                             Text(cost + if (ownProduct?.isWeighted == true) " /кг" else "",
-                                color = p.accent, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                                color = p.text, fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
                             best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 13.sp) }
                         }
                     }

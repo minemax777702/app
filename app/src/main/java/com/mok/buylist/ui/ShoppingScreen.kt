@@ -459,7 +459,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Icon(painterResource(R.drawable.ic_store), contentDescription = null,
-                                tint = p.accent, modifier = Modifier.size(22.dp))
+                                tint = p.text, modifier = Modifier.size(22.dp))
                             Text("Лента", color = p.text, fontWeight = FontWeight.SemiBold)
                         }
                     } else StoreSelectField(stores, selectedStore, onSelected = { store ->
@@ -499,8 +499,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         }.orEmpty()) }
         val grams = com.mok.buylist.data.parseWeightGrams(text)
         AppSheet(onDismissRequest = { weightItem = null }, containerColor = p.sheet,
-            title = { Text(item.name, color = p.text, fontWeight = FontWeight.Bold) },
-            text = { SheetTextField(text, { text = it }, "Вес, кг", keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)) },
+            title = { SheetHeader("Количество") },
+            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { Text(item.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold); SheetTextField(text, { text = it }, "Вес, кг", keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)) } },
             confirmButton = { SheetActionButton(enabled = grams != null, onClick = { viewModel.setWeight(item, grams); weightItem = null }) { Text("Сохранить") } },
             showSecondaryAction = item.weightGrams != null,
             dismissButton = { SheetActionButton(onClick = { viewModel.setWeight(item, null); weightItem = null }) { Text("Штуки") } })
@@ -1218,7 +1218,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_empty_list), contentDescription = null, Modifier.size(76.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_empty_list), contentDescription = null, Modifier.size(76.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.empty_title),

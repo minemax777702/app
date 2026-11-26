@@ -132,6 +132,7 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
                 }
             }
             if (showingQr) {
+                Text("QR-код устройства", color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Canvas(
                     Modifier.fillMaxWidth().aspectRatio(1f)
                         .clip(RoundedCornerShape(16.dp)).background(Color.White).padding(14.dp),
@@ -142,6 +143,7 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
                         drawRect(Color.Black, Offset(origin + x * cell, origin + y * cell), Size(cell + .15f, cell + .15f))
                     }
                 }
+                Text("Откройте приложение на другом телефоне и отсканируйте код.", color = p.textSecondary, fontSize = 14.sp)
             }
             if (scanning) {
                 QrScanner(false, onText = { code ->

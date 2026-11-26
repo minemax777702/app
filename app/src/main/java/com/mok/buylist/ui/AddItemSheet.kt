@@ -150,13 +150,9 @@ fun AddItemSheet(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
+                    .height(54.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(p.card)
-                    .drawBehind {
-                        val line = 3.dp.toPx()
-                        drawRect(p.accent, Offset(0f, size.height - line), Size(size.width, line))
-                    }
                     .padding(start = 18.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -170,7 +166,7 @@ fun AddItemSheet(
                     },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                    textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                     cursorBrush = SolidColor(p.accent),
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
@@ -183,8 +179,8 @@ fun AddItemSheet(
                                 Text(
                                     stringResource(R.string.add_hint),
                                     color = p.textSecondary,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
                                 )
                             }
                             inner()
@@ -198,7 +194,7 @@ fun AddItemSheet(
                     MicButton(voice)
                 }
                 IconButton(onClick = { scanning = true }) {
-                    Icon(painterResource(R.drawable.ic_camera), contentDescription = "Сканировать штрихкод", tint = p.text)
+                    Icon(painterResource(R.drawable.ic_scan_barcode), contentDescription = "Сканировать штрихкод", tint = p.text)
                 }
             }
 
@@ -347,7 +343,7 @@ private fun MicButton(voice: VoiceInput) {
             painterResource(R.drawable.ic_mic),
             contentDescription = stringResource(if (listening) R.string.voice_stop else R.string.voice_start),
             Modifier.size(24.dp),
-            tint = if (listening) p.onAccent else p.chipText,
+            tint = if (listening) p.onAccent else p.text,
         )
     }
 }
