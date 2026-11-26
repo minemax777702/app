@@ -1020,7 +1020,7 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
     }
 }
 
-private val RowShape = RoundedCornerShape(20.dp)
+private val RowShape = RoundedCornerShape(16.dp)
 
 /**
  * Строка товара. Все её переходы («в списке» → «куплено»/«удалено») ведёт одно число [done] от 0 до 1:
@@ -1046,29 +1046,66 @@ private fun ItemRowContent(
     val p = LocalPalette.current
     val state = row.state
     val finished = state != RowState.ACTIVE
-    val done = animateFloatAsState(if (finished) 1f else 0f, Motion.smooth(), label = "row-done")
-    // Пока строка возвращается в список, значок и цвет «куплено»/«удалено» ещё нужны.
-    var lastFinished by remember { mutableStateOf(if (finished) state else RowState.BOUGHT) }
-    if (finished) lastFinished = state
-    val removed = lastFinished == RowState.REMOVED
-    val doneColor = if (removed) p.field else p.boughtBg
+    val done by animateFloatAsState(if (finished) 1f else 0f, Motion.smooth(), label = "row-done")
+    var actionsExpanded by remember(row.item.id) { mutableStateOf(false) }
+    val weight = row.item.weightGrams
     val buyLabel = stringResource(R.string.buy_action)
-    Column(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 96.dp)
-            .clip(RowShape)
-            .drawBehind { drawRect(lerp(p.card, doneColor, done.value)) }
-            .then(
-                if (finished) Modifier
-                else Modifier.clickable(role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
-            )
-            .semantics { stateDescription = when (state) { RowState.ACTIVE -> "Не куплено"; RowState.BOUGHT -> "Куплено"; RowState.REMOVED -> "Удалено" } }
-            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+    val shown = product?.takeIf {
+        address.isNotBlank() && it.address == address && it.channel == "locc" &&
+            it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null
+    }
+    val lowest = cheapestShopPrice(shopPrices)
+    val ownPrice = lowest?.priceKopecks ?: ownEstimate
+    val subtitle = when {
+        shown != null -> "Лента · ${shown.price} ₽"
+        row.item.customProductId.isNotBlank() && ownPrice != null -> {
+            val price = java.math.BigDecimal.valueOf(ownPrice, 2).stripTrailingZeros().toPlainString() + " ₽"
+            if (lowest != null) "${lowest.storeName} · $price" else price
+        }
+        row.item.customProductId.isNotBlank() && shopPrices.isNotEmpty() ->
+            shopPrices.take(2).joinToString(" · ") { it.storeName }
+        else -> null
+    }
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RowShape)
+            .background(lerp(p.card, p.boughtBg, done))
+            .semantics {
+                stateDescription = when (state) {
+                    RowState.ACTIVE -> "Не куплено"
+                    RowState.BOUGHT -> "Куплено"
+                    RowState.REMOVED -> "Удалено"
+                }
+                customActions = if (finished) listOf(
+                    CustomAccessibilityAction("Информация о товаре") { onDetails(); true },
+                    CustomAccessibilityAction("Вернуть товар") { onUndo(); true },
+                ) else listOf(
+                    CustomAccessibilityAction("Информация о товаре") { onDetails(); true },
+                    CustomAccessibilityAction("Изменить вес") { onWeight(); true },
+                    CustomAccessibilityAction("Удалить товар") { onRemove(); true },
+                )
+            }
+            .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.fillMaxWidth().semantics {
-            customActions = listOf(CustomAccessibilityAction("Информация о товаре") { onDetails(); true })
-        }.pointerInput(row.item) {
+        Box(
+            Modifier.size(40.dp, 48.dp)
+                .clickable(enabled = !finished, role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
+                    .background(if (finished) p.actionFill else p.card)
+                    .border(1.dp, if (finished) p.actionFill else p.ring, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state == RowState.BOUGHT) Icon(painterResource(R.drawable.ic_check),
+                    contentDescription = null, tint = p.actionInk, modifier = Modifier.size(16.dp))
+                if (state == RowState.REMOVED) Text("−", color = p.actionInk, fontSize = 16.sp)
+            }
+        }
+        Column(
+            Modifier.weight(1f).padding(start = 4.dp, end = 6.dp)
+                .pointerInput(row.item) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 val held = withTimeoutOrNull(3001L) {
@@ -1089,91 +1126,76 @@ private fun ItemRowContent(
                     } while (event.changes.any { it.pressed })
                 }
             }
-        }, verticalAlignment = Alignment.CenterVertically) {
-        if (row.item.customProductId.isNotBlank())
-            CustomProductImage(row.item.customProductId, Modifier.size(48.dp))
-        else LentaImage(product?.image.orEmpty(), Modifier.size(48.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f).padding(end = 8.dp)) {
-        Text(
-            row.item.name,
-            Modifier.fillMaxWidth(),
-            color = lerp(p.text, p.textSecondary, done.value),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            textDecoration = if (finished) TextDecoration.LineThrough else null,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        val shown = product?.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" && it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null }
-        if (shown != null) Text("${shown.price} ₽", color = p.textSecondary, fontSize = 12.sp)
-        if (row.item.customProductId.isNotBlank()) {
-            val lowest = cheapestShopPrice(shopPrices)
-            val amount = lowest?.priceKopecks ?: ownEstimate
-            if (amount != null) {
-                val priceText = java.math.BigDecimal.valueOf(amount, 2)
-                    .stripTrailingZeros().toPlainString() + " ₽"
-                val label = if (lowest != null) "$priceText · ${lowest.storeName}"
-                    else "Ориентир: $priceText"
-                Text(label, color = p.accent, fontSize = 13.sp,
+        }
+                .clickable(role = Role.Button, onClickLabel = "Информация о товаре", onClick = onDetails),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(row.item.name, color = if (finished) p.textSecondary else p.text,
+                fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
+                textDecoration = if (finished) TextDecoration.LineThrough else null,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            subtitle?.let {
+                Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 15.sp,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-            } else if (shopPrices.isNotEmpty()) {
-                Text(shopPrices.take(2).joinToString(" · ") { it.storeName },
-                    color = p.textSecondary, fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        if (!finished) {
-            androidx.compose.material3.IconButton(onClick = onDetails, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_info), contentDescription = "Информация о товаре", tint = p.iconMuted)
+        if (finished) {
+            androidx.compose.material3.TextButton(onClick = onUndo) {
+                Text(stringResource(R.string.undo), color = p.accent, fontSize = 13.sp)
             }
-            androidx.compose.material3.IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_trash), contentDescription = "Удалить", tint = p.iconMuted)
-            }
-            Spacer(Modifier.weight(1f))
-            androidx.compose.material3.TextButton(onClick = onWeight) {
-                Text(row.item.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: "Вес", maxLines = 1)
-            }
-            if (row.item.weightGrams == null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = "Уменьшить количество" }.clickable(enabled = row.item.quantity > 1, role = Role.Button) { onQuantity(row.item.quantity - 1) }, contentAlignment = Alignment.Center) {
-                    Text("−", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
-                Text(row.item.quantity.toString(), Modifier.semantics { contentDescription = "Количество: ${row.item.quantity}" }, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = "Увеличить количество" }.clickable(enabled = row.item.quantity < 999, role = Role.Button) { onQuantity(row.item.quantity + 1) }, contentAlignment = Alignment.Center) {
-                    Text("+", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            }
-        }
-        if (done.value > 0f) {
-            Box(
-                Modifier
-                    .graphicsLayer {
-                        val scale = 0.9f + 0.1f * done.value
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = done.value
-                    }
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(p.card)
-                    .clickable(enabled = finished, role = Role.Button, onClick = onUndo)
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
+        } else {
+            Row(
+                Modifier.clip(RoundedCornerShape(12.dp)).background(p.field),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    stringResource(R.string.undo),
-                    color = p.chipText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
+                if (weight == null) {
+                    FreshCutQuantityButton("−", "Уменьшить количество", row.item.quantity > 1) {
+                        onQuantity(row.item.quantity - 1)
+                    }
+                }
+                Box {
+                    val amount = weight?.let {
+                        "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг"
+                    } ?: row.item.quantity.toString()
+                    Box(
+                        Modifier.height(48.dp).clickable(role = Role.Button) { actionsExpanded = true }
+                            .semantics { contentDescription = "Количество: $amount. Действия с товаром" }
+                            .padding(horizontal = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(amount, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = actionsExpanded, onDismissRequest = { actionsExpanded = false },
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(text = { Text("Изменить вес") },
+                            onClick = { actionsExpanded = false; onWeight() })
+                        androidx.compose.material3.DropdownMenuItem(text = { Text("Информация о товаре") },
+                            onClick = { actionsExpanded = false; onDetails() })
+                        androidx.compose.material3.DropdownMenuItem(text = { Text("Удалить") },
+                            onClick = { actionsExpanded = false; onRemove() })
+                    }
+                }
+                if (weight == null) {
+                    FreshCutQuantityButton("+", "Увеличить количество", row.item.quantity < 999) {
+                        onQuantity(row.item.quantity + 1)
+                    }
+                }
             }
         }
-        }
+    }
+}
+
+@Composable
+private fun FreshCutQuantityButton(symbol: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Box(
+        Modifier.size(40.dp, 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, color = if (enabled) p.text else p.textSecondary.copy(alpha = 0.55f),
+            fontSize = 20.sp, fontWeight = FontWeight.Medium)
     }
 }
 
