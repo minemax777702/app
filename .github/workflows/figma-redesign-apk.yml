@@ -1,6 +1,8 @@
 name: FRESH CUT APK
 
 on:
+  push:
+    branches: [feat/figma-redesign]
   workflow_dispatch:
 
 permissions:
@@ -8,6 +10,7 @@ permissions:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
