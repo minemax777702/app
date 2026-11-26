@@ -34,8 +34,11 @@ internal fun NotificationsScreen(
     val zone = ZoneId.systemDefault()
     val date = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm") }
     val visible = actions.filterNot { it.title == "Действие отменено" }
-    val grouped = remember(visible) { visible.groupBy { it.group() } }
     val undoIds = undoableRecentActions(visible).mapTo(HashSet()) { it.id }.intersect(availableUndoIds)
+    val undoable = visible.filter { it.id in undoIds }
+    val grouped = remember(visible, undoIds) {
+        visible.filterNot { it.id in undoIds }.groupBy { it.group() }
+    }
     var completedLimit by rememberSaveable { mutableIntStateOf(3) }
     var pricesLimit by rememberSaveable { mutableIntStateOf(3) }
     var actionsLimit by rememberSaveable { mutableIntStateOf(5) }
@@ -51,6 +54,18 @@ internal fun NotificationsScreen(
             Text("Здесь появятся ваши действия", color = p.textSecondary, fontSize = 13.sp)
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), overscrollEffect = null) {
+            if (undoable.isNotEmpty()) {
+                item(key = "group:undoable") {
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Можно отменить", Modifier.weight(1f), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text(undoable.size.toString(), color = p.textSecondary, fontSize = 12.sp)
+                    }
+                }
+                items(undoable, key = { it.id }) { action ->
+                    NotificationRow(action, action.group(), date.format(Instant.ofEpochMilli(action.at).atZone(zone)),
+                        canUndo = true, onUndo = { onUndo(action.id) })
+                }
+            }
             NotificationGroup.entries.forEach { group ->
                 val entries = grouped[group].orEmpty()
                 if (entries.isEmpty()) return@forEach
@@ -68,7 +83,7 @@ internal fun NotificationsScreen(
                 }
                 items(entries.take(limit), key = { it.id }) { action ->
                     NotificationRow(action, group, date.format(Instant.ofEpochMilli(action.at).atZone(zone)),
-                        canUndo = action.id in undoIds, onUndo = { onUndo(action.id) })
+                        canUndo = false, onUndo = { onUndo(action.id) })
                 }
                 if (entries.size > limit) item(key = "more:${group.name}") {
                     TextButton(onClick = {
