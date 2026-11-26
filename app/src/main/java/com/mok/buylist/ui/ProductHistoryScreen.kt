@@ -552,7 +552,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                     onClick = { ownDetailsMenuOpen = true },
                                     modifier = Modifier.semantics { contentDescription = "Действия с товаром" },
                                 ) {
-                                    Text("⋮", color = p.iconMuted, fontSize = 24.sp)
+                                    Icon(painterResource(R.drawable.ic_more), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
                                 }
                                 AppDropdownMenu(
                                     expanded = ownDetailsMenuOpen,
@@ -579,7 +579,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                         text = { Text("Удалить товар", color = p.error) },
                                         leadingIcon = {
                                             Icon(painterResource(R.drawable.ic_trash),
-                                                contentDescription = null, tint = p.error)
+                                                contentDescription = null, tint = p.text)
                                         },
                                         onClick = {
                                             ownDetailsMenuOpen = false

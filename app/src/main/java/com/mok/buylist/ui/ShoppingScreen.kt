@@ -682,7 +682,7 @@ private fun Header(
                     .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
                     .semantics { contentDescription = "Действия со списком" },
                     contentAlignment = Alignment.Center) {
-                    Text("⋯", color = p.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(painterResource(R.drawable.ic_more), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
                 }
                 AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     AppDropdownMenuItem(
