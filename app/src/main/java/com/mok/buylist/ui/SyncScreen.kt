@@ -187,7 +187,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     }
     if (showBackup) AppSheet(
         onDismissRequest = { showBackup = false }, containerColor = p.sheet,
-        title = { SheetHeader("Резервная копия") },
+        title = { SheetHeader("Резервная копия") }, minBodyHeight = 296.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProfileMenuRow(R.drawable.ic_archive, "Сохранить в файл", "Экспорт данных", {

@@ -70,6 +70,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val products by catalog.products.collectAsStateWithLifecycle()
+    val address by catalog.address.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
@@ -184,7 +185,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             }
             items(rows.take(shownCount), key = { "lenta:${it.id}" }) { product ->
                 val prices = productShopPrices("lenta:${product.id}", stores, storeLinks, knownPurchases, identities)
-                val value = cheapestShopPrice(prices)?.priceKopecks ?: com.mok.buylist.data.parsePriceKopecks(product.price)
+                val value = cheapestShopPrice(prices)?.priceKopecks ?: product.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" }?.let { com.mok.buylist.data.parsePriceKopecks(it.price) }
                 val subtitle = (listOf("Лента") + prices.map { it.storeName }).distinct().joinToString(" · ")
                 var menu by remember { mutableStateOf(false) }
                 FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
@@ -267,7 +268,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         AppSheet(
             onDismissRequest = { pendingCustomDelete = null },
             containerColor = p.sheet,
-            title = { SheetHeader("Удалить товар?") },
+            title = { SheetHeader("Удалить товар?") }, minBodyHeight = 230.dp,
             text = {
                 Text("«${product.name}» исчезнет из базы продуктов. История покупок сохранится.",
                     color = p.textSecondary)

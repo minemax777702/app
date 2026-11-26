@@ -220,7 +220,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
         AppSheet(
             onDismissRequest = { if (!barcodeSaving) barcodeEditorOpen = false },
             containerColor = p.sheet,
-            title = { SheetHeader(if (editingBarcode == null) "Добавить штрихкод" else "Изменить штрихкод") },
+            title = { SheetHeader(if (editingBarcode == null) "Добавить штрихкод" else "Изменить штрихкод") }, minBodyHeight = 280.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SheetTextField(
@@ -229,19 +229,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         hint = "EAN-8, UPC-A или EAN-13",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = barcodeError != null,
-                        trailingAction = {
-                            IconButton(
-                                onClick = {
-                                    barcodeEditorOpen = false
-                                    scanningBarcode = true
-                                },
-                                enabled = !barcodeSaving,
-                            ) {
-                                Icon(painterResource(R.drawable.ic_camera),
-                                    contentDescription = "Сканировать камерой", tint = p.text)
-                            }
-                        },
                     )
+                    FreshCutListRow(R.drawable.ic_camera, "Сканировать камерой", "",
+                        onClick = { if (!barcodeSaving) { barcodeEditorOpen = false; scanningBarcode = true } })
                     barcodeError?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
             },
@@ -304,23 +294,25 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             },
         )
     }
-    if (editingOwnDetails && ownProduct != null) {
+    if (editingOwnDetails && ownProduct != null && !barcodeEditorOpen && !scanningBarcode && deletingBarcode == null) {
         val parsedPrice = if (ownPriceInput.isBlank()) null
             else com.mok.buylist.data.parsePriceKopecks(ownPriceInput)
         AppSheet(
             onDismissRequest = { if (!savingOwnDetails) editingOwnDetails = false },
             containerColor = p.sheet,
-            title = { SheetHeader("Редактировать товар") },
+            title = { SheetHeader("Редактировать товар") }, minBodyHeight = 480.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Название", color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownNameInput,
                         { ownNameInput = it; ownDetailsError = null }, "Название товара")
+                    SheetTextField(barcodes.firstOrNull().orEmpty(), {}, "Штрихкод", readOnly = true, placeholder = "Не указан", trailingAction = {
+                        IconButton(onClick = { editingBarcode = barcodes.firstOrNull(); barcodeInput = editingBarcode.orEmpty(); barcodeError = null; barcodeEditorOpen = true }) {
+                            Icon(painterResource(R.drawable.ic_camera), "Изменить штрихкод", tint = p.text)
+                        }
+                    })
                     FreshCutSegments(listOf("Штучный", "Весовой"), if (ownWeighted) 1 else 0, { ownWeighted = it == 1 })
-                    Text(if (ownWeighted) "Ориентировочная цена за кг" else "Ориентировочная цена",
-                        color = p.textSecondary, fontSize = 13.sp)
                     SheetTextField(ownPriceInput,
-                        { ownPriceInput = it; ownDetailsError = null }, "Цена, ₽",
+                        { ownPriceInput = it; ownDetailsError = null }, if (ownWeighted) "Ориентировочная цена за кг, ₽" else "Ориентировочная цена, ₽",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     ownDetailsError?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
@@ -350,17 +342,17 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
         AppSheet(
             onDismissRequest = { if (!savingLink) editingStoreLink = false },
             containerColor = p.sheet,
-            title = { SheetHeader("Товар в магазине") },
+            title = { SheetHeader("Цена и магазин") }, minBodyHeight = 430.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(product?.name ?: ownProduct?.name.orEmpty(), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    SheetTextField(linkedPrice, { linkedPrice = it; linkError = null }, "Цена, ₽", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     StoreSelectField(
                         stores.filterNot { it.id == com.mok.buylist.data.lentaStoreId() },
                         linkedStore,
                         onSelected = { linkedStore = it; linkError = null },
                         onCreate = viewModel::createStore,
                     )
-                    SheetTextField(linkedPrice, { linkedPrice = it; linkError = null },
-                        "Цена, ₽")
                     linkError?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
             },
@@ -403,7 +395,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     }
     if (deleteOwnPending && ownProduct != null) {
         AppSheet(onDismissRequest = { deleteOwnPending = false }, containerColor = p.sheet,
-            title = { SheetHeader("Удалить свой товар?") },
+            title = { SheetHeader("Удалить товар?") }, minBodyHeight = 230.dp,
             text = { Text("Карточка исчезнет из каталога. Уже купленные товары и их цены сохранятся.", color = p.textSecondary) },
             confirmButton = {
                 SheetActionButton(destructive = true, onClick = {
@@ -422,62 +414,19 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
         AppSheet(
             onDismissRequest = { editingPurchase = null },
             containerColor = p.sheet,
-            title = { SheetHeader("Цена и магазин") },
+            title = { SheetHeader("Цена и магазин") }, minBodyHeight = 430.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                            .background(p.card).padding(14.dp),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        if (row.productKey.startsWith("custom:"))
-                            CustomProductImage(row.productKey.removePrefix("custom:"), Modifier.size(58.dp))
-                        else LentaImage(eventProduct?.image.orEmpty(), Modifier.size(58.dp))
-                        Column(Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(row.name, color = p.text, fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold, maxLines = 3)
-                            Text(formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)),
-                                color = p.textSecondary, fontSize = 12.sp)
-                        }
-                    }
-                    Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                            .background(p.card).padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(if (row.weightGrams != null) "Цена за кг" else "Цена за единицу",
-                            color = p.text, fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold)
-                        SheetTextField(
-                            purchasePrice,
-                            { purchasePrice = it; purchaseError = null; purchasePriceRevision++ },
-                            "Цена, ₽ (необязательно)",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = purchasePrice.isNotBlank() && parsed == null,
-                        )
-                        Text("Неуказанная цена не участвует в расчёте расходов.",
-                            color = p.textSecondary, fontSize = 12.sp)
-                    }
-                    Column(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                            .background(p.card).padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text("Магазин", color = p.text, fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold)
-                        if (fixedLenta) {
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                .background(p.field).padding(16.dp),
-                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(painterResource(R.drawable.ic_store), null,
-                                    tint = p.text, modifier = Modifier.size(21.dp))
-                                Text("Лента", color = p.text,
-                                    fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                            }
-                        } else {
+                    Text(row.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)), color = p.textSecondary, fontSize = 12.sp)
+                    SheetTextField(purchasePrice, { purchasePrice = it; purchaseError = null; purchasePriceRevision++ },
+                        if (row.weightGrams != null) "Цена за кг, ₽" else "Цена за единицу, ₽",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        isError = purchasePrice.isNotBlank() && parsed == null)
+                    Text("Неуказанная цена не участвует в расчёте расходов.", color = p.textSecondary, fontSize = 12.sp)
+                    if (fixedLenta) {
+                        SheetFixedValue("Магазин", "Лента")
+                    } else {
                             StoreSelectField(stores, purchaseStore, onSelected = { store ->
                                 purchaseStore = store
                                 purchaseError = null
@@ -491,7 +440,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                             .stripTrailingZeros().toPlainString()
                                 }
                             }, onCreate = viewModel::createStore)
-                        }
                     }
                     purchaseError?.let {
                         Text(it, color = p.error, fontSize = 13.sp)

@@ -75,7 +75,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
         if (ready) controller.update(trimmed, address, saved, onlineOnly)
     }
     Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
-        if (trimmed.length >= 2) {
+        if (trimmed.length >= 2 || hasOtherResults) {
             if (address.isBlank()) TextButton(onClick = onSettings) { Text("Указать адрес") }
             if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty()) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally,

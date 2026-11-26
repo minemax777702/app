@@ -21,6 +21,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +50,7 @@ fun ThemeSheet(
     onDismiss: () -> Unit,
 ) {
     val p = LocalPalette.current
+    var widgetExpanded by rememberSaveable { mutableStateOf(false) }
     AppModalSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -64,8 +70,13 @@ fun ThemeSheet(
             androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
             ThemeSegments(appMode, onAppMode)
             // Раздельная настройка виджета сохранена как дополнительная секция.
-            SectionLabel(R.string.theme_widget, Modifier.padding(top = 20.dp))
-            ThemeSegments(widgetMode, onWidgetMode)
+            TextButton(onClick = { widgetExpanded = !widgetExpanded }) {
+                Text(if (widgetExpanded) "Скрыть настройки виджета" else "Тема виджета", color = p.text)
+            }
+            if (widgetExpanded) {
+                SectionLabel(R.string.theme_widget)
+                ThemeSegments(widgetMode, onWidgetMode)
+            }
         }
     }
 }

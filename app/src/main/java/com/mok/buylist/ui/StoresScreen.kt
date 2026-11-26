@@ -352,10 +352,10 @@ internal fun StoresScreen(
         AppSheet(
             onDismissRequest = { creating = false; editing = null },
             containerColor = p.sheet,
-            title = { SheetHeader(if (current == null) "Добавить магазин" else "Название магазина") },
+            title = { SheetHeader(if (current == null) "Новый магазин" else "Название магазина") }, minBodyHeight = 240.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SheetTextField(shopName, { shopName = it; error = null }, "Название")
+                    SheetTextField(shopName, { shopName = it; error = null }, "Название магазина", placeholder = "Введите название")
                     error?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
             },

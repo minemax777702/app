@@ -148,10 +148,10 @@ internal fun CustomProductCreationSheet(
     if (!scanning) AppSheet(
         onDismissRequest = { if (!saving && !scanning) onDismiss() },
         containerColor = p.sheet,
-        title = { SheetHeader("Свой товар") },
+        title = { SheetHeader("Свой товар") }, minBodyHeight = 480.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SheetTextField(name, { name = it; nameEdited = true; error = null }, "Название товара")
+                SheetTextField(name, { name = it; nameEdited = true; error = null }, "Название товара", placeholder = "Введите название")
                 if (name.length > 200) Text("Максимум 200 символов", color = p.error, fontSize = 12.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {

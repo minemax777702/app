@@ -441,27 +441,20 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onDismissRequest = { pendingPurchase = null },
             containerColor = p.sheet,
             title = { SheetHeader("Отметить покупку") },
+            minBodyHeight = 430.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(item.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                    Text(item.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     if (isWeighted) SheetTextField(
                         weightText, { weightText = it }, "Вес, кг",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     SheetTextField(price, { price = it; priceRevision++ },
-                        if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                        if (isWeighted) "Цена за кг, ₽" else "Цена за единицу, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     if (isLenta) {
-                        Row(Modifier.fillMaxWidth()
-                            .background(p.field, RoundedCornerShape(18.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(painterResource(R.drawable.ic_store), contentDescription = null,
-                                tint = p.text, modifier = Modifier.size(22.dp))
-                            Text("Лента", color = p.text, fontWeight = FontWeight.SemiBold)
-                        }
+                        SheetFixedValue("Магазин", "Лента")
                     } else StoreSelectField(stores, selectedStore, onSelected = { store ->
                         selectedStore = store
                         price = suggestedPrice?.let {
@@ -497,13 +490,22 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         var text by remember(item.id) { mutableStateOf(item.weightGrams?.let {
             java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()
         }.orEmpty()) }
+        var byWeight by remember(item.id) { mutableStateOf(true) }
         val grams = com.mok.buylist.data.parseWeightGrams(text)
         AppSheet(onDismissRequest = { weightItem = null }, containerColor = p.sheet,
-            title = { SheetHeader("Количество") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { Text(item.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold); SheetTextField(text, { text = it }, "Вес, кг", keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)) } },
-            confirmButton = { SheetActionButton(enabled = grams != null, onClick = { viewModel.setWeight(item, grams); weightItem = null }) { Text("Сохранить") } },
-            showSecondaryAction = item.weightGrams != null,
-            dismissButton = { SheetActionButton(onClick = { viewModel.setWeight(item, null); weightItem = null }) { Text("Штуки") } })
+            title = { SheetHeader("Количество") }, minBodyHeight = 320.dp,
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(item.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    FreshCutSegments(listOf("Килограммы", "Штуки"), if (byWeight) 0 else 1, { byWeight = it == 0 })
+                    if (byWeight) SheetTextField(text, { text = it }, "Вес, кг",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    else Text("Количество можно изменить кнопками в списке.", color = p.textSecondary, fontSize = 14.sp)
+                }
+            },
+            confirmButton = { SheetActionButton(enabled = !byWeight || grams != null, onClick = {
+                viewModel.setWeight(item, if (byWeight) grams else null); weightItem = null
+            }) { Text("Сохранить") } })
     }
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
@@ -541,15 +543,16 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             com.mok.buylist.data.parseWeightGrams(weightText) else null
         val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
         AppSheet(onDismissRequest = { scannedCustom = null }, containerColor = p.sheet,
-            title = { SheetHeader(product.name) },
+            title = { SheetHeader("Отметить покупку") }, minBodyHeight = 430.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(product.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     if (product.isWeighted) SheetTextField(
                         weightText, { weightText = it }, "Вес, кг",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     SheetTextField(price, { price = it; priceRevision++ },
-                        if (product.isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                        if (product.isWeighted) "Цена за кг, ₽" else "Цена за единицу, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     StoreSelectField(stores, selectedStore, onSelected = { store ->

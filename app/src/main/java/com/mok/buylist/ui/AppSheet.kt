@@ -56,7 +56,7 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
 @Composable
 internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint: String,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default, keyboardActions: KeyboardActions = KeyboardActions.Default,
-    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null, placeholder: String = "") {
+    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null, placeholder: String = "", readOnly: Boolean = false) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     val lineColor = if (isError) p.error else if (focused) p.text else p.line
@@ -66,7 +66,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
         Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp))
             .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
             .padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
-            BasicTextField(value = value, onValueChange = onValueChange,
+            BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
                 modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp)
                     .onFocusChanged { focused = it.isFocused }, singleLine = true,
                 textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
@@ -113,7 +113,8 @@ internal fun AppSheet(
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
             .heightIn(min = minBodyHeight).padding(horizontal = 20.dp)
             .padding(top = if (required) 24.dp else 0.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            verticalArrangement = Arrangement.SpaceBetween) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
             NoticeInSheet()
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -126,7 +127,8 @@ internal fun AppSheet(
                 if (!required) SheetCloseButton(onDismissRequest)
             }
             text()
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            }
+            Column(Modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 confirmButton()
                 if (showSecondaryAction) CompositionLocalProvider(LocalSecondaryAction provides true) { dismissButton?.invoke() }
             }
@@ -169,4 +171,9 @@ internal fun SheetCloseButton(onClose: () -> Unit) {
         Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть",
             tint = p.text, modifier = Modifier.size(24.dp))
     }
+}
+
+@Composable
+internal fun SheetFixedValue(label: String, value: String) {
+    SheetTextField(value, {}, label, readOnly = true)
 }
