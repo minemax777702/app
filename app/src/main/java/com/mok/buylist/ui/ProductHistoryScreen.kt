@@ -524,7 +524,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                             }
                         }
         }
-        FreshCutSegments(listOf("Цены", "История", "Штрихкоды"), detailTab, { detailTab = it },
+        FreshCutTabs(listOf("Цены", "История", "Штрихкоды"), detailTab, { detailTab = it },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         androidx.compose.runtime.key(detailTab) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),

@@ -150,7 +150,7 @@ fun StatsScreen(
         }
         FreshCutSegments(ExpensePeriod.entries.map { it.title }, ExpensePeriod.entries.indexOf(period),
             { period = ExpensePeriod.entries[it] }, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-        FreshCutSegments(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
+        FreshCutTabs(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         if (stats.lists == 0 && purchases.none { userId == null || it.buyer == userId }) {
             EmptyStats(Modifier.weight(1f))

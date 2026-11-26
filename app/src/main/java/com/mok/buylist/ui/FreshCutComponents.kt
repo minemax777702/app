@@ -162,3 +162,23 @@ internal fun FreshCutToolbarAction(icon: Int, label: String, onClick: () -> Unit
             tint = if (!enabled) p.textSecondary else if (primary) p.actionInk else p.text)
     }
 }
+
+/** Равномерные вкладки раздела: не требуют горизонтальной прокрутки. */
+@Composable
+internal fun FreshCutTabs(labels: List<String>, current: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+    val p = LocalPalette.current
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field).padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        labels.forEachIndexed { index, label ->
+            val active = index == current
+            Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(11.dp))
+                .background(if (active) p.card else p.field)
+                .clickable(role = Role.Tab) { onSelect(index) }.semantics { selected = active }
+                .padding(horizontal = 2.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                Text(label, color = if (active) p.text else p.textSecondary,
+                    fontSize = 12.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+}
