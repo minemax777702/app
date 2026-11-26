@@ -71,10 +71,11 @@ class MainActivity : ComponentActivity() {
             val mode by themeSettings.app.collectAsStateWithLifecycle()
             val dark = isDarkTheme(mode)
             // Тему приложения выбирает пользователь, а не система, поэтому цвет значков в системных
-            // панелях задаём сами. Шапка всегда зелёная, значки в статус-баре всегда светлые.
+            // панелях задаём сами. Статус-бар соответствует светлой или тёмной теме FRESH CUT.
             DisposableEffect(dark) {
                 enableEdgeToEdge(
-                    statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+                    statusBarStyle = if (dark) SystemBarStyle.dark(Color.TRANSPARENT)
+                    else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
                     navigationBarStyle = if (dark) {
                         SystemBarStyle.dark(Color.TRANSPARENT)
                     } else {
