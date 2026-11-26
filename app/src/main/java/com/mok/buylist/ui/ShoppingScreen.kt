@@ -304,9 +304,13 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 }
             }
 
-        if (allPurchased) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-            SheetActionButton(onClick = viewModel::finishTrip, enabled = finishEnabled) { Text("Завершить покупки") }
-        }
+            ShoppingQuickActions(
+                allPurchased = allPurchased,
+                finishEnabled = finishEnabled,
+                onFinish = viewModel::finishTrip,
+                onAdd = { showAdd = true },
+                onScan = { scanPurchase = true },
+            )
         }
                 }
                 FreshCutDestination.ARCHIVE -> screenStates.SaveableStateProvider("archive") {
@@ -622,6 +626,63 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
 }
 
+/** Основные действия в нижней правой зоне: доступны большим пальцем и не перекрывают список. */
+@Composable
+private fun ShoppingQuickActions(
+    allPurchased: Boolean,
+    finishEnabled: Boolean,
+    onFinish: () -> Unit,
+    onAdd: () -> Unit,
+    onScan: () -> Unit,
+) {
+    val p = LocalPalette.current
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (allPurchased) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp))
+                    .background(if (finishEnabled) p.card else p.field)
+                    .border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .clickable(enabled = finishEnabled, role = Role.Button, onClick = onFinish)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(20.dp),
+                    tint = if (finishEnabled) p.text else p.textSecondary)
+                Text("Завершить покупки", color = if (finishEnabled) p.text else p.textSecondary,
+                    fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else Spacer(Modifier.weight(1f))
+
+        Box(
+            Modifier.size(54.dp).clip(RoundedCornerShape(16.dp))
+                .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+                .clickable(role = Role.Button, onClickLabel = "Отметить покупку по штрихкоду", onClick = onScan),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_scan_barcode), "Сканер штрихкодов",
+                Modifier.size(26.dp), tint = p.text)
+        }
+        Row(
+            Modifier.height(54.dp).then(if (allPurchased) Modifier.width(54.dp) else Modifier)
+                .clip(RoundedCornerShape(16.dp)).background(p.actionFill)
+                .clickable(role = Role.Button, onClickLabel = "Добавить товар", onClick = onAdd)
+                .padding(horizontal = if (allPurchased) 0.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (allPurchased) Arrangement.Center else Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(painterResource(R.drawable.ic_plus), if (allPurchased) "Добавить товар" else null,
+                Modifier.size(26.dp), tint = p.actionInk)
+            if (!allPurchased) Text("Добавить", color = p.actionInk,
+                fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
 @Composable
 private fun Header(
     progress: Progress,
@@ -645,8 +706,6 @@ private fun Header(
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Покупки", Modifier.weight(1f), color = p.text, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
-            FreshCutToolbarAction(R.drawable.ic_plus, "Добавить товар", onAddFromMenu, primary = true)
-            FreshCutToolbarAction(R.drawable.ic_scan_barcode, "Отметить покупку по штрихкоду", onScanFromMenu)
             Box {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
                     .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
