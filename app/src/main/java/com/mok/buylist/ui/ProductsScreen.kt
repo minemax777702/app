@@ -156,7 +156,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     color = p.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
             }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.weight(1f), overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
                 val prices = productShopPrices("custom:${product.id}", stores, storeLinks, knownPurchases, identities, products, address)
                 val best = cheapestShopPrice(prices)?.priceKopecks ?: product.estimatedPriceKopecks
@@ -236,7 +236,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     }
     if (adding) {
         AppModalSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,
-            dragHandle = { SheetDragHandle { adding = false } }) {
+            dragHandle = { SearchSheetDragHandle { adding = false } }, sheetGesturesEnabled = false) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).imePadding().padding(horizontal = 20.dp)) {
                 NoticeInSheet()
                 SheetHeader("Добавить продукт")

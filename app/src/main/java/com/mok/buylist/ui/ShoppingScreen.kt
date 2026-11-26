@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -219,6 +220,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             BackHandler { showNotifications = false }
             NotificationsScreen(actions, onBack = { showNotifications = false }, onUndo = viewModel::undoAction)
         } else Column(Modifier.fillMaxSize()) {
+            val shoppingListState = rememberLazyListState()
             Header(
                 progress = progress,
                 totals = totals,
@@ -261,6 +263,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     empty -> EmptyState(Modifier.fillMaxSize())
                     else -> LazyColumn(
                         Modifier.fillMaxSize(),
+                        state = shoppingListState,
+                        overscrollEffect = null,
                         contentPadding = PaddingValues(
                             start = 20.dp,
                             end = 20.dp,
@@ -285,10 +289,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
-                                // Новые строки проявляются, ушедшие гаснут, остальные плавно сдвигаются на их место.
+                                // Animate visibility, not placement: keep the scroll anchor stable.
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = Motion.smooth(),
-                                    placementSpec = Motion.settle(),
+                                    placementSpec = null,
                                     fadeOutSpec = Motion.smooth(Motion.Quick),
                                 ),
                             )

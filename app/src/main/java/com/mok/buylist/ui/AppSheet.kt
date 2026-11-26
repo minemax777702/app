@@ -2,6 +2,8 @@ package com.mok.buylist.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.getValue
@@ -145,6 +147,7 @@ internal fun AppModalSheet(
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     contentColor: Color = LocalPalette.current.text,
     dragHandle: (@Composable () -> Unit)? = { SheetDragHandle(onDismissRequest) },
+    sheetGesturesEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     ModalBottomSheet(
@@ -154,6 +157,7 @@ internal fun AppModalSheet(
         contentColor = contentColor,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = dragHandle,
+        sheetGesturesEnabled = sheetGesturesEnabled,
         scrimColor = Color.Black.copy(alpha = 0.40f),
         content = {
             val scope = this
@@ -176,4 +180,31 @@ internal fun SheetCloseButton(onClose: () -> Unit) {
 @Composable
 internal fun SheetFixedValue(label: String, value: String) {
     SheetTextField(value, {}, label, readOnly = true)
+}
+
+
+/** Search results own vertical scrolling; dismissal is only an explicit handle gesture. */
+@Composable
+internal fun SearchSheetDragHandle(onDismiss: () -> Unit) {
+    val p = LocalPalette.current
+    val close = androidx.compose.runtime.rememberUpdatedState(onDismiss)
+    Box(
+        Modifier.fillMaxWidth().height(24.dp)
+            .pointerInput(Unit) {
+                var distance = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { distance = 0f },
+                    onVerticalDrag = { change, delta ->
+                        change.consume()
+                        distance = (distance + delta).coerceAtLeast(0f)
+                    },
+                    onDragEnd = { if (distance >= 40.dp.toPx()) close.value() },
+                    onDragCancel = { distance = 0f },
+                )
+            },
+        contentAlignment = Alignment.TopCenter,
+    ) {
+        Box(Modifier.padding(top = 10.dp).size(40.dp, 4.dp)
+            .clip(RoundedCornerShape(2.dp)).background(p.textSecondary))
+    }
 }

@@ -134,7 +134,8 @@ fun AddItemSheet(
         onDismissRequest = onDismiss,
         containerColor = p.sheet,
         contentColor = p.text,
-        dragHandle = { SheetDragHandle(onDismiss) },
+        dragHandle = { SearchSheetDragHandle(onDismiss) },
+        sheetGesturesEnabled = false,
     ) {
         Column(
             Modifier

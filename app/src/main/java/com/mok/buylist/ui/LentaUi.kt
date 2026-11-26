@@ -87,7 +87,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (trimmed.length >= 2 || hasOtherResults || footer != null) {
             // Вспомогательные действия прокручиваются вместе с результатами.
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), state = listState, overscrollEffect = null, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
                 if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
                 if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
