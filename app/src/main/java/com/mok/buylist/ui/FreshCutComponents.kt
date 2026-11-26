@@ -11,6 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -87,16 +90,17 @@ internal fun FreshCutSectionTitle(title: String, modifier: Modifier = Modifier) 
 @Composable
 internal fun FreshCutSegments(labels: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.field).padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         labels.forEachIndexed { index, label ->
             val active = index == selectedIndex
-            Box(Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(12.dp))
-                .background(if (active) p.card else p.field)
-                .clickable(role = Role.Tab) { onSelect(index) }.semantics { selected = active },
+            Box(Modifier.height(36.dp).widthIn(min = 96.dp).clip(RoundedCornerShape(18.dp))
+                .background(if (active) p.actionFill else p.field)
+                .clickable(role = Role.Tab) { onSelect(index) }.semantics { selected = active }
+                .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.Center) {
-                Text(label, color = if (active) p.text else p.textSecondary,
-                    fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                Text(label, color = if (active) p.actionInk else p.text,
+                    fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
             }
         }
     }
@@ -123,7 +127,26 @@ internal fun FreshCutListRow(
         }
         if (value != null) Text(value, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
-        else if (value == null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp)
-            .then(Modifier), tint = p.textSecondary)
+        else if (value == null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
+    }
+}
+
+@Composable
+internal fun FreshCutSecondaryButton(title: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val p = LocalPalette.current
+    Box(modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp))
+        .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick), contentAlignment = Alignment.Center) {
+        Text(title, color = if (enabled) p.text else p.textSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+internal fun FreshCutDetailLine(label: String, value: String) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text(label, Modifier.weight(1f), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }

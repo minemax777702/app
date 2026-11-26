@@ -140,7 +140,9 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     Column(Modifier.fillMaxSize().background(p.background)) {
         when (page) {
             "sources" -> SubScreenHeader("Источники поиска", { page = "profile" })
-            "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
+            "nearby" -> FreshCutRootHeader("НАСТРОЙКИ", "Обмен рядом", "Синхронизация без интернета") {
+                HeaderButton(R.drawable.ic_back, "Назад") { page = "profile" }
+            }
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
@@ -149,7 +151,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             when (page) {
                 "sources" -> BarcodeSourceSettingsSection()
                 "nearby" -> {
-                    Text("Синхронизация без интернета", color = p.textSecondary, fontSize = 14.sp)
                     NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
                 }
                 else -> {
@@ -198,7 +199,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                 })
             }
         },
-        confirmButton = { SheetActionButton(onClick = { showBackup = false }) { Text("Готово") } },
+        confirmButton = {},
     )
 
     if (showAddress) LentaSettings { showAddress = false }
@@ -255,17 +256,5 @@ private fun SyncAction(icon: Int, title: String, onClick: () -> Unit, modifier: 
 
 @Composable
 private fun ProfileMenuRow(icon: Int, title: String, subtitle: String, onClick: () -> Unit) {
-    val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card)
-        .clickable(role = Role.Button, onClick = onClick).padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(p.field), contentAlignment = Alignment.Center) {
-            Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
-        }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = p.textSecondary, fontSize = 12.sp)
-        }
-        Text("›", color = p.textSecondary, fontSize = 24.sp)
-    }
+    FreshCutListRow(icon, title, subtitle, onClick = onClick)
 }

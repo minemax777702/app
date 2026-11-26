@@ -105,13 +105,13 @@ fun ArchiveScreen(
     val multiUser = users.size > 1
     if (selectedProduct != null) {
         ProductDetailsScreen(selectedProduct!!, remember(allArchive, bought) { expensePurchases(allArchive, bought) },
-            users, viewModel, onBack = { selectedProduct = null })
+            users, viewModel, onBack = { selectedProduct = null }, navigation = navigation)
         return
     }
     details?.let { (list, index) ->
         ArchiveProductDetails(list, index, userNames, meId, multiUser, stores,
             onProduct = { id -> details = null; selectedProduct = id },
-            onDismiss = { details = null })
+            onDismiss = { details = null }, navigation = navigation)
         return
     }
     val repeating = archive.firstOrNull { it.id == repeatingId }
@@ -120,6 +120,7 @@ fun ArchiveScreen(
             onToggle = { index -> skippedForRepeat = if (index in skippedForRepeat) skippedForRepeat - index else skippedForRepeat + index },
             onInfo = { index -> details = repeating to index },
             onBack = { repeatingId = null },
+            navigation = navigation,
             onRepeat = {
                 val indices = repeating.names.indices.filter { it !in skippedForRepeat }
                 if (indices.isNotEmpty()) onRepeat(indices.map { repeating.names[it] },
@@ -399,6 +400,7 @@ private fun ArchiveRepeatScreen(
     onInfo: (Int) -> Unit,
     onBack: () -> Unit,
     onRepeat: () -> Unit,
+    navigation: @Composable () -> Unit,
 ) {
     val p = LocalPalette.current
     val date = java.time.format.DateTimeFormatter.ofPattern("d MMMM", java.util.Locale.forLanguageTag("ru-RU"))
@@ -429,9 +431,10 @@ private fun ArchiveRepeatScreen(
                 }
             }
         }
-        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
             SheetActionButton(onClick = onRepeat, enabled = chosen > 0) { Text("Повторить покупки · $chosen") }
         }
+        navigation()
     }
 }
 
@@ -487,7 +490,7 @@ private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, che
 
 @Composable
 private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map<String, String>, meId: String, showBuyers: Boolean,
-    stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit) {
+    stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit, navigation: @Composable () -> Unit) {
     val p = LocalPalette.current
     val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
     val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
@@ -517,91 +520,37 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
         SubScreenHeader("Покупка", onDismiss)
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val customId = event?.customProductId.orEmpty()
-                    if (customId.isNotBlank()) CustomProductImage(customId, Modifier.size(88.dp))
-                    else LentaImage(image, Modifier.size(88.dp))
-                    Column(
-                        Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(name, color = p.text, fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp, lineHeight = 28.sp, maxLines = 4,
-                            overflow = TextOverflow.Ellipsis)
-                        Text(if (customId.isNotBlank()) "Свой товар" else "Товар из истории",
-                            color = p.textSecondary, fontSize = 12.sp)
-                    }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val customId = event?.customProductId.orEmpty()
+                if (customId.isNotBlank()) CustomProductImage(customId, Modifier.size(84.dp))
+                else LentaImage(image, Modifier.size(84.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp)
+                    Text(java.time.format.DateTimeFormatter.ofPattern("d MMMM, HH:mm", java.util.Locale.forLanguageTag("ru-RU"))
+                        .format(java.time.Instant.ofEpochMilli(list.completedAt).atZone(ZoneId.systemDefault())),
+                        color = p.textSecondary, fontSize = 13.sp)
                 }
-
-                Column(
-                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Text("Стоимость покупки", color = p.textSecondary, fontSize = 12.sp)
-                    Text(total?.let(::money) ?: "Цена не указана",
-                        color = if (total == null) p.textSecondary else p.text,
-                        fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Количество", color = p.textSecondary, fontSize = 13.sp)
-                        Text(quantityText, color = p.text, fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold)
-                    }
-                    if (price != null) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(if (weight != null) "Цена за кг" else "Цена за шт.",
-                                color = p.textSecondary, fontSize = 13.sp)
-                            Text(money(price), color = p.text, fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                if (store != null || (showBuyers && buyer.isNotBlank())) {
-                    Text("Информация о покупке", color = p.text,
-                        fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Column(
-                        Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-                            .padding(horizontal = 18.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        store?.let {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Магазин", color = p.textSecondary, fontSize = 12.sp)
-                                Text(it, color = p.text, fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                        if (showBuyers && buyer.isNotBlank()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Покупатель", color = p.textSecondary, fontSize = 12.sp)
-                                Text(buyer, color = p.text, fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
-                }
+            }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("СТОИМОСТЬ ПОКУПКИ", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(total?.let(::money) ?: "Цена не указана", color = p.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(12.dp))
+            Column {
+                FreshCutDetailLine("Количество", quantityText)
+                FreshCutDetailLine(if (weight != null) "Цена за кг" else "Цена за единицу", price?.let(::money) ?: "—")
+                FreshCutDetailLine("Магазин", store ?: "Не указан")
+                FreshCutDetailLine("Покупатель", buyer.ifBlank { "Не указан" })
             }
         }
         productKey?.let { key ->
-            Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
                 SheetActionButton(onClick = { onProduct(key) }) { Text("Открыть товар") }
             }
-        } ?: Spacer(Modifier.navigationBarsPadding())
+        }
+        navigation()
     }
 }
 

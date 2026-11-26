@@ -42,7 +42,7 @@ fun SettingsScreen(
     var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     if (selectedProduct != null) {
         ProductDetailsScreen(selectedProduct!!, remember(archive, bought) { expensePurchases(archive, bought) },
-            users, viewModel, onBack = { selectedProduct = null })
+            users, viewModel, onBack = { selectedProduct = null }, navigation = navigation)
         return
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
@@ -61,13 +61,13 @@ fun SettingsScreen(
                     StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it }, onDetailChange = { storeDetail = it })
                 }
             }
-            if (!storeDetail || section == 0) navigation()
+            navigation()
         } else {
             Box(Modifier.weight(1f)) {
                 SyncScreen(profile, onRename, addressRequest, onActiveChange = { syncActive = it },
                     onOpenTheme = onOpenTheme)
             }
-            if (!syncActive) navigation()
+            navigation()
         }
     }
 }

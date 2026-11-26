@@ -117,12 +117,12 @@ fun StatsScreen(
         }
     }
     if (selectedProduct != null) {
-        ProductDetailsScreen(selectedProduct!!, purchases.filter { userId == null || it.buyer == userId }, users, viewModel, onBack = { selectedProduct = null })
+        ProductDetailsScreen(selectedProduct!!, purchases.filter { userId == null || it.buyer == userId }, users, viewModel, onBack = { selectedProduct = null }, navigation = navigation)
         return
     }
     if (showHistory) {
         BackHandler { showHistory = false }
-        ProductHistoryScreen(historyPurchases, onProductClick = { selectedProduct = it }, onBack = { showHistory = false })
+        ProductHistoryScreen(historyPurchases, onProductClick = { selectedProduct = it }, onBack = { showHistory = false }, navigation = navigation)
         return
     }
 

@@ -78,7 +78,8 @@ internal fun priceSummaries(rows: List<ExpensePurchase>): List<PriceSummary> =
     }.sortedBy { it.type }
 
 @Composable
-internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductClick: (String) -> Unit, onBack: () -> Unit) {
+internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductClick: (String) -> Unit, onBack: () -> Unit,
+    navigation: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val formatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy") }
@@ -99,21 +100,21 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (products.isEmpty()) item { Text("Товары не найдены", Modifier.padding(16.dp), color = p.textSecondary) }
             items(products.take(shownCount), key = { it.productKey }) { product ->
-                HistoryCard(Modifier.clickable(role = Role.Button) { onProductClick(product.productKey) }) {
-                    Text(product.name, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Последняя покупка: ${formatter.format(expenseDate(product, zone))}", color = p.textSecondary)
-                }
+                FreshCutListRow(R.drawable.ic_package, product.name,
+                    "Последняя покупка: ${formatter.format(expenseDate(product, zone))}",
+                    onClick = { onProductClick(product.productKey) })
             }
             if (shownCount < products.size) item {
                 Text("Показать ещё", Modifier.clickable { shownCount += 5 }.padding(12.dp), color = p.accent)
             }
         }
+        navigation()
     }
 }
 
 @Composable
 internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePurchase>, users: List<AppUser>,
-    viewModel: ShoppingViewModel, onBack: () -> Unit) {
+    viewModel: ShoppingViewModel, onBack: () -> Unit, navigation: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val catalogContext = LocalContext.current
@@ -172,6 +173,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var purchaseStore by remember(productKey) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
     var purchasePriceRevision by remember(productKey) { mutableIntStateOf(0) }
     var purchaseError by remember(productKey) { mutableStateOf<String?>(null) }
+    var historyOpen by rememberSaveable(productKey) { mutableStateOf(false) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var openedTrip by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
@@ -197,7 +199,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
         ArchiveScreen(listOf(trip), onBack = { openedTrip = null }, onOpenStats = null,
             onRepeat = { names, quantities, events -> viewModel.repeatArchived(names, quantities, events) { openedTrip = null } },
             onDelete = { viewModel.deleteArchived(it); openedTrip = null }, users = users,
-            meId = profile?.id.orEmpty(), initiallyExpandedId = trip.id, viewModel = viewModel)
+            meId = profile?.id.orEmpty(), initiallyExpandedId = trip.id, viewModel = viewModel, navigation = navigation)
         return
     }
     if (scanningBarcode) {
@@ -519,28 +521,34 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             barcode = barcodes.firstOrNull() ?: own.barcode,
         )
     }
-    BackHandler(onBack = onBack)
+    val title = product?.name ?: ownProduct?.name ?: rows.firstOrNull()?.name ?: "Товар не найден"
+    val back: () -> Unit = { if (historyOpen) historyOpen = false else onBack() }
+    BackHandler(onBack = back)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader("Информация о товаре", onBack)
+        SubScreenHeader(if (historyOpen) "История покупок" else "Информация о товаре", back)
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp,
             bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                HistoryCard {
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(92.dp))
-                        else LentaImage(product?.image.orEmpty(), Modifier.size(92.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(product?.name ?: ownProduct?.name ?: rows.firstOrNull()?.name
-                                ?: "Товар не найден", color = p.text, fontSize = 22.sp,
-                                fontWeight = FontWeight.SemiBold, lineHeight = 28.sp)
-                            Text(if (ownProduct != null) "Свой товар" else "Лента",
-                                color = p.textSecondary, fontSize = 12.sp)
-                        }
+            if (!historyOpen) item {
+                val current = product?.takeIf { it.address == address && address.isNotBlank() && it.channel == "locc" }
+                val best = cheapestShopPrice(shopPrices)
+                val cost = best?.priceKopecks?.let(::historyMoney)
+                    ?: ownProduct?.estimatedPriceKopecks?.let(::historyMoney)
+                    ?: current?.price?.takeIf { it.isNotBlank() && it != "null" }?.plus(" ₽")
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(80.dp))
+                    else LentaImage(product?.image.orEmpty(), Modifier.size(80.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(title, color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 27.sp)
+                        Text(listOfNotNull(product?.pack?.takeIf { it.isNotBlank() },
+                            if (ownProduct != null) "Свой товар" else if (product != null) "Лента" else null)
+                            .joinToString(" · "), color = p.textSecondary, fontSize = 13.sp)
+                        Text(if (best != null) "МИНИМАЛЬНАЯ ЦЕНА" else "ЦЕНА", color = p.textSecondary, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                        Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "—", color = p.text,
+                            fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold)
+                    }
                         if (ownProduct != null) {
                             Box {
                                 IconButton(
@@ -584,118 +592,66 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 }
                             }
                         }
-                    }
-                    androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
-                    val current = product?.takeIf {
-                        it.address == address && address.isNotBlank() && it.channel == "locc"
-                    }
-                    val best = cheapestShopPrice(shopPrices)
-                    val cost = best?.priceKopecks?.let(::historyMoney)
-                        ?: ownProduct?.estimatedPriceKopecks?.let(::historyMoney)
-                        ?: current?.price?.takeIf { it.isNotBlank() && it != "null" }?.plus(" ₽")
-                    if (cost != null) {
-                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                            .background(p.field).padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(if (best != null) "Минимальная цена" else if (ownProduct != null)
-                                "Ориентировочная цена" else "Текущая цена",
-                                color = p.textSecondary, fontSize = 12.sp)
-                            Text(cost + if (ownProduct?.isWeighted == true) " /кг" else "",
-                                color = p.text, fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
-                            best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 13.sp) }
-                        }
-                    }
-                    if (ownProduct != null) {
-                        CustomProductImageActions(ownProduct.id, barcodes.firstOrNull()
-                            ?: ownProduct.barcode)
-                        SheetActionButton(onClick = {
-                            viewModel.addCustomProduct(ownProduct) { added ->
-                                activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                            }
-                        }) { Text("Добавить в список") }
-                    }
-                    if (product != null) {
-                        product.pack.takeIf { it.isNotBlank() }?.let {
-                            Text("Упаковка: " + it, color = p.textSecondary, fontSize = 13.sp)
-                        }
-                        SheetActionButton(onClick = {
-                            viewModel.addProduct(product) { added ->
-                                activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                            }
-                        }) { Text("Добавить в список") }
-                        val message = refresh?.takeIf { it.first == product.id }?.second
-                        TextButton(onClick = { viewModel.refreshPrice(product.id) },
-                            enabled = message != "Загрузка") {
-                            Text(if (message == "Загрузка") "Обновление…" else "Обновить цену")
-                        }
-                    }
                 }
             }
-            if (product != null || ownProduct != null) item {
-                HistoryCard {
-                    Row(Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text("Магазины и цены", color = p.text,
-                            fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.weight(1f))
-                        IconButton(onClick = {
-                            linkedStore = null
-                            linkedPrice = ""
-                            linkError = null
-                            editingStoreLink = true
-                        }) {
-                            Icon(painterResource(R.drawable.ic_plus),
-                                contentDescription = "Добавить магазин к товару",
-                                tint = p.text)
-                        }
+            if (!historyOpen && (ownProduct != null || product != null)) item {
+                SheetActionButton(onClick = {
+                    if (ownProduct != null) viewModel.addCustomProduct(ownProduct) { added ->
+                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                    } else if (product != null) viewModel.addProduct(product) { added ->
+                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                     }
-                    if (shopPrices.isEmpty()) Text("Магазины пока не добавлены",
-                        color = p.textSecondary, fontSize = 13.sp)
-                    shopPrices.forEach { shopPrice ->
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                                .background(p.field)
-                                .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(shopPrice.storeName, color = p.text,
-                                    fontWeight = FontWeight.SemiBold)
-                                Text(shopPrice.priceKopecks?.let(::historyMoney) ?: "Цена не указана",
-                                    color = p.textSecondary, fontSize = 13.sp)
-                            }
-                            if (shopPrice.storeId != com.mok.buylist.data.lentaStoreId()) {
-                                IconButton(onClick = {
-                                    linkedStore = stores.firstOrNull { it.id == shopPrice.storeId }
-                                    linkedPrice = shopPrice.priceKopecks?.let {
-                                        BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
-                                    }.orEmpty()
-                                    linkError = null
-                                    editingStoreLink = true
-                                }) {
-                                    Icon(painterResource(R.drawable.ic_edit),
-                                        contentDescription = "Изменить цену магазина",
-                                        tint = p.text, modifier = Modifier.size(19.dp))
+                }) { Text("Добавить в список", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
+            }
+            if (!historyOpen && (product != null || ownProduct != null)) {
+                item {
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        FreshCutSectionTitle("Магазины и цены", Modifier.weight(1f))
+                        Text("Добавить", Modifier.clickable {
+                            linkedStore = null; linkedPrice = ""; linkError = null; editingStoreLink = true
+                        }.padding(8.dp), color = p.text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+                if (shopPrices.isEmpty()) item { Text("Магазины пока не добавлены", color = p.textSecondary, fontSize = 13.sp) }
+                items(shopPrices, key = { "store:${it.storeId}" }) { shopPrice ->
+                    val editable = shopPrice.storeId != com.mok.buylist.data.lentaStoreId()
+                    val attached = storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&
+                        (identities[it.productKey] ?: it.productKey) == sharedKey }
+                    val updateAt = storeLinks.filter { !it.deleted && it.storeId == shopPrice.storeId &&
+                        (identities[it.productKey] ?: it.productKey) == sharedKey }.maxOfOrNull { it.updatedAt }
+                    val purchaseAt = rows.filter { it.storeId == shopPrice.storeId && it.unitPrice != null }.maxOfOrNull { it.at }
+                    val date = (updateAt ?: purchaseAt)?.let { formatter.format(Instant.ofEpochMilli(it).atZone(zone)) }
+                    var menu by remember { mutableStateOf(false) }
+                    fun editPrice() {
+                        linkedStore = stores.firstOrNull { it.id == shopPrice.storeId }
+                        linkedPrice = shopPrice.priceKopecks?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() }.orEmpty()
+                        linkError = null; editingStoreLink = true
+                    }
+                    FreshCutListRow(R.drawable.ic_store, shopPrice.storeName,
+                        date?.let { "Цена от $it" } ?: "Цена магазина",
+                        value = shopPrice.priceKopecks?.let(::historyMoney) ?: "—",
+                        onClick = { if (editable) editPrice() },
+                        trailing = if (editable) ({
+                            Box {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                    Icon(painterResource(R.drawable.ic_more), "Действия", Modifier.size(20.dp), tint = p.textSecondary)
                                 }
-                                if (storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&
-                                    (identities[it.productKey] ?: it.productKey) == sharedKey })
-                                    IconButton(onClick = { pendingLinkRemoval = shopPrice.storeId }) {
-                                        Icon(painterResource(R.drawable.ic_trash),
-                                            contentDescription = "Убрать привязку к магазину",
-                                            tint = p.iconMuted, modifier = Modifier.size(19.dp))
-                                    }
+                                AppDropdownMenu(menu, { menu = false }) {
+                                    AppDropdownMenuItem(text = { Text("Изменить цену") }, onClick = { menu = false; editPrice() })
+                                    if (attached) AppDropdownMenuItem(text = { Text("Убрать из магазина", color = p.error) },
+                                        onClick = { menu = false; pendingLinkRemoval = shopPrice.storeId })
+                                }
                             }
-                        }
-                    }
+                        }) else null)
                 }
             }
-            if (product != null || ownProduct != null) item {
-                HistoryCard {
+            if (historyOpen) item { Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold) }
+            if (historyOpen && (product != null || ownProduct != null)) item {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text("Штрихкоды товара", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            FreshCutSectionTitle("Штрихкоды")
                         }
                         IconButton(onClick = {
                             editingBarcode = null
@@ -738,14 +694,14 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }
             }
-            if (interval != null) item {
+            if (historyOpen && interval != null) item {
                 HistoryCard {
                     Text("Интервал покупок: $interval дн.", color = p.text)
                 }
             }
-            item {
+            if (!historyOpen) item { FreshCutSectionTitle("Динамика цен", Modifier.padding(top = 12.dp)) }
+            if (!historyOpen) item {
                 HistoryCard {
-                    Text("Динамика цен", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         PricePeriod.entries.forEach { option ->
                             HistoryChoice(option.title, option == pricePeriod) { pricePeriod = option }
@@ -766,6 +722,17 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }
             }
+            if (!historyOpen) item {
+                FreshCutSecondaryButton("История покупок", { historyOpen = true })
+                if (product != null) {
+                    val message = refresh?.takeIf { it.first == product.id }?.second
+                    TextButton(onClick = { viewModel.refreshPrice(product.id) }, enabled = message != "Загрузка") {
+                        Text(if (message == "Загрузка") "Обновление…" else "Обновить цену")
+                    }
+                }
+                if (ownProduct != null) CustomProductImageActions(ownProduct.id, barcodes.firstOrNull() ?: ownProduct.barcode)
+            }
+            if (historyOpen) {
             val storePrices = rows.filter { it.unitPrice != null }.groupBy { it.storeId }.toList()
                 .sortedBy { (storeId, _) -> stores.firstOrNull { it.id == storeId }?.name ?: storeId }
             if (storePrices.isNotEmpty()) item {
@@ -786,39 +753,19 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     }
                 }
             }
-            item { Text("История покупок", Modifier.padding(top = 8.dp), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+            item { FreshCutSectionTitle("История цен", Modifier.padding(top = 12.dp)) }
+            if (rows.isEmpty()) item { Text("История покупок пока пуста", color = p.textSecondary, fontSize = 13.sp) }
             items(rows.take(historyCount), key = { "event:${it.id}" }) { row ->
-                HistoryCard {
-                    Text(formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)), color = p.text, fontWeight = FontWeight.Bold)
-                    if (row.impulsive) Text("Импульсивная покупка", color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    row.unitPrice?.let { Text("Цена: ${historyMoney(it)}", color = p.text) }
-                    stores.firstOrNull { it.id == row.storeId }?.let { Text("Магазин: ${it.name}", color = p.textSecondary) }
-                    val amount = row.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: "Количество: ${row.quantity}"
-                    Text(listOfNotNull(amount, row.total?.let { "Стоимость: ${historyMoney(it)}" }).joinToString(" · "), color = p.textSecondary)
-                    if (row.buyer.isNotBlank()) Text("Покупатель: ${buyers[row.buyer] ?: row.buyer}", color = p.textSecondary)
-                    Row(Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End) {
-                        Row(
-                            Modifier.clip(RoundedCornerShape(14.dp))
-                                .background(p.chipBg)
-                                .clickable {
-                                    editingPurchase = row
-                                    purchasePrice = row.unitPrice?.let {
-                                        BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
-                                    }.orEmpty()
-                                    purchaseStore = stores.firstOrNull { it.id == row.storeId }
-                                    purchaseError = null
-                                }.padding(horizontal = 14.dp, vertical = 11.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Icon(painterResource(R.drawable.ic_edit), contentDescription = null,
-                                tint = p.text, modifier = Modifier.size(17.dp))
-                            Text("Изменить цену и магазин", color = p.accent,
-                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
+                val shop = stores.firstOrNull { it.id == row.storeId }?.name ?: "Без магазина"
+                val amount = row.weightGrams?.let { BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString() + " кг" } ?: "${row.quantity} шт."
+                FreshCutListRow(R.drawable.ic_history, formatter.format(Instant.ofEpochMilli(row.at).atZone(zone)),
+                    "$shop · $amount" + (if (row.impulsive) " · Импульсивная покупка" else ""),
+                    row.unitPrice?.let(::historyMoney) ?: "Без цены",
+                    onClick = {
+                        editingPurchase = row
+                        purchasePrice = row.unitPrice?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() }.orEmpty()
+                        purchaseStore = stores.firstOrNull { it.id == row.storeId }; purchaseError = null
+                    })
             }
             if (historyCount < rows.size) item {
                 Text("Показать ещё", Modifier.clickable { historyCount += 5 }.padding(12.dp), color = p.accent)
@@ -828,14 +775,15 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 Text("Списки с этим товаром", Modifier.padding(top = 8.dp), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
             items(trips.take(tripCount), key = { "trip:${it.trip}" }) { row ->
-                HistoryCard(Modifier.clickable(role = Role.Button) { openedTrip = row.trip }) {
-                    Text("Архив: ${formatter.format(Instant.ofEpochMilli(row.at).atZone(zone))}", color = p.text)
-                }
+                FreshCutListRow(R.drawable.ic_archive, "Архив · ${formatter.format(Instant.ofEpochMilli(row.at).atZone(zone))}",
+                    "Открыть список", onClick = { openedTrip = row.trip })
             }
             if (tripCount < trips.size) item {
                 Text("Показать ещё", Modifier.clickable { tripCount += 5 }.padding(12.dp), color = p.accent)
             }
+            }
         }
+        navigation()
     }
 }
 

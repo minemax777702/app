@@ -87,6 +87,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         }
     }
     var query by rememberSaveable { mutableStateOf("") }
+    var catalogMenu by remember { mutableStateOf(false) }
     var onlineQuery by rememberSaveable { mutableStateOf("") }
     var adding by rememberSaveable { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
@@ -116,19 +117,25 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             .sortedBy { nameKeyOf(it.name) }
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ProductSearch(query, { query = it }, Modifier.weight(1f))
-            IconButton(onClick = { scanning = true }) {
-                Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.text)
-            }
-            Box(Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)).background(p.actionFill)
-                .clickable(role = Role.Button) { onlineQuery = ""; adding = true }, contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_plus), stringResource(R.string.products_add), tint = p.actionInk)
-            }
-        }
-        if (products.isNotEmpty()) TextButton(onClick = viewModel::refreshAllPrices, enabled = batch?.running != true,
-            modifier = Modifier.padding(start = 8.dp)) {
-            Text(if (batch?.running == true) "Обновление ${batch!!.completed}/${batch!!.total}" else "Обновить все цены")
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            ProductSearch(query, { query = it }, Modifier.weight(1f), trailing = {
+                Box {
+                    IconButton(onClick = { catalogMenu = true }) {
+                        Icon(painterResource(R.drawable.ic_more), "Действия каталога", tint = p.text, modifier = Modifier.size(24.dp))
+                    }
+                    AppDropdownMenu(expanded = catalogMenu, onDismissRequest = { catalogMenu = false }) {
+                        AppDropdownMenuItem(text = { Text("Сканировать штрихкод") }, onClick = { catalogMenu = false; scanning = true })
+                        AppDropdownMenuItem(text = { Text("Найти в Ленте") }, onClick = { catalogMenu = false; onlineQuery = query; adding = true })
+                        AppDropdownMenuItem(text = { Text("Создать свой товар") }, onClick = {
+                            catalogMenu = false
+                            customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
+                            customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
+                            createCustom = true
+                        })
+                    }
+                }
+            })
         }
         if (rows.isEmpty() && ownRows.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
@@ -140,11 +147,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     color = p.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
             }
         }
-        CreateCustomProductAction(onClick = {
-            customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
-            customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
-            createCustom = true
-        }, modifier = Modifier.padding(horizontal = 16.dp))
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (ownRows.isNotEmpty() || rows.isNotEmpty()) item(key = "catalog-section") {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -153,78 +155,70 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 }
             }
             items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card)
-                    .clickable(role = Role.Button) { onProductClick("custom:${product.id}") }
-                    .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    CustomProductImage(product.id, Modifier.size(42.dp))
-                    androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-                    Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        Text(product.name, color = p.text, fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold)
-                        if (product.isWeighted) Text("Весовой · ₽/кг",
-                            color = p.textSecondary, fontSize = 12.sp)
-                        val shopPrices = productShopPrices(
-                            "custom:${product.id}", stores, storeLinks, knownPurchases, identities)
-                        if (shopPrices.isNotEmpty()) Text(
-                            shopPrices.joinToString(" · ") { it.storeName },
-                            color = p.textSecondary, fontSize = 12.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        val cheapest = cheapestShopPrice(shopPrices)
-                        val bestPrice = cheapest?.priceKopecks ?: product.estimatedPriceKopecks
-                        if (bestPrice != null) {
-                            Text(
-                                (if (cheapest != null) "От " else "Ориентир: ") +
-                                    java.math.BigDecimal.valueOf(bestPrice, 2)
-                                        .stripTrailingZeros().toPlainString() + " ₽" +
-                                    if (cheapest != null) " · ${cheapest.storeName}" else "",
-                                color = p.text, fontSize = 14.sp,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val prices = productShopPrices("custom:${product.id}", stores, storeLinks, knownPurchases, identities)
+                val best = cheapestShopPrice(prices)?.priceKopecks ?: product.estimatedPriceKopecks
+                val subtitle = (listOfNotNull(if (product.isWeighted) "Весовой" else null) + prices.map { it.storeName })
+                    .joinToString(" · ").ifBlank { "Свой товар" }
+                var menu by remember { mutableStateOf(false) }
+                FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
+                    value = best?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                    onClick = { onProductClick("custom:${product.id}") },
+                    leading = { CustomProductImage(product.id, Modifier.size(44.dp)) },
+                    trailing = {
+                        Box {
+                            IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(painterResource(R.drawable.ic_more), "Действия с товаром", Modifier.size(20.dp), tint = p.textSecondary)
+                            }
+                            AppDropdownMenu(menu, { menu = false }) {
+                                AppDropdownMenuItem(text = { Text("Добавить в список") }, onClick = {
+                                    menu = false
+                                    viewModel.addCustomProduct(product) { added ->
+                                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                    }
+                                })
+                                AppDropdownMenuItem(text = { Text("Удалить товар", color = p.error) },
+                                    onClick = { menu = false; pendingCustomDelete = product })
+                            }
                         }
-                    }
-                    IconButton(onClick = { viewModel.addCustomProduct(product) { added ->
-                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                    } }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.text,
-                            modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { pendingCustomDelete = product }) {
-                        Icon(painterResource(R.drawable.ic_trash), "Удалить свой товар",
-                            tint = p.iconMuted, modifier = Modifier.size(20.dp))
-                    }
-                }
+                    })
             }
             items(rows.take(shownCount), key = { "lenta:${it.id}" }) { product ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card)
-                    .clickable(role = Role.Button) { onProductClick("lenta:${product.id}") }
-                    .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LentaImage(product.image, Modifier.size(42.dp))
-                    androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-                    Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        Text(product.name, color = p.text, fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold, maxLines = 2,
-                            overflow = TextOverflow.Ellipsis)
-                        val linked = storeLinks.filter { !it.deleted &&
-                            it.productKey == "lenta:${product.id}" }
-                        if (linked.isNotEmpty()) Text(linked.take(2).joinToString(" · ") { row ->
-                            val shop = stores.firstOrNull { it.id == row.storeId }?.name ?: "Магазин"
-                            shop + (row.priceKopecks?.let { price ->
-                                ": " + java.math.BigDecimal.valueOf(price, 2)
-                                    .stripTrailingZeros().toPlainString() + " ₽"
-                            } ?: "")
-                        }, color = p.textSecondary, fontSize = 12.sp)
-                    }
-                    IconButton(onClick = { onAdd(product) }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.text, modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { pendingDelete = product }) {
-                        Icon(painterResource(R.drawable.ic_trash), stringResource(R.string.products_delete), tint = p.iconMuted, modifier = Modifier.size(20.dp))
-                    }
-                }
+                val prices = productShopPrices("lenta:${product.id}", stores, storeLinks, knownPurchases, identities)
+                val value = cheapestShopPrice(prices)?.priceKopecks ?: com.mok.buylist.data.parsePriceKopecks(product.price)
+                val subtitle = (listOf("Лента") + prices.map { it.storeName }).distinct().joinToString(" · ")
+                var menu by remember { mutableStateOf(false) }
+                FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
+                    value = value?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                    onClick = { onProductClick("lenta:${product.id}") },
+                    leading = { LentaImage(product.image, Modifier.size(44.dp)) },
+                    trailing = {
+                        Box {
+                            IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                Icon(painterResource(R.drawable.ic_more), "Действия с товаром", Modifier.size(20.dp), tint = p.textSecondary)
+                            }
+                            AppDropdownMenu(menu, { menu = false }) {
+                                AppDropdownMenuItem(text = { Text("Добавить в список") }, onClick = { menu = false; onAdd(product) })
+                                AppDropdownMenuItem(text = { Text("Удалить товар", color = p.error) },
+                                    onClick = { menu = false; pendingDelete = product })
+                            }
+                        }
+                    })
             }
             if (shownCount < rows.size || shownCount < ownRows.size) item {
-                Text("Показать ещё", Modifier.clickable { shownCount += 20 }.padding(12.dp), color = p.accent)
+                FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
             }
+            if (products.isNotEmpty()) item {
+                FreshCutSecondaryButton(
+                    if (batch?.running == true) "Обновление ${batch!!.completed}/${batch!!.total}" else "Обновить цены",
+                    viewModel::refreshAllPrices, enabled = batch?.running != true)
+            }
+        }
+        if (rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            SheetActionButton(onClick = {
+                customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
+                customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
+                createCustom = true
+            }) { Text("Создать свой товар") }
         }
     }
     if (createCustom) {
@@ -299,7 +293,8 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
 }
 
 @Composable
-internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
     BasicTextField(
         value = value,
@@ -318,6 +313,7 @@ internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modif
                     if (value.isEmpty()) Text(stringResource(R.string.products_search), color = p.textSecondary, fontSize = 15.sp)
                     inner()
                 }
+                trailing?.invoke()
             }
         },
     )
