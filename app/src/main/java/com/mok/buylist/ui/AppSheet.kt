@@ -88,17 +88,16 @@ internal fun AppSheet(
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = {
         !required || it != SheetValue.Hidden
     })
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = { if (!required) onDismissRequest() },
         sheetState = state,
         containerColor = containerColor,
         contentColor = LocalPalette.current.text,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = if (required) null else { { SheetDragHandle(onDismissRequest) } },
     ) {
         BackHandler(enabled = required) { }
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            .padding(horizontal = 20.dp).padding(top = if (required) 24.dp else 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NoticeInSheet()
             Box(Modifier.fillMaxWidth()) { title() }
             text()
@@ -109,3 +108,26 @@ internal fun AppSheet(
         }
     }
 }
+
+/** Общая оболочка для всех нижних панелей, включая первый запуск. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun AppModalSheet(
+    onDismissRequest: () -> Unit,
+    containerColor: Color,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    contentColor: Color = LocalPalette.current.text,
+    dragHandle: (@Composable () -> Unit)? = { SheetDragHandle(onDismissRequest) },
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = containerColor,
+        contentColor = contentColor,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = dragHandle,
+        content = content,
+    )
+}
+

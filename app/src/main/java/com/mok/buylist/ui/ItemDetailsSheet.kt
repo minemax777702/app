@@ -12,7 +12,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -72,7 +71,7 @@ internal fun ItemDetailsSheet(
     val shopPrices = productShopPrices(
         productKey, stores, storeLinks, expensePurchases(archive, bought))
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = p.sheet,

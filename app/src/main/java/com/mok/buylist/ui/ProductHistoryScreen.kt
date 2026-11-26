@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -556,11 +554,11 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 ) {
                                     Text("⋮", color = p.iconMuted, fontSize = 24.sp)
                                 }
-                                DropdownMenu(
+                                AppDropdownMenu(
                                     expanded = ownDetailsMenuOpen,
                                     onDismissRequest = { ownDetailsMenuOpen = false },
                                 ) {
-                                    DropdownMenuItem(
+                                    AppDropdownMenuItem(
                                         text = { Text("Редактировать товар") },
                                         leadingIcon = {
                                             Icon(painterResource(R.drawable.ic_edit),
@@ -577,7 +575,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                             editingOwnDetails = true
                                         },
                                     )
-                                    DropdownMenuItem(
+                                    AppDropdownMenuItem(
                                         text = { Text("Удалить товар", color = p.error) },
                                         leadingIcon = {
                                             Icon(painterResource(R.drawable.ic_trash),

@@ -580,7 +580,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     scanLookup?.let { code ->
         var lookupQuery by remember(code) { mutableStateOf(code) }
-        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
+        AppModalSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
             dragHandle = { SheetDragHandle { scanLookup = null } }) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(horizontal = 20.dp)) {
                 NoticeInSheet()
@@ -684,18 +684,18 @@ private fun Header(
                     contentAlignment = Alignment.Center) {
                     Text("⋯", color = p.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
                 }
-                androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                    androidx.compose.material3.DropdownMenuItem(
+                AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    AppDropdownMenuItem(
                         text = { Text(if (showRecent) "Скрыть купленные и удалённые" else "Показать последние действия") },
                         onClick = { expanded = false; onToggleRecent() },
                     )
-                    androidx.compose.material3.DropdownMenuItem(text = { Text("Добавить товар") },
+                    AppDropdownMenuItem(text = { Text("Добавить товар") },
                         onClick = { expanded = false; onAddFromMenu() })
-                    androidx.compose.material3.DropdownMenuItem(text = { Text("Переключить тему") },
+                    AppDropdownMenuItem(text = { Text("Переключить тему") },
                         onClick = { expanded = false; onToggleTheme() })
-                    androidx.compose.material3.DropdownMenuItem(text = { Text("Настройки темы") },
+                    AppDropdownMenuItem(text = { Text("Настройки темы") },
                         onClick = { expanded = false; onOpenThemeSettings() })
-                    androidx.compose.material3.DropdownMenuItem(text = { Text("Завершить список") },
+                    AppDropdownMenuItem(text = { Text("Завершить список") },
                         enabled = canFinish, onClick = { expanded = false; onFinish() })
                 }
             }
@@ -1165,14 +1165,14 @@ private fun ItemRowContent(
                     ) {
                         Text(amount, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
-                    androidx.compose.material3.DropdownMenu(
+                    AppDropdownMenu(
                         expanded = actionsExpanded, onDismissRequest = { actionsExpanded = false },
                     ) {
-                        androidx.compose.material3.DropdownMenuItem(text = { Text("Изменить вес") },
+                        AppDropdownMenuItem(text = { Text("Изменить вес") },
                             onClick = { actionsExpanded = false; onWeight() })
-                        androidx.compose.material3.DropdownMenuItem(text = { Text("Информация о товаре") },
+                        AppDropdownMenuItem(text = { Text("Информация о товаре") },
                             onClick = { actionsExpanded = false; onDetails() })
-                        androidx.compose.material3.DropdownMenuItem(text = { Text("Удалить") },
+                        AppDropdownMenuItem(text = { Text("Удалить") },
                             onClick = { actionsExpanded = false; onRemove() })
                     }
                 }

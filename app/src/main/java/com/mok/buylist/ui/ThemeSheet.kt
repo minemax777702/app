@@ -16,7 +16,6 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -44,13 +43,12 @@ fun ThemeSheet(
     onDismiss: () -> Unit,
 ) {
     val p = LocalPalette.current
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = p.sheet,
         dragHandle = { SheetDragHandle(onDismiss) },
         contentColor = p.text,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(
             Modifier

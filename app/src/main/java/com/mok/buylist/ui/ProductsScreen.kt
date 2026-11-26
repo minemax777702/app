@@ -227,7 +227,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         )
     }
     if (adding) {
-        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,
+        AppModalSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,
             dragHandle = { SheetDragHandle { adding = false } }) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).imePadding().padding(horizontal = 20.dp)) {
                 NoticeInSheet()
