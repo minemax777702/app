@@ -1,8 +1,6 @@
 name: FRESH CUT APK
 
 on:
-  push:
-    branches: [feat/figma-redesign]
   workflow_dispatch:
 
 permissions:
