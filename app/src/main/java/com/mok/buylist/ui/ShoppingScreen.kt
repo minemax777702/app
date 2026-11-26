@@ -1233,7 +1233,7 @@ private fun FreshCutTab(
     onClick: () -> Unit,
 ) {
     val p = LocalPalette.current
-    val color = if (selected) p.accent else p.textSecondary
+    val color = if (selected) p.text else p.textSecondary
     Column(
         modifier.height(56.dp).clip(RoundedCornerShape(12.dp))
             .clickable(role = Role.Tab, onClick = onClick),
@@ -1241,7 +1241,7 @@ private fun FreshCutTab(
         verticalArrangement = Arrangement.Center,
     ) {
         Box(Modifier.size(width = 24.dp, height = 3.dp).clip(RoundedCornerShape(2.dp))
-            .background(if (selected) p.accent else Color.Transparent))
+            .background(if (selected) p.text else Color.Transparent))
         Spacer(Modifier.height(4.dp))
         Icon(painterResource(icon), contentDescription = null, Modifier.size(24.dp), tint = color)
         Text(label, color = color, fontSize = 10.sp, maxLines = 1,

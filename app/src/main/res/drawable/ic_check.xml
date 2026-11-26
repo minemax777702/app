@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Lucide 0.468.0: check. See res/raw/lucide_license.txt. -->
+<!-- Hugeicons Stroke Rounded: tick-02. Source f9dbcca8d72cc2777a0ccd873c274d9bf7a153e6. MIT; res/raw/hugeicons_license.txt. Stroke adapted to 1.8. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round"
-        android:pathData="M20 6 9 17l-5-5" />
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M5 14L8.5 17.5L19 6.5" />
 </vector>
