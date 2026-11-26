@@ -190,6 +190,12 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var pendingPurchase by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
     var scannedCustom by remember { mutableStateOf<com.mok.buylist.data.CustomProduct?>(null) }
 
+    var showRecent by rememberSaveable { mutableStateOf(false) }
+    val visibleRows = remember(rows, showRecent) {
+        rows?.filter { showRecent || it.state == RowState.ACTIVE }
+    }
+    val allPurchased = progress.total > 0 && progress.bought == progress.total
+
     Box(Modifier.fillMaxSize().background(p.background)) {
         Column(Modifier.fillMaxSize()) {
             Header(
@@ -204,29 +210,53 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     scope.launch { ShoppingWidget().updateAll(context) }
                 },
                 onOpenThemeSettings = { showTheme = true },
+                showRecent = showRecent,
+                onToggleRecent = { showRecent = !showRecent },
+                canFinish = canFinish && finishEnabled,
+                onFinish = viewModel::finishTrip,
+                onAddFromMenu = { showAdd = true },
             )
             // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
             Crossfade(
-                targetState = rows?.isEmpty(),
+                targetState = visibleRows?.isEmpty(),
                 modifier = Modifier.weight(1f),
                 animationSpec = Motion.smooth(),
                 label = "list-or-empty",
             ) { empty ->
-                val list = rows
+                val list = visibleRows
                 when {
                     empty == null || list == null -> Unit
+                    empty && allPurchased -> Column(
+                        Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Box(Modifier.size(64.dp).background(p.actionFill, RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_check), contentDescription = null,
+                                tint = p.actionInk, modifier = Modifier.size(24.dp))
+                        }
+                        Text("Все товары куплены", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                        Text("В активном списке ничего не осталось.", color = p.textSecondary, fontSize = 13.sp)
+                    }
                     empty -> EmptyState(Modifier.fillMaxSize())
                     else -> LazyColumn(
                         Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            // Место под кнопку «+», чтобы последний товар можно было прокрутить выше неё.
-                            bottom = 108.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 20.dp,
+                            bottom = 174.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                         ),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        item(key = "fresh-cut-section") {
+                            Text(
+                                if (showRecent) "Все позиции" else "Нужно купить · ${list.size}",
+                                color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(bottom = 4.dp),
+                            )
+                        }
                         items(list, key = { it.item.id }, contentType = { "row" }) { row ->
                             ItemRow(
                                 row = row,
@@ -256,45 +286,51 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             }
         }
 
-        // Все действия находятся в одном ряду; между группой и добавлением остаётся свободное место.
-        Row(
+        Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .background(p.background).padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Row(
-                Modifier.shadow(6.dp, CircleShape).clip(CircleShape).background(p.card),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BottomAction(R.drawable.ic_settings, "Настройки") { showSettings = true }
-                BottomAction(R.drawable.ic_camera, "Отметить покупку по штрихкоду") { scanPurchase = true }
-                AnimatedVisibility(
-                    visible = archive.isNotEmpty(),
-                    enter = fadeIn(Motion.smooth()) + scaleIn(Motion.smooth(), initialScale = 0.8f),
-                    exit = fadeOut(Motion.smooth(Motion.Quick)) + scaleOut(Motion.smooth(Motion.Quick), targetScale = 0.8f),
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(16.dp))
+                        .background(p.actionFill).clickable(
+                            enabled = !allPurchased || finishEnabled,
+                            role = Role.Button,
+                            onClick = { if (allPurchased) viewModel.finishTrip() else showAdd = true },
+                        ).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    BottomAction(R.drawable.ic_history, stringResource(R.string.archive_open)) { showArchive = true }
+                    Icon(painterResource(if (allPurchased) R.drawable.ic_check else R.drawable.ic_plus),
+                        contentDescription = null, tint = p.actionInk, modifier = Modifier.size(24.dp))
+                    Text(if (allPurchased) "Завершить покупки" else "Добавить товар",
+                        color = p.actionInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
-                AnimatedVisibility(
-                    visible = canFinish,
-                    enter = fadeIn(Motion.smooth()) + scaleIn(Motion.smooth(), initialScale = 0.8f),
-                    exit = fadeOut(Motion.smooth(Motion.Quick)) + scaleOut(Motion.smooth(Motion.Quick), targetScale = 0.8f),
-                ) {
-                    val label = stringResource(R.string.finish_list)
-                    Box(
-                        Modifier.size(48.dp).clip(CircleShape)
-                            .clickable(enabled = finishEnabled, role = Role.Button, onClickLabel = label, onClick = viewModel::finishTrip),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_check), contentDescription = label,
-                            modifier = Modifier.size(24.dp), tint = (if (p.isDark) p.error else p.danger).copy(alpha = if (finishEnabled) 1f else 0.35f),
-                        )
-                    }
+                Box(Modifier.size(width = 50.dp, height = 54.dp).clip(RoundedCornerShape(16.dp))
+                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .clickable(role = Role.Button) { scanPurchase = true },
+                    contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_camera), contentDescription = "Отметить покупку по штрихкоду",
+                        tint = p.text, modifier = Modifier.size(24.dp))
                 }
             }
-            Spacer(Modifier.weight(1f))
-            AddButton(onClick = { showAdd = true })
+            Row(
+                Modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(20.dp))
+                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                FreshCutTab(R.drawable.ic_list_check, "Список", true, Modifier.weight(1f)) {}
+                FreshCutTab(R.drawable.ic_store, "Товары", false, Modifier.weight(1f)) {
+                    settingsTab = 0; showSettings = true
+                }
+                FreshCutTab(R.drawable.ic_history, "Архив", false, Modifier.weight(1f)) { showArchive = true }
+                FreshCutTab(R.drawable.ic_chart, "Статистика", false, Modifier.weight(1f)) { showStats = true }
+                FreshCutTab(R.drawable.ic_settings, "Профиль", false, Modifier.weight(1f)) {
+                    settingsTab = 1; showSettings = true
+                }
+            }
         }
 
         AnimatedVisibility(
@@ -622,50 +658,81 @@ private fun Header(
     themeEnabled: Boolean,
     onToggleTheme: () -> Unit,
     onOpenThemeSettings: () -> Unit,
+    showRecent: Boolean,
+    onToggleRecent: () -> Unit,
+    canFinish: Boolean,
+    onFinish: () -> Unit,
+    onAddFromMenu: () -> Unit,
 ) {
     val p = LocalPalette.current
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
-            .background(p.header)
-            .drawBehind {
-                // Мягкий блик в углу, как на иконке приложения.
-                drawCircle(
-                    color = Color.White.copy(alpha = if (p.isDark) 0.07f else 0.1f),
-                    radius = 110.dp.toPx(),
-                    center = Offset(size.width - 50.dp.toPx(), 20.dp.toPx()),
-                )
-            }
-            .statusBarsPadding()
-            .padding(start = 24.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
-    ) {
+    var expanded by remember { mutableStateOf(false) }
+    val fraction by animateFloatAsState(
+        if (progress.total > 0) (progress.bought.toFloat() / progress.total).coerceIn(0f, 1f) else 0f,
+        animationSpec = Motion.smooth(Motion.Slow), label = "fresh-cut-progress",
+    )
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp)) {
         Row(verticalAlignment = Alignment.Top) {
-            Text(
-                stringResource(R.string.app_name),
-                Modifier.weight(1f).padding(top = 10.dp, end = 8.dp),
-                color = p.onHeader,
-                fontSize = 30.sp,
-                lineHeight = 36.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = (-0.4).sp,
-            )
-            ThemeToggle(dark = p.isDark, enabled = themeEnabled, onToggle = onToggleTheme, onOpenSettings = onOpenThemeSettings)
-        }
-        // Полоса появляется, когда в списке что-то есть, и уезжает, когда он опустел. Пока она уходит, показываем
-        // последние цифры, а не «0 из 0».
-        run {
-            Column {
-                Spacer(Modifier.height(10.dp))
-                ProgressRow(progress, Modifier.padding(end = 8.dp))
-                Spacer(Modifier.height(8.dp))
-                if (progress.total > 0) androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.onHeader)
-                    SummaryAmount(R.drawable.ic_tag, "Осталось", totals.remaining, p.onHeader)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("МОЙ СПИСОК", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text("Покупки", color = p.text, fontSize = 32.sp, lineHeight = 39.sp, fontWeight = FontWeight.SemiBold)
+                Text("Сегодня", color = p.textSecondary, fontSize = 13.sp)
+            }
+            Box {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
+                    .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
+                    .semantics { contentDescription = "Действия со списком" },
+                    contentAlignment = Alignment.Center) {
+                    Text("⋯", color = p.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
                 }
+                androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(if (showRecent) "Скрыть купленные и удалённые" else "Показать последние действия") },
+                        onClick = { expanded = false; onToggleRecent() },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Добавить товар") },
+                        onClick = { expanded = false; onAddFromMenu() })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Переключить тему") },
+                        onClick = { expanded = false; onToggleTheme() })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Настройки темы") },
+                        onClick = { expanded = false; onOpenThemeSettings() })
+                    androidx.compose.material3.DropdownMenuItem(text = { Text("Завершить список") },
+                        enabled = canFinish, onClick = { expanded = false; onFinish() })
+                }
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("СЕГОДНЯ", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("${progress.bought} из ${progress.total}", color = p.text,
+                        fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold)
+                    Text("товаров куплено", color = p.textSecondary, fontSize = 12.sp)
+                }
+                Box(Modifier.size(68.dp).clip(CircleShape).background(p.actionFill),
+                    contentAlignment = Alignment.Center) {
+                    Text("${(fraction * 100).roundToInt()}%", color = p.actionInk,
+                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
+                .background(p.field).semantics {
+                    progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
+                }) {
+                Box(Modifier.fillMaxHeight().fillMaxWidth(fraction)
+                    .clip(RoundedCornerShape(3.dp)).background(p.headerFill))
+            }
+            if (progress.total > 0) androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.text)
+                SummaryAmount(R.drawable.ic_tag, "Осталось", totals.remaining, p.textSecondary)
             }
         }
     }
@@ -682,7 +749,7 @@ internal fun SummaryAmount(icon: Int, label: String, amount: PartialAmount?, col
     Row(Modifier.semantics { contentDescription = "$label, $detail" }, verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(16.dp), tint = color)
-        Text(value, Modifier.clearAndSetSemantics {}, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("$label · $value", Modifier.clearAndSetSemantics {}, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -1136,16 +1203,27 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 
 /** Кнопка внутри общей панели: отдельная область нажатия и подпись для TalkBack. */
 @Composable
-private fun BottomAction(icon: Int, label: String, onClick: () -> Unit) {
+private fun FreshCutTab(
+    icon: Int,
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val p = LocalPalette.current
-    Box(
-        Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
+    val color = if (selected) p.accent else p.textSecondary
+    Column(
+        modifier.height(56.dp).clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Tab, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(painterResource(icon), contentDescription = label, Modifier.size(24.dp), tint = p.accent)
+        Box(Modifier.size(width = 24.dp, height = 3.dp).clip(RoundedCornerShape(2.dp))
+            .background(if (selected) p.accent else Color.Transparent))
+        Spacer(Modifier.height(4.dp))
+        Icon(painterResource(icon), contentDescription = null, Modifier.size(24.dp), tint = color)
+        Text(label, color = color, fontSize = 10.sp, maxLines = 1,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
     }
 }
 
