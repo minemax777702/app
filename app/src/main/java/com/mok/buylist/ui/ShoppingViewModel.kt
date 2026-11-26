@@ -131,6 +131,14 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     private val priceInputs = combine(lenta.products, lenta.address, customProducts, customBarcodes, lenta.barcodeRows) { products, address, custom, customCodes, lentaCodes ->
         Triple(products, address, com.mok.buylist.data.sharedCatalogIdentities(products, custom, lentaCodes, customCodes))
     }
+    // Re-evaluate undo availability on journal, item, tombstone or catalog identity changes.
+    internal val availableUndoIds: StateFlow<Set<String>> =
+        combine(actions, repository.observeAllItems(), repository.observeUndoTombstones(), priceInputs) { entries, _, _, _ ->
+            undoableRecentActions(entries).filter { action ->
+                repository.canUndoListAction(action.before, action.after, action.removedAt)
+            }.mapTo(HashSet<String>()) { it.id }.toSet()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), emptySet())
+
     internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), combine(priceInputs, plannedStores) { input, planned -> input to planned }, storeProducts, archive, customProducts) { items, inputAndPlan, links, history, custom ->
         val (input, planned) = inputAndPlan
         val (products, address, aliases) = input
@@ -272,7 +280,15 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun saveStoreProduct(storeId: String, productKey: String, price: Long?,
         onResult: (String?) -> Unit) {
-        viewModelScope.launch { onResult(repository.saveStoreProduct(storeId, productKey, price)) }
+        viewModelScope.launch {
+            val issue = repository.saveStoreProduct(storeId, productKey, price)
+            if (issue == null) {
+                val name = if (productKey.startsWith("lenta:")) lenta.products.value.firstOrNull { "lenta:${it.id}" == productKey }?.name
+                    else customProducts.value.firstOrNull { "custom:${it.id}" == productKey }?.name
+                journal.record(if (price == null) "Цена магазина сброшена" else "Цена магазина сохранена", name.orEmpty())
+            }
+            onResult(issue)
+        }
     }
 
     fun removeStoreProduct(storeId: String, productKey: String,

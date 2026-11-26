@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,13 +24,23 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-internal fun NotificationsScreen(actions: List<ListAction>, onBack: () -> Unit, onUndo: (String) -> Unit) {
+internal fun NotificationsScreen(
+    actions: List<ListAction>,
+    availableUndoIds: Set<String>,
+    onBack: () -> Unit,
+    onUndo: (String) -> Unit,
+) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val date = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm") }
-    var limit by remember { mutableIntStateOf(20) }
     val visible = actions.filterNot { it.title == "Действие отменено" }
-    val undoIds = undoableRecentActions(visible).mapTo(HashSet()) { it.id }
+    val grouped = remember(visible) { visible.groupBy { it.group() } }
+    val undoIds = undoableRecentActions(visible).mapTo(HashSet()) { it.id }.intersect(availableUndoIds)
+    var completedLimit by rememberSaveable { mutableIntStateOf(3) }
+    var pricesLimit by rememberSaveable { mutableIntStateOf(3) }
+    var actionsLimit by rememberSaveable { mutableIntStateOf(5) }
+    var otherLimit by rememberSaveable { mutableIntStateOf(3) }
+
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("Уведомления", onBack)
         if (visible.isEmpty()) Column(Modifier.weight(1f).fillMaxWidth(),
@@ -38,27 +49,69 @@ internal fun NotificationsScreen(actions: List<ListAction>, onBack: () -> Unit, 
             Spacer(Modifier.height(12.dp))
             Text("Пока нет уведомлений", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
             Text("Здесь появятся ваши действия", color = p.textSecondary, fontSize = 13.sp)
-        } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(visible.take(limit), key = { it.id }) { action ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(painterResource(when (action.title) {
-                        "Товар удалён" -> R.drawable.ic_trash
-                        "Покупка отмечена" -> R.drawable.ic_check
-                        "Добавлен товар" -> R.drawable.ic_plus
-                        else -> R.drawable.ic_bell
-                    }), null, Modifier.size(24.dp), tint = p.text)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(action.title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                        if (action.detail.isNotBlank()) Text(action.detail, color = p.text, fontSize = 13.sp)
-                        Text(date.format(Instant.ofEpochMilli(action.at).atZone(zone)), color = p.textSecondary, fontSize = 11.sp)
-                        if (action.result.isNotBlank()) Text(action.result, color = p.textSecondary, fontSize = 12.sp)
+        } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp), overscrollEffect = null) {
+            NotificationGroup.entries.forEach { group ->
+                val entries = grouped[group].orEmpty()
+                if (entries.isEmpty()) return@forEach
+                val limit = when (group) {
+                    NotificationGroup.COMPLETED -> completedLimit
+                    NotificationGroup.PRICES -> pricesLimit
+                    NotificationGroup.ACTIONS -> actionsLimit
+                    NotificationGroup.OTHER -> otherLimit
+                }
+                item(key = "group:${group.name}") {
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(group.title, Modifier.weight(1f), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Text(entries.size.toString(), color = p.textSecondary, fontSize = 12.sp)
                     }
-                    if (action.id in undoIds) TextButton(onClick = { onUndo(action.id) }) { Text("Отменить", color = p.text) }
+                }
+                items(entries.take(limit), key = { it.id }) { action ->
+                    NotificationRow(action, group, date.format(Instant.ofEpochMilli(action.at).atZone(zone)),
+                        canUndo = action.id in undoIds, onUndo = { onUndo(action.id) })
+                }
+                if (entries.size > limit) item(key = "more:${group.name}") {
+                    TextButton(onClick = {
+                        when (group) {
+                            NotificationGroup.COMPLETED -> completedLimit += 10
+                            NotificationGroup.PRICES -> pricesLimit += 10
+                            NotificationGroup.ACTIONS -> actionsLimit += 10
+                            NotificationGroup.OTHER -> otherLimit += 10
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Показать ещё · ${entries.size - limit}", color = p.text)
+                    }
                 }
             }
-            if (visible.size > limit) item { FreshCutSecondaryButton("Показать ещё", { limit += 20 }) }
         }
+    }
+}
+
+@Composable
+private fun NotificationRow(action: ListAction, group: NotificationGroup, timestamp: String, canUndo: Boolean, onUndo: () -> Unit) {
+    val p = LocalPalette.current
+    val icon = when (group) {
+        NotificationGroup.COMPLETED -> R.drawable.ic_list_check
+        NotificationGroup.PRICES -> R.drawable.ic_tag
+        NotificationGroup.ACTIONS -> when (action.title) {
+            "Товар удалён" -> R.drawable.ic_trash
+            "Покупка отмечена" -> R.drawable.ic_check
+            "Добавлен товар", "Создан товар" -> R.drawable.ic_plus
+            else -> R.drawable.ic_edit
+        }
+        NotificationGroup.OTHER -> R.drawable.ic_bell
+    }
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(p.field), contentAlignment = Alignment.Center) {
+            Icon(painterResource(icon), null, Modifier.size(22.dp), tint = p.text)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(action.title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (action.detail.isNotBlank()) Text(action.detail, color = p.text, fontSize = 13.sp)
+            Text(timestamp, color = p.textSecondary, fontSize = 11.sp)
+            if (action.result == "Отменено") Text(action.result, color = p.textSecondary, fontSize = 12.sp)
+        }
+        if (canUndo) TextButton(onClick = onUndo) { Text("Отменить", color = p.text) }
     }
 }

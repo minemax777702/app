@@ -220,7 +220,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 FreshCutDestination.LIST -> screenStates.SaveableStateProvider("list") {
         if (showNotifications) {
             BackHandler { showNotifications = false }
-            NotificationsScreen(actions, onBack = { showNotifications = false }, onUndo = viewModel::undoAction)
+            val availableUndoIds by viewModel.availableUndoIds.collectAsStateWithLifecycle()
+            NotificationsScreen(actions, availableUndoIds, onBack = { showNotifications = false }, onUndo = viewModel::undoAction)
         } else Column(Modifier.fillMaxSize()) {
             val shoppingListState = rememberLazyListState()
             Header(

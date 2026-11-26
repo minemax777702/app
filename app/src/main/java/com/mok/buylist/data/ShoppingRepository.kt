@@ -722,25 +722,40 @@ class ShoppingRepository(
         return removed
     }
 
+    fun observeUndoTombstones() = dao.observeTombstones()
+
+    /** Read-only eligibility check; the same guard is used within the undo transaction. */
+    suspend fun canUndoListAction(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean =
+        db.withTransaction { matchesUndoRevision(before, after, removedAt) }
+
+    private suspend fun matchesUndoRevision(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean {
+        val snapshot = before ?: after ?: return false
+        val current = dao.findById(snapshot.id)
+        val marker = dao.getTombstones().firstOrNull { it.kind == TombKind.ITEM.code && it.target == snapshot.nameKey }
+        if (after != null) {
+            if (current != after || (marker != null && marker.deletedAt >= after.updatedAt)) return false
+        } else if (before == null || current != null || removedAt == null || marker?.deletedAt != removedAt) return false
+        if (before != null) {
+            val existing = dao.findByKey(before.nameKey)
+            if (existing != null && existing.id != before.id) return false
+            if (current == null && hasActiveIdentity(before.nameKey)) return false
+        }
+        return true
+    }
+
     /** Exact revision guard prevents undo from changing a newer or archived purchase. */
     suspend fun undoListAction(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean {
         val snapshot = before ?: after ?: return false
         val changed = db.withTransaction {
+            if (!matchesUndoRevision(before, after, removedAt)) return@withTransaction false
             val current = dao.findById(snapshot.id)
             val marker = dao.getTombstones().firstOrNull { it.kind == TombKind.ITEM.code && it.target == snapshot.nameKey }
-            if (after != null) {
-                if (current != after || (marker != null && marker.deletedAt >= after.updatedAt)) return@withTransaction false
-            } else if (before == null || current != null || removedAt == null || marker?.deletedAt != removedAt)
-                return@withTransaction false
             val now = maxOf(System.currentTimeMillis(), snapshot.updatedAt + 1,
                 (after?.updatedAt ?: 0L) + 1, (marker?.deletedAt ?: 0L) + 1)
             if (before == null) {
                 dao.deleteById(snapshot.id)
                 dao.upsertTombstone(tomb(TombKind.ITEM, snapshot.nameKey, now))
             } else {
-                val existing = dao.findByKey(before.nameKey)
-                if (existing != null && existing.id != before.id) return@withTransaction false
-                if (current == null && hasActiveIdentity(before.nameKey)) return@withTransaction false
                 val restored = before.copy(updatedAt = now, authorId = profile.id)
                 if (current == null) dao.insertItem(restored) else dao.updateItem(restored)
             }

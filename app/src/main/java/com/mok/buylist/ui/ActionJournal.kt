@@ -106,3 +106,22 @@ internal class ActionJournal private constructor(context: Context) {
 internal fun undoableRecentActions(rows: List<ListAction>): List<ListAction> =
     rows.filter { it.after != null || (it.before != null && it.removedAt != null) }
         .take(3).filter { it.canUndo }
+
+internal enum class NotificationGroup(val title: String) {
+    COMPLETED("Завершённые списки"),
+    PRICES("Обновления цен"),
+    ACTIONS("Действия с товарами"),
+    OTHER("Другие уведомления"),
+}
+
+internal fun ListAction.group(): NotificationGroup {
+    val normalized = title.lowercase().replace('ё', 'е')
+    return when {
+        normalized.startsWith("список завершен") -> NotificationGroup.COMPLETED
+        normalized.contains("цен") || normalized.startsWith("не обновлено:") -> NotificationGroup.PRICES
+        before != null || after != null || normalized in setOf("добавлен товар", "товар добавлен", "создан товар",
+            "покупка отмечена", "товар удален", "количество изменено", "вес изменен", "добавлено в список",
+            "уже в списке", "добавлен товар ленты") -> NotificationGroup.ACTIONS
+        else -> NotificationGroup.OTHER
+    }
+}
