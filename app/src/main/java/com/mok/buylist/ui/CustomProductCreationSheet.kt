@@ -153,20 +153,19 @@ internal fun CustomProductCreationSheet(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SheetTextField(name, { name = it; nameEdited = true; error = null }, "Название товара", placeholder = "Введите название")
                 if (name.length > 200) Text("Максимум 200 символов", color = p.error, fontSize = 12.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        SheetTextField(
-                            barcode,
-                            { barcode = it.filter(Char::isDigit).take(13); error = null },
-                            "Штрихкод (необязательно)",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        )
-                    }
-                    IconButton(onClick = { scanning = true }, enabled = !saving) {
-                        Icon(painterResource(R.drawable.ic_camera),
-                            contentDescription = "Сканировать штрихкод камерой", tint = p.text)
-                    }
-                }
+                SheetTextField(
+                    barcode,
+                    { barcode = it.filter(Char::isDigit).take(13); error = null },
+                    "Штрихкод (необязательно)",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    placeholder = "Введите или отсканируйте",
+                    trailingAction = {
+                        IconButton(onClick = { scanning = true }, enabled = !saving) {
+                            Icon(painterResource(R.drawable.ic_camera), "Сканировать штрихкод камерой",
+                                Modifier.size(24.dp), tint = p.text)
+                        }
+                    },
+                )
                 if (matchingLenta.isNotEmpty()) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                         .background(p.card).padding(12.dp),

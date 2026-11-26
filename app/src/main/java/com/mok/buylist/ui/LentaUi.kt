@@ -56,7 +56,7 @@ fun LentaSettings(onDismiss: () -> Unit) {
 fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
     onlineOnly: Boolean = false, hasOtherResults: Boolean = false,
-    leadingResults: LazyListScope.() -> Unit = {}) {
+    leadingResults: LazyListScope.() -> Unit = {}, footer: (@Composable () -> Unit)? = null) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
@@ -74,23 +74,14 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     LaunchedEffect(trimmed, address, saved, barcodeRows, onlineOnly, ready) {
         if (ready) controller.update(trimmed, address, saved, onlineOnly)
     }
-    Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
-        if (trimmed.length >= 2 || hasOtherResults) {
-            if (address.isBlank()) TextButton(onClick = onSettings) { Text("Указать адрес") }
-            if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty()) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(painterResource(R.drawable.ic_search), null, Modifier.size(36.dp), tint = p.textSecondary)
-                    Text("Ничего не найдено", color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Попробуйте другое название или создайте свой товар.", color = p.textSecondary, fontSize = 13.sp)
-                }
-            }
-            if (state.failed && !state.loading) Text("Не удалось выполнить поиск. Сохранённые товары доступны.",
-                color = p.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
-            if (hasOtherResults || state.local.isNotEmpty() || state.online.isNotEmpty()) {
-                FreshCutSectionTitle("Найденные товары", Modifier.padding(bottom = 8.dp))
-            }
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
+        if (trimmed.length >= 2 || hasOtherResults || footer != null) {
+            // Вспомогательные действия прокручиваются вместе с результатами.
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
+                if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
+                if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
+                    item { Text("Ничего не найдено", color = p.textSecondary, fontSize = 14.sp, modifier = Modifier.padding(12.dp)) }
                 leadingResults()
                 items(state.local, key = { "local:${it.id}" }) { product ->
                     LentaResult(product, address, onClick = { onAdd(product) })
@@ -102,16 +93,17 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                     LentaResult(product, address, onClick = { onAdd(product) })
                 }
                 if (state.loading) item {
-                    val loadingSize = if (state.local.isEmpty() && state.online.isEmpty()) Modifier.fillParentMaxHeight() else Modifier.height(80.dp)
+                    val loadingSize = Modifier.height(56.dp)
                     Box(Modifier.fillMaxWidth().then(loadingSize),
                         contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(42.dp), strokeWidth = 4.dp, color = p.accent)
+                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = p.textSecondary)
                     }
                 }
                 if ((state.hasMore || state.failed) && !state.loading) {
                     item { Text(if (state.failed) "Повторить" else "Показать ещё",
                         Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
                 }
+                if (footer != null) item(key = "search-footer") { footer() }
             }
         }
     }

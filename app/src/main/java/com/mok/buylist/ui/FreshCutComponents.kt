@@ -41,13 +41,13 @@ internal fun FreshCutNavigation(
         Triple(FreshCutDestination.STATS, R.drawable.ic_chart, "Статистика"),
         Triple(FreshCutDestination.PROFILE, R.drawable.ic_user_round, "Профиль"),
     )
-    Row(modifier.fillMaxWidth().height(66.dp).clip(RoundedCornerShape(20.dp))
+    Row(modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(20.dp))
         .background(p.card).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically) {
         destinations.forEach { (destination, icon, title) ->
             val active = destination == current
             val ink = if (active) p.text else p.textSecondary
-            Column(Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(12.dp))
+            Column(Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(12.dp))
                 .clickable(role = Role.Tab) { if (!active) onSelect(destination) }
                 .semantics { selected = active },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -71,11 +71,10 @@ internal fun FreshCutRootHeader(
     trailing: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 16.dp),
+    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp),
         verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(eyebrow, color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-            Text(title, color = p.text, fontSize = 32.sp, lineHeight = 39.sp, fontWeight = FontWeight.SemiBold)
+            Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = p.textSecondary, fontSize = 13.sp, lineHeight = 18.sp)
         }
         trailing()
@@ -149,5 +148,17 @@ internal fun FreshCutDetailLine(label: String, value: String) {
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(label, Modifier.weight(1f), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
         Text(value, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+internal fun FreshCutToolbarAction(icon: Int, label: String, onClick: () -> Unit, primary: Boolean = false, enabled: Boolean = true) {
+    val p = LocalPalette.current
+    Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+        .background(if (primary && enabled) p.actionFill else p.field)
+        .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center) {
+        Icon(painterResource(icon), label, Modifier.size(23.dp),
+            tint = if (!enabled) p.textSecondary else if (primary) p.actionInk else p.text)
     }
 }

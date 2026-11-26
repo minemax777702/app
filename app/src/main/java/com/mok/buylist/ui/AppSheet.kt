@@ -65,7 +65,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
             fontWeight = FontWeight.Medium)
         Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp))
             .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+            .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
                 modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp)
                     .onFocusChanged { focused = it.isFocused }, singleLine = true,

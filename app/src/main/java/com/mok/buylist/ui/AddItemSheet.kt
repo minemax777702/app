@@ -58,6 +58,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -96,6 +101,10 @@ fun AddItemSheet(
     onAddressSettings: () -> Unit,
 ) {
     val p = LocalPalette.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val focus = LocalFocusManager.current
+    val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    fun dismissKeyboard() { focus.clearFocus(); keyboard?.hide() }
     var text by rememberSaveable { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
@@ -134,10 +143,10 @@ fun AddItemSheet(
         Column(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(if (text.isNotBlank() && !voice.listening) 0.68f else 0.54f)
                 .imePadding().navigationBarsPadding()
+                .fillMaxHeight(0.98f)
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             NoticeInSheet()
             SheetHeader(stringResource(R.string.add_title))
@@ -149,7 +158,7 @@ fun AddItemSheet(
                     .height(54.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 16.dp),
+                    .padding(start = 12.dp, end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -169,7 +178,7 @@ fun AddItemSheet(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Search,
                     ),
-                    keyboardActions = KeyboardActions(onSearch = { }),
+                    keyboardActions = KeyboardActions(onSearch = { dismissKeyboard() }),
                     decorationBox = { inner ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (text.isEmpty()) {
@@ -184,12 +193,13 @@ fun AddItemSheet(
                         }
                     },
                 )
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                SearchModeAction(R.drawable.ic_mic, if (voice.listening) "Остановить" else "Голосом",
-                    Modifier.weight(1f), enabled = voice.available, onClick = voice::toggle)
-                SearchModeAction(R.drawable.ic_scan_barcode, "Штрихкод", Modifier.weight(1f),
-                    onClick = { scanning = true })
+                IconButton(onClick = { dismissKeyboard(); voice.toggle() }, enabled = voice.available, modifier = Modifier.size(40.dp)) {
+                    Icon(painterResource(if (voice.listening) R.drawable.ic_close else R.drawable.ic_mic),
+                        if (voice.listening) "Остановить запись" else "Голосовой поиск", Modifier.size(22.dp), tint = p.text)
+                }
+                IconButton(onClick = { dismissKeyboard(); scanning = true }, modifier = Modifier.size(40.dp)) {
+                    Icon(painterResource(R.drawable.ic_scan_barcode), "Сканировать штрихкод", Modifier.size(22.dp), tint = p.text)
+                }
             }
             if (voice.listening) {
                 ListeningIndicator(voice.levels)
@@ -202,10 +212,14 @@ fun AddItemSheet(
                         customBarcodes.any { barcode -> !barcode.deleted &&
                             barcode.productId == it.id && barcode.code == text.trim() } ||
                         (it.barcode == text.trim() && customBarcodes.none { barcode ->
-                            barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }.take(5)
+                            barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }
             }
             if (!voice.listening) {
-                LentaSuggestions(
+                if (text.isBlank()) {
+                    Text("Введите название или штрихкод", color = p.textSecondary, fontSize = 13.sp)
+                    FreshCutSecondaryButton("Создать свой товар", { dismissKeyboard(); newName = ""; newBarcode = ""; createOpen = true })
+                    Spacer(Modifier.weight(1f))
+                } else LentaSuggestions(
                     query = text,
                     modifier = Modifier.weight(1f),
                     hasOtherResults = matches.isNotEmpty(),
@@ -229,6 +243,14 @@ fun AddItemSheet(
                             }
                         }
                     },
+                    footer = {
+                        FreshCutSecondaryButton("Создать свой товар", {
+                            dismissKeyboard()
+                            newName = if (scannedCode == text) "" else text
+                            newBarcode = scannedCode.orEmpty()
+                            createOpen = true
+                        })
+                    },
                     onSettings = onAddressSettings,
                     onAdd = { product ->
                         scope.launch {
@@ -241,11 +263,6 @@ fun AddItemSheet(
                         }
                     },
                 )
-                SheetActionButton(onClick = {
-                    newName = if (scannedCode == text) "" else text
-                    newBarcode = scannedCode.orEmpty()
-                    createOpen = true
-                }) { Text("Создать свой товар", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
             }
 
         }

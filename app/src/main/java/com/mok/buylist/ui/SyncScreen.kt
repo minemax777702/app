@@ -147,7 +147,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
-            .padding(horizontal = 20.dp, vertical = 8.dp).navigationBarsPadding(),
+            .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
                 "sources" -> BarcodeSourceSettingsSection()

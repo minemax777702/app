@@ -204,7 +204,17 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         if (destination == FreshCutDestination.PROFILE) settingsTab = 1
     }
 
-    Box(Modifier.fillMaxSize().background(p.background)) {
+    val destination = when {
+        showSettings -> if (settingsTab == 0) FreshCutDestination.CATALOG else FreshCutDestination.PROFILE
+        showArchive -> FreshCutDestination.ARCHIVE
+        showStats -> FreshCutDestination.STATS
+        else -> FreshCutDestination.LIST
+    }
+    val screenStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    Column(Modifier.fillMaxSize().background(p.background)) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (destination) {
+                FreshCutDestination.LIST -> screenStates.SaveableStateProvider("list") {
         Column(Modifier.fillMaxSize()) {
             Header(
                 progress = progress,
@@ -254,8 +264,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         contentPadding = PaddingValues(
                             start = 20.dp,
                             end = 20.dp,
-                            top = 20.dp,
-                            bottom = 12.dp,
+                            top = 8.dp,
+                            bottom = 8.dp,
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -294,51 +304,17 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 }
             }
 
-        Column(
-            Modifier.fillMaxWidth().navigationBarsPadding()
-                .background(p.background).padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(16.dp))
-                        .background(p.actionFill).clickable(
-                            enabled = !allPurchased || finishEnabled,
-                            role = Role.Button,
-                            onClick = { if (allPurchased) viewModel.finishTrip() else showAdd = true },
-                        ).padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Icon(painterResource(if (allPurchased) R.drawable.ic_check else R.drawable.ic_plus),
-                        contentDescription = null, tint = p.actionInk, modifier = Modifier.size(24.dp))
-                    Text(if (allPurchased) "Завершить покупки" else "Добавить товар",
-                        color = p.actionInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                }
-                if (!allPurchased) Box(Modifier.size(width = 50.dp, height = 54.dp).clip(RoundedCornerShape(16.dp))
-                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
-                    .clickable(role = Role.Button) { scanPurchase = true },
-                    contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_scan_barcode), contentDescription = "Отметить покупку по штрихкоду",
-                        tint = p.text, modifier = Modifier.size(24.dp))
-                }
-            }
-            FreshCutNavigation(FreshCutDestination.LIST, ::navigate)
+        if (allPurchased) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            SheetActionButton(onClick = viewModel::finishTrip, enabled = finishEnabled) { Text("Завершить покупки") }
         }
         }
-
-        AnimatedVisibility(
-            visible = showArchive,
-            enter = slideInHorizontally(Motion.smooth()) { it / 6 } + fadeIn(Motion.smooth()),
-            exit = slideOutHorizontally(Motion.smooth(Motion.Quick)) { it / 6 } + fadeOut(Motion.smooth(Motion.Quick)),
-        ) {
+                }
+                FreshCutDestination.ARCHIVE -> screenStates.SaveableStateProvider("archive") {
             BackHandler { showArchive = false }
             ArchiveScreen(
                 archive = archive,
                 onBack = { showArchive = false },
                 onOpenStats = { navigate(FreshCutDestination.STATS) },
-                navigation = { FreshCutNavigation(FreshCutDestination.ARCHIVE, ::navigate, Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) },
                 onRepeat = { names, quantities, events -> viewModel.repeatArchived(names, quantities, events) { showArchive = false } },
                 onDelete = viewModel::deleteArchived,
                 users = users,
@@ -347,11 +323,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             )
         }
 
-        AnimatedVisibility(
-            visible = showSettings,
-            enter = slideInHorizontally(Motion.smooth()) { it / 6 } + fadeIn(Motion.smooth()),
-            exit = slideOutHorizontally(Motion.smooth(Motion.Quick)) { it / 6 } + fadeOut(Motion.smooth(Motion.Quick)),
-        ) {
+                FreshCutDestination.CATALOG, FreshCutDestination.PROFILE -> screenStates.SaveableStateProvider(destination.name) {
             BackHandler { showSettings = false }
             SettingsScreen(
                 tab = settingsTab,
@@ -360,7 +332,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 profile = profile,
                 onRename = { renaming = true },
                 onOpenTheme = { showTheme = true },
-                navigation = { FreshCutNavigation(if (settingsTab == 0) FreshCutDestination.CATALOG else FreshCutDestination.PROFILE, ::navigate, Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) },
                 addressRequest = addressRequest,
                 onAdd = { product -> viewModel.addProduct(product) { added -> activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке") } },
                 viewModel = viewModel,
@@ -370,11 +341,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             )
         }
 
-        AnimatedVisibility(
-            visible = showStats,
-            enter = slideInHorizontally(Motion.smooth()) { it / 6 } + fadeIn(Motion.smooth()),
-            exit = slideOutHorizontally(Motion.smooth(Motion.Quick)) { it / 6 } + fadeOut(Motion.smooth(Motion.Quick)),
-        ) {
+                FreshCutDestination.STATS -> screenStates.SaveableStateProvider("stats") {
             BackHandler { showStats = false }
             StatsScreen(
                 archive = archive,
@@ -382,11 +349,13 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 users = users,
                 meId = profile?.id.orEmpty(),
                 onBack = { showStats = false },
-                navigation = { FreshCutNavigation(FreshCutDestination.STATS, ::navigate, Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) },
                 viewModel = viewModel,
             )
         }
-
+            }
+        }
+        FreshCutNavigation(destination, ::navigate,
+            Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp))
     }
 
     // Первый запуск: без имени дальше не пускаем — нужен идентификатор, которым подписываются все действия.
@@ -413,7 +382,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onAddCustom = viewModel::addCustomProduct,
             onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
-            onAddressSettings = { showAdd = false; settingsTab = 1; addressRequest++; showSettings = true },
+            onAddressSettings = { showAdd = false; navigate(FreshCutDestination.PROFILE); addressRequest++ },
         )
     }
     pendingPurchase?.let { item ->
@@ -589,7 +558,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 SheetHeader("Выберите товар")
                 ProductSearch(lookupQuery, { lookupQuery = it })
                 LentaSuggestions(lookupQuery, Modifier.weight(1f), onSettings = {
-                    scanLookup = null; settingsTab = 1; addressRequest++; showSettings = true
+                    scanLookup = null; navigate(FreshCutDestination.PROFILE); addressRequest++
                 }, onAdd = { product ->
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
@@ -673,13 +642,11 @@ private fun Header(
         if (progress.total > 0) (progress.bought.toFloat() / progress.total).coerceIn(0f, 1f) else 0f,
         animationSpec = Motion.smooth(Motion.Slow), label = "fresh-cut-progress",
     )
-    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 12.dp)) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("МОЙ СПИСОК", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                Text("Покупки", color = p.text, fontSize = 32.sp, lineHeight = 39.sp, fontWeight = FontWeight.SemiBold)
-                Text(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM", java.util.Locale.forLanguageTag("ru-RU"))).replaceFirstChar { it.uppercase() }, color = p.textSecondary, fontSize = 13.sp)
-            }
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Покупки", Modifier.weight(1f), color = p.text, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
+            FreshCutToolbarAction(R.drawable.ic_plus, "Добавить товар", onAddFromMenu, primary = true)
+            FreshCutToolbarAction(R.drawable.ic_scan_barcode, "Отметить покупку по штрихкоду", onScanFromMenu)
             Box {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
                     .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
@@ -705,47 +672,24 @@ private fun Header(
                 }
             }
         }
-        Spacer(Modifier.height(20.dp))
-        if (progress.total == 0) {
-            Column(Modifier.fillMaxWidth().heightIn(min = 115.dp).clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
-                Text("Начните с малого", color = p.text, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
-                Text("Добавьте то, что нужно купить.", color = p.textSecondary, fontSize = 13.sp)
-            }
-            return
-        }
-        Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("СЕГОДНЯ", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(6.dp))
-                    Text("${progress.bought} из ${progress.total}", color = p.text,
-                        fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold)
-                    Text("товаров куплено", color = p.textSecondary, fontSize = 12.sp)
+        if (progress.total > 0) {
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Куплено ${progress.bought} из ${progress.total}", Modifier.weight(1f),
+                        color = p.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${(fraction * 100).roundToInt()}%", color = p.textSecondary, fontSize = 12.sp)
                 }
-                Box(Modifier.size(68.dp).clip(CircleShape).background(p.actionFill),
-                    contentAlignment = Alignment.Center) {
-                    Text("${(fraction * 100).roundToInt()}%", color = p.actionInk,
-                        fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.field)
+                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(2.dp)).background(p.headerFill))
                 }
-            }
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp))
-                .background(p.field).semantics {
-                    progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f)
-                }) {
-                Box(Modifier.fillMaxHeight().fillMaxWidth(fraction)
-                    .clip(RoundedCornerShape(3.dp)).background(p.headerFill))
-            }
-            if (progress.total > 0) androidx.compose.foundation.layout.FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.text)
-                SummaryAmount(R.drawable.ic_tag, "Осталось", totals.remaining, p.textSecondary)
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.text)
+                    SummaryAmount(R.drawable.ic_tag, "Осталось", totals.remaining, p.text)
+                }
             }
         }
     }

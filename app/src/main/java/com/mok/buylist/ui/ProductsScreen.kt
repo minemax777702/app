@@ -138,6 +138,14 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 }
             })
         }
+        if (products.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("${ownRows.size + rows.size} товаров", color = p.textSecondary, fontSize = 12.sp)
+            TextButton(onClick = viewModel::refreshAllPrices, enabled = batch?.running != true) {
+                Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(18.dp), tint = p.text)
+                Text(if (batch?.running == true) "  ${batch!!.completed}/${batch!!.total}" else "  Обновить цены", color = p.text)
+            }
+        }
         if (rows.isEmpty() && ownRows.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -148,13 +156,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     color = p.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
             }
         }
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (ownRows.isNotEmpty() || rows.isNotEmpty()) item(key = "catalog-section") {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    FreshCutSectionTitle("Все товары", Modifier.weight(1f))
-                    Text("${ownRows.size + rows.size} товаров", color = p.textSecondary, fontSize = 12.sp)
-                }
-            }
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
                 val prices = productShopPrices("custom:${product.id}", stores, storeLinks, knownPurchases, identities)
                 val best = cheapestShopPrice(prices)?.priceKopecks ?: product.estimatedPriceKopecks
@@ -207,11 +209,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             }
             if (shownCount < rows.size || shownCount < ownRows.size) item {
                 FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
-            }
-            if (products.isNotEmpty()) item {
-                FreshCutSecondaryButton(
-                    if (batch?.running == true) "Обновление ${batch!!.completed}/${batch!!.total}" else "Обновить цены",
-                    viewModel::refreshAllPrices, enabled = batch?.running != true)
             }
         }
         if (rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
