@@ -60,9 +60,10 @@ fun ThemeSheet(
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
         ) {
             NoticeInSheet()
-            SheetHeader(stringResource(R.string.theme_title))
-            SectionLabel(R.string.theme_app)
+            SheetHeader("Оформление")
+            androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
             ThemeSegments(appMode, onAppMode)
+            // Раздельная настройка виджета сохранена как дополнительная секция.
             SectionLabel(R.string.theme_widget, Modifier.padding(top = 20.dp))
             ThemeSegments(widgetMode, onWidgetMode)
         }
@@ -100,18 +101,6 @@ private fun ThemeOption(
     onSelect: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val p = LocalPalette.current
-    val isSelected = mode == selected
-    Row(modifier.fillMaxWidth().height(56.dp).clip(RoundedCornerShape(16.dp))
-        .background(if (isSelected) p.field else p.card)
-        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(mode) })
-        .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
-        Column(Modifier.weight(1f)) {
-            Text(stringResource(label), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            if (mode == ThemeMode.AUTO) Text("Как на устройстве", color = p.textSecondary, fontSize = 12.sp)
-        }
-        if (isSelected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(22.dp), tint = p.text)
-    }
+    FreshCutListRow(icon, stringResource(label), if (mode == ThemeMode.AUTO) "Как на устройстве" else "",
+        selected = mode == selected, onClick = { onSelect(mode) })
 }

@@ -1,6 +1,11 @@
 package com.mok.buylist.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,14 +54,13 @@ internal fun BarcodeSourceSettingsSection() {
                         fontWeight = FontWeight.SemiBold)
                     Text(source.description, color = p.textSecondary, fontSize = 12.sp)
                 }
-                Switch(
-                    checked = source in enabled,
-                    onCheckedChange = { settings.setEnabled(source, it) },
-                    colors = SwitchDefaults.colors(checkedTrackColor = p.actionFill,
-                        checkedThumbColor = p.actionInk, checkedBorderColor = p.actionFill,
-                        uncheckedTrackColor = p.field, uncheckedThumbColor = p.textSecondary,
-                        uncheckedBorderColor = p.line),
-                )
+                val checked = source in enabled
+                Box(Modifier.size(52.dp, 28.dp).background(if (checked) p.actionFill else p.field, CircleShape)
+                    .toggleable(value = checked, role = Role.Switch, onValueChange = { settings.setEnabled(source, it) })
+                    .padding(4.dp)) {
+                    Box(Modifier.align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                        .size(20.dp).background(if (checked) p.actionInk else p.textSecondary, CircleShape))
+                }
             }
         }
         Spacer(Modifier.height(8.dp))

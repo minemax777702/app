@@ -223,6 +223,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 canFinish = canFinish && finishEnabled,
                 onFinish = viewModel::finishTrip,
                 onAddFromMenu = { showAdd = true },
+                onScanFromMenu = { scanPurchase = true },
             )
             // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
             Crossfade(
@@ -235,17 +236,17 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 when {
                     empty == null || list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = p.textSecondary) }
                     empty && allPurchased -> Column(
-                        Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 48.dp),
+                        Modifier.fillMaxSize().padding(horizontal = 20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
                     ) {
-                        Box(Modifier.size(64.dp).background(p.field, RoundedCornerShape(20.dp)),
+                        Box(Modifier.size(64.dp).background(p.field, RoundedCornerShape(22.dp)),
                             contentAlignment = Alignment.Center) {
                             Icon(painterResource(R.drawable.ic_check), contentDescription = null,
                                 tint = p.text, modifier = Modifier.size(24.dp))
                         }
                         Text("Все товары куплены", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                        Text("В активном списке ничего не осталось.", color = p.textSecondary, fontSize = 13.sp)
+                        Text("В активном списке ничего не осталось.", color = p.textSecondary, fontSize = 14.sp)
                     }
                     empty -> EmptyState(Modifier.fillMaxSize())
                     else -> LazyColumn(
@@ -254,9 +255,9 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                             start = 20.dp,
                             end = 20.dp,
                             top = 20.dp,
-                            bottom = 174.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                            bottom = 12.dp,
                         ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         item(key = "fresh-cut-section") {
                             Text(
@@ -292,10 +293,9 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     }
                 }
             }
-        }
 
         Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()
+            Modifier.fillMaxWidth().navigationBarsPadding()
                 .background(p.background).padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -316,7 +316,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     Text(if (allPurchased) "Завершить покупки" else "Добавить товар",
                         color = p.actionInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Box(Modifier.size(width = 50.dp, height = 54.dp).clip(RoundedCornerShape(16.dp))
+                if (!allPurchased) Box(Modifier.size(width = 50.dp, height = 54.dp).clip(RoundedCornerShape(16.dp))
                     .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
                     .clickable(role = Role.Button) { scanPurchase = true },
                     contentAlignment = Alignment.Center) {
@@ -325,7 +325,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 }
             }
             FreshCutNavigation(FreshCutDestination.LIST, ::navigate)
-
+        }
         }
 
         AnimatedVisibility(
@@ -662,6 +662,7 @@ private fun Header(
     canFinish: Boolean,
     onFinish: () -> Unit,
     onAddFromMenu: () -> Unit,
+    onScanFromMenu: () -> Unit,
 ) {
     val p = LocalPalette.current
     var expanded by remember { mutableStateOf(false) }
@@ -690,6 +691,8 @@ private fun Header(
                     )
                     AppDropdownMenuItem(text = { Text("Добавить товар") },
                         onClick = { expanded = false; onAddFromMenu() })
+                    AppDropdownMenuItem(text = { Text("Сканировать штрихкод") },
+                        onClick = { expanded = false; onScanFromMenu() })
                     AppDropdownMenuItem(text = { Text("Переключить тему") },
                         onClick = { expanded = false; onToggleTheme() })
                     AppDropdownMenuItem(text = { Text("Настройки темы") },
@@ -701,8 +704,8 @@ private fun Header(
         }
         Spacer(Modifier.height(20.dp))
         if (progress.total == 0) {
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().heightIn(min = 115.dp).clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically)) {
                 Text("Начните с малого", color = p.text, fontSize = 21.sp, fontWeight = FontWeight.SemiBold)
                 Text("Добавьте то, что нужно купить.", color = p.textSecondary, fontSize = 13.sp)
             }
@@ -934,7 +937,7 @@ private fun SwipeToRemove(
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 96.dp)
+            .heightIn(min = 64.dp)
             .then(
                 if (enabled) {
                     Modifier.semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }) }
@@ -1215,15 +1218,15 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Box(
-            Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
+            Modifier.padding(bottom = 12.dp).size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.field),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_empty_list), contentDescription = null, Modifier.size(76.dp), tint = p.text)
+            Icon(painterResource(R.drawable.ic_list_check), contentDescription = null, Modifier.size(24.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.empty_title),
             color = p.text,
-            fontSize = 22.sp,
+            fontSize = 23.sp,
             lineHeight = 28.sp,
             fontWeight = FontWeight.SemiBold,
         )

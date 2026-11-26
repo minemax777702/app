@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.data.ShoppingStore
+import com.mok.buylist.R
 import com.mok.buylist.data.lentaStoreId
 import com.mok.buylist.ui.theme.LocalPalette
 import java.math.BigDecimal
@@ -48,42 +49,57 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     var showMoreProducts by rememberSaveable { mutableStateOf(false) }
     var showMoreImpulse by rememberSaveable { mutableStateOf(false) }
 
+    FreshCutSegments(ExpensePeriod.entries.map { it.title }, ExpensePeriod.entries.indexOf(period),
+        { onPeriodChange(ExpensePeriod.entries[it]) })
     PanelCard {
-        Text("Расходы", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ExpensePeriod.entries.forEach { option -> Choice(option.title, option == period) { onPeriodChange(option) } }
-        }
-        Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp)
+        Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Text(if (coverage.priced > 0) money(coverage.amount) else "—", color = p.text,
-            fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold)
+            fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold)
         Text("${coverage.priced} покупок с известной ценой", color = p.textSecondary, fontSize = 12.sp)
-        ExpenseMetric("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—", Modifier.fillMaxWidth())
-        if (pricedTrips > 0) ExpenseMetric("Средний чек по покупкам с ценой",
-            money(coverage.amount / pricedTrips), Modifier.fillMaxWidth())
-        if (coverage.unpriced > 0) Text(
-            "Без цены: ${coverage.unpriced} из ${coverage.purchases} покупок. Они учитываются в количестве, но не в расходах.",
-            color = p.textSecondary, fontSize = 12.sp)
-
+        val first = start ?: selected.minOfOrNull { expenseDate(it, zone) } ?: today
+        val length = (java.time.temporal.ChronoUnit.DAYS.between(first, today) + 1).coerceAtLeast(1L)
+        val bucketCount = minOf(7L, length).toInt()
+        val buckets = (0 until bucketCount).map { index ->
+            val from = first.plusDays(length * index / bucketCount)
+            val until = first.plusDays(length * (index + 1) / bucketCount - 1)
+            val priced = selected.filter { row -> val day = expenseDate(row, zone); !day.isBefore(from) && !day.isAfter(until) && row.total != null }
+            Triple(from, until, if (priced.isEmpty()) null else expenseSum(priced))
+        }
+        val peak = buckets.mapNotNull { it.third }.maxOrNull()?.coerceAtLeast(1L) ?: 1L
+        var activeBucket by remember(buckets) { mutableIntStateOf(-1) }
+        Row(Modifier.fillMaxWidth().height(104.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+            buckets.forEachIndexed { index, bucket ->
+                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
+                    val total = bucket.third
+                    if (total != null) Box(Modifier.fillMaxWidth(0.70f)
+                        .fillMaxHeight((total.toDouble() / peak).toFloat().coerceIn(0.03f, 1f))
+                        .clip(RoundedCornerShape(7.dp)).background(if (index == activeBucket) p.text else p.actionFill)
+                        .clickable { activeBucket = if (index == activeBucket) -1 else index }
+                        .semantics { contentDescription = "${bucket.first} – ${bucket.second}: ${money(total)}" })
+                    else Box(Modifier.fillMaxWidth(0.70f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.line))
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            val label = DateTimeFormatter.ofPattern("dd.MM")
+            Text(first.format(label), color = p.textSecondary, fontSize = 10.sp)
+            Text(today.format(label), color = p.textSecondary, fontSize = 10.sp)
+        }
+        buckets.getOrNull(activeBucket)?.third?.let { Text(money(it), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
     }
-
-    if (coverage.purchases > 0) PanelCard {
-        Text("Что купили", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (coverage.purchases > 0) {
+        FreshCutSectionTitle("Что купили", Modifier.padding(top = 8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ExpenseMetric("Покупок", coverage.purchases.toString(), Modifier.weight(1f))
             ExpenseMetric("Товаров", coverage.distinctProducts.toString(), Modifier.weight(1f))
             ExpenseMetric("Единиц", coverage.units.toString(), Modifier.weight(1f))
         }
-        MetricBar("Покупки с известной ценой",
-            "${coverage.priced} из ${coverage.purchases}",
-            coverage.priced.toFloat() / coverage.purchases)
     }
 
     val byStore = remember(selected) { expenseByStore(selected) }
-    if (byStore.isNotEmpty()) PanelCard {
-        Text("По магазинам", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Text("Расходы и количество покупок за выбранный период",
-            color = p.textSecondary, fontSize = 12.sp)
-        val maxAmount = byStore.maxOf { it.total }.coerceAtLeast(1L)
+    if (byStore.isNotEmpty()) {
+        FreshCutSectionTitle("По магазинам", Modifier.padding(top = 8.dp))
         val visible = if (showMoreStores) byStore.take(15) else byStore.take(4)
         visible.forEach { store ->
             val title = when {
@@ -91,14 +107,19 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                 store.id == lentaStoreId() -> "Лента"
                 else -> stores.firstOrNull { it.id == store.id }?.name ?: "Другой магазин"
             }
-            MetricBar(title, "${store.events} покупок · " +
-                if (store.priced > 0) money(store.total) else "без цен",
-                store.total.toFloat() / maxAmount)
+            FreshCutListRow(R.drawable.ic_store, title, "${store.events} покупок",
+                value = if (store.priced > 0) money(store.total) else "Без цен")
         }
-        if (byStore.size > 4) Text(
-            if (showMoreStores) "Свернуть" else "Показать ещё",
-            Modifier.clickable { showMoreStores = !showMoreStores }.padding(vertical = 8.dp),
-            color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        if (byStore.size > 4) FreshCutSecondaryButton(if (showMoreStores) "Свернуть" else "Показать ещё", { showMoreStores = !showMoreStores })
+    }
+    PanelCard {
+        Text("Дополнительно", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+        FreshCutDetailLine("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—")
+        if (pricedTrips > 0) FreshCutDetailLine("Средний чек", money(coverage.amount / pricedTrips))
+        if (coverage.purchases > 0) MetricBar("Покупки с известной ценой", "${coverage.priced} из ${coverage.purchases}",
+            coverage.priced.toFloat() / coverage.purchases)
+        if (coverage.unpriced > 0) Text("Без цены: ${coverage.unpriced} покупок. Учитываются в количестве, но не в расходах.",
+            color = p.textSecondary, fontSize = 12.sp)
     }
 
     val topProducts = remember(selected) { frequentProducts(selected) }
@@ -222,10 +243,10 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
 @Composable
 private fun ExpenseMetric(label: String, value: String, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    Column(modifier.clip(RoundedCornerShape(14.dp)).background(p.field).padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(modifier.heightIn(min = 86.dp).clip(RoundedCornerShape(16.dp)).background(p.card).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp, androidx.compose.ui.Alignment.CenterVertically)) {
+        Text(value, color = p.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(label, color = p.textSecondary, fontSize = 12.sp)
-        Text(value, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Bold)
     }
 }
 

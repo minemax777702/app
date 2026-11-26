@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -157,7 +158,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     if (profile != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
                         .clickable(role = Role.Button, onClick = onRename).padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(56.dp).clip(RoundedCornerShape(20.dp)).background(p.field),
+                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(p.field),
                             contentAlignment = Alignment.Center) {
                             Text(profile.name.take(1).uppercase(), color = p.text, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
                         }
@@ -165,7 +166,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                             Text(profile.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             Text("Личный профиль", color = p.textSecondary, fontSize = 13.sp)
                         }
-                        Icon(painterResource(R.drawable.ic_edit), "Изменить имя", Modifier.size(22.dp), tint = p.text)
+                        Icon(painterResource(R.drawable.ic_chevron_down), "Изменить имя", Modifier.size(24.dp).rotate(-90f), tint = p.text)
                     }
                     FreshCutSectionTitle("Приложение", Modifier.padding(top = 8.dp))
                     ProfileMenuRow(R.drawable.ic_sun, "Оформление", when (themeMode) {

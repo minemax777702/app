@@ -70,99 +70,31 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
         onDispose { nearby.stop() }
     }
 
-    Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(p.boughtBg),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_sync), contentDescription = null, modifier = Modifier.size(25.dp), tint = p.text)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxWidth().heightIn(min = 210.dp).clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(54.dp).clip(RoundedCornerShape(18.dp)).background(p.field), contentAlignment = Alignment.Center) {
+                Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(24.dp), tint = p.text)
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Устройства рядом", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                Text("Без интернета", color = p.textSecondary, fontSize = 13.sp)
-            }
-            Box(Modifier.clip(CircleShape).background(p.chipBg).padding(horizontal = 11.dp, vertical = 7.dp)) {
-                Text(if (state.active) "Поиск" else "Готово", color = p.chipText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-            }
+            Text("Устройства рядом", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+            Text("Подключите другой телефон для обмена списками и покупками.", color = p.textSecondary, fontSize = 14.sp, lineHeight = 18.sp)
+            Text(state.status, color = p.textSecondary, fontSize = 12.sp)
         }
+        SheetActionButton(onClick = {
+            message = ""
+            if (state.active) nearby.stop()
+            else if (!nearby.hasPermissions()) permissions.launch(NearbySync.requiredPermissions())
+            else nearby.start()
+        }) { Text(if (state.active) "Остановить" else "Синхронизировать", fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
 
-        Text(state.status, color = p.textSecondary, fontSize = 14.sp)
-
-        Box(
-            Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(15.dp))
-                .background(if (state.active) p.field else p.actionFill)
-                .clickable {
-                    message = ""
-                    if (state.active) nearby.stop()
-                    else if (!nearby.hasPermissions()) permissions.launch(NearbySync.requiredPermissions())
-                    else nearby.start()
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                if (state.active) "Остановить" else "Синхронизировать",
-                color = if (state.active) p.text else p.actionInk,
-                fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
-            )
+        FreshCutSectionTitle("Доверенные телефоны", Modifier.padding(top = 12.dp))
+        if (state.trusted.isEmpty()) Text("Нет доверенных устройств", color = p.textSecondary, fontSize = 14.sp)
+        state.trusted.forEach { id ->
+            FreshCutListRow(R.drawable.ic_user_round, id.take(12) + "…", "Доверенное устройство",
+                onClick = { pairingExpanded = true; showingQr = true; scanning = false },
+                trailing = { NearbySmallAction("Удалить") { nearby.remove(id) } })
         }
-
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                .clickable { pairingExpanded = !pairingExpanded; showingQr = false; scanning = false }
-                .padding(vertical = 9.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Доверенные телефоны", modifier = Modifier.weight(1f), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text("${state.trusted.size}", color = p.textSecondary, fontSize = 14.sp)
-            Spacer(Modifier.width(10.dp))
-            Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null,
-                modifier = Modifier.size(24.dp).rotate(if (pairingExpanded) 180f else 0f), tint = p.textSecondary)
-        }
-
-        if (pairingExpanded) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NearbySmallAction("Мой QR", Modifier.weight(1f)) { showingQr = !showingQr; scanning = false }
-                NearbySmallAction("Сканировать", Modifier.weight(1f)) {
-                    showingQr = false
-                    if (hasCamera) scanning = !scanning else cameraPermission.launch(Manifest.permission.CAMERA)
-                }
-            }
-            if (showingQr) {
-                Text("QR-код устройства", color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                Canvas(
-                    Modifier.fillMaxWidth().aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp)).background(Color.White).padding(14.dp),
-                ) {
-                    val cell = size.minDimension / (qr.size + 8)
-                    val origin = (size.minDimension - cell * qr.size) / 2
-                    for (y in 0 until qr.size) for (x in 0 until qr.size) if (qr[x, y]) {
-                        drawRect(Color.Black, Offset(origin + x * cell, origin + y * cell), Size(cell + .15f, cell + .15f))
-                    }
-                }
-                Text("Откройте приложение на другом телефоне и отсканируйте код.", color = p.textSecondary, fontSize = 14.sp)
-            }
-            if (scanning) {
-                QrScanner(false, onText = { code ->
-                    if (code.startsWith("BLPAIR1:")) scope.launch(Dispatchers.Main) {
-                        if (nearby.trustQr(code)) {
-                            scanning = false
-                            message = "Телефон добавлен"
-                        } else message = "Не удалось подтвердить QR"
-                    }
-                }, modifier = Modifier.fillMaxWidth().height(240.dp))
-            }
-            state.trusted.forEach { id ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(id.take(12) + "…", modifier = Modifier.weight(1f), color = p.textSecondary,
-                        fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    NearbySmallAction("Удалить") { nearby.remove(id) }
-                }
-            }
-        }
+        SheetActionButton(onClick = { pairingExpanded = true; showingQr = true; scanning = false }) { Text("Добавить устройство") }
         undoMinutes?.let { minutes ->
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
@@ -183,6 +115,41 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
             }
         }
         if (message.isNotEmpty()) Text(message, color = p.textSecondary, fontSize = 13.sp)
+    }
+    if (pairingExpanded) AppModalSheet(onDismissRequest = {
+        pairingExpanded = false; showingQr = false; scanning = false
+    }, containerColor = p.sheet) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            SheetHeader("Обмен рядом")
+            if (scanning) {
+                QrScanner(false, onText = { code ->
+                    if (code.startsWith("BLPAIR1:")) scope.launch(Dispatchers.Main) {
+                        if (nearby.trustQr(code)) {
+                            scanning = false; pairingExpanded = false; message = "Телефон добавлен"
+                        } else message = "Не удалось подтвердить QR"
+                    }
+                }, modifier = Modifier.fillMaxWidth().height(240.dp).clip(RoundedCornerShape(24.dp)))
+                Text("Наведите камеру на QR-код другого устройства.", color = p.textSecondary, fontSize = 14.sp)
+                FreshCutSecondaryButton("Мой QR", { scanning = false; showingQr = true })
+            } else {
+                Box(Modifier.size(216.dp).clip(RoundedCornerShape(24.dp)).background(Color.White), contentAlignment = Alignment.Center) {
+                    Canvas(Modifier.size(168.dp)) {
+                        val cell = size.minDimension / (qr.size + 8)
+                        val origin = (size.minDimension - cell * qr.size) / 2
+                        for (y in 0 until qr.size) for (x in 0 until qr.size) if (qr[x, y])
+                            drawRect(Color.Black, Offset(origin + x * cell, origin + y * cell), Size(cell + .15f, cell + .15f))
+                    }
+                }
+                Text("QR-код устройства", color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                Text("Откройте приложение на другом телефоне и отсканируйте код.", color = p.textSecondary, fontSize = 14.sp)
+                SheetActionButton(onClick = {
+                    showingQr = false
+                    if (hasCamera) scanning = true else cameraPermission.launch(Manifest.permission.CAMERA)
+                }) { Text("Сканировать QR") }
+            }
+            if (message.isNotEmpty()) Text(message, color = p.textSecondary, fontSize = 13.sp)
+        }
     }
 }
 

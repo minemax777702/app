@@ -110,15 +110,16 @@ internal fun FreshCutSegments(labels: List<String>, selectedIndex: Int, onSelect
 @Composable
 internal fun FreshCutListRow(
     icon: Int, title: String, subtitle: String = "", value: String? = null,
-    selected: Boolean = false, onClick: () -> Unit,
+    selected: Boolean = false, onClick: (() -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().heightIn(min = 68.dp).clip(RoundedCornerShape(20.dp))
-        .background(p.card).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
+        .background(p.card).then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+        .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(p.field), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(p.field), contentAlignment = Alignment.Center) {
             if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -127,7 +128,7 @@ internal fun FreshCutListRow(
         }
         if (value != null) Text(value, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
-        else if (value == null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
+        else if (value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
     }
 }
 

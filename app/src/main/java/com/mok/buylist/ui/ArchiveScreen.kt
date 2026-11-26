@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -149,11 +150,12 @@ fun ArchiveScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(archive, key = { it.id }) { list ->
+                itemsIndexed(archive, key = { _, list -> list.id }) { index, list ->
                     ArchiveCard(
                         list = list,
                         now = now,
                         expanded = expandedId == list.id,
+                        featured = index == 0,
                         onToggle = { expandedId = if (expandedId == list.id) null else list.id },
                         onRepeat = { repeatingId = list.id; skippedForRepeat = emptySet() },
                         onDelete = { pendingDelete = list },
@@ -222,8 +224,8 @@ internal fun HeaderButton(icon: Int, description: String, onClick: () -> Unit) {
     val p = LocalPalette.current
     Box(
         Modifier
-            .size(48.dp)
-            .clip(CircleShape)
+            .size(44.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(p.field)
             .clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -237,6 +239,7 @@ private fun ArchiveCard(
     list: ArchivedList,
     now: Long,
     expanded: Boolean,
+    featured: Boolean,
     onToggle: () -> Unit,
     onRepeat: () -> Unit,
     onDelete: () -> Unit,
@@ -271,72 +274,47 @@ private fun ArchiveCard(
         formatArchiveDate(list.completedAt, now, ZoneId.systemDefault(), today, yesterday, locale)
     }
     val arrow = animateFloatAsState(if (expanded) 180f else 0f, Motion.smooth(), label = "archive-arrow")
+    val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
+    val countLabel = pluralStringResource(R.plurals.archive_items, list.itemCount, list.itemCount)
+    val amount = if (spent.known > 0) formatAmount(spent) else "—"
+    if (!featured && !expanded) {
+        Column(modifier) {
+            FreshCutListRow(R.drawable.ic_archive, date,
+                (listOf(countLabel) + storeNames + listOfNotNull(listLabel)).joinToString(" · "),
+                value = amount, onClick = onToggle)
+        }
+        return
+    }
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(p.card)
             .clickable(role = Role.Button, onClick = onToggle)
             .animateContentSize(Motion.smooth())
-            .padding(start = 18.dp, end = 10.dp, top = 14.dp, bottom = 14.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                    if (listLabel != null) {
-                        Text(
-                            listLabel,
-                            Modifier
-                                .clip(CircleShape)
-                                .background(p.chipBg)
-                                .padding(horizontal = 10.dp, vertical = 3.dp),
-                            color = p.chipText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                // «5 товаров · 32 мин». Времени нет у старых записей и у походов из одной покупки.
-                val summary = listOfNotNull(
-                    pluralStringResource(R.plurals.archive_items, list.itemCount, list.itemCount),
-                ).joinToString(" · ")
-                Text(
-                    summary,
-                    color = p.textSecondary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (storeNames.isNotEmpty())
-                    Text(if (storeNames.size == 1) storeNames.single()
-                        else "Магазины: " + storeNames.joinToString(", "),
-                        color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                val subtitle = (storeNames + listOfNotNull(listLabel)).joinToString(" · ")
+                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp)
             }
-            Icon(
-                painterResource(R.drawable.ic_chevron_down),
-                contentDescription = null,
-                Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value },
-                tint = p.iconMuted,
-            )
-            Spacer(Modifier.width(8.dp))
+            Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value }, tint = p.textSecondary)
         }
-
-        // Сумма отображается и в свёрнутом состоянии, только по фактическим покупкам.
-        val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
-        if (spent.known > 0) Text(formatAmount(spent), Modifier.padding(top = 12.dp),
-            color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
-        else Text("Без указанных цен", Modifier.padding(top = 8.dp), color = p.textSecondary, fontSize = 13.sp)
-
-
+        Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+        Text(countLabel + if (spent.known == 0) " · Без указанных цен" else "",
+            color = p.textSecondary, fontSize = 12.sp)
         if (expanded) {
             Column(Modifier.padding(top = 10.dp, end = 8.dp)) {
                 names.forEachIndexed { index, name ->
-                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(12.dp))
                         .clickable(role = Role.Button) { onInfo(index) }.padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically) {
+                        Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = p.text)
+                        Spacer(Modifier.width(12.dp))
                         Text(name, Modifier.weight(1f), color = p.text, fontSize = 14.sp,
                             fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         Icon(painterResource(R.drawable.ic_info), "Информация о товаре: $name", Modifier.size(20.dp), tint = p.textSecondary)
@@ -365,7 +343,7 @@ private fun ArchiveCard(
                         Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, Modifier.size(20.dp), tint = p.actionInk)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            stringResource(R.string.archive_repeat),
+                            "Купить снова",
                             modifier = Modifier.weight(1f, fill = false),
                             color = p.actionInk,
                             fontSize = 16.sp,
@@ -426,13 +404,17 @@ private fun ArchiveRepeatScreen(
             items(list.names.indices.toList(), key = { it }) { index ->
                 val event = decodePurchaseEvent(list.events[index])
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card).padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    ArchiveItemRow(list.names[index], purchaseStoreName(event, stores),
+                    val details = listOfNotNull(purchaseStoreName(event, stores),
+                        event?.weightGrams?.let { java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString() + " кг" }
+                            ?: event?.unitPrice?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" })
+                        .joinToString(" · ")
+                    ArchiveItemRow(list.names[index], details.ifBlank { null },
                         event?.impulsive == true, index !in skipped, { onToggle(index) }, { onInfo(index) })
                 }
             }
         }
         Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-            SheetActionButton(onClick = onRepeat, enabled = chosen > 0) { Text("Повторить покупки · $chosen") }
+            SheetActionButton(onClick = onRepeat, enabled = chosen > 0) { Text("Купить снова · $chosen") }
         }
         navigation()
     }
@@ -563,15 +545,15 @@ private fun EmptyArchive(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Box(
-            Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
+            Modifier.padding(bottom = 12.dp).size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.field),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_history), contentDescription = null, Modifier.size(64.dp), tint = p.text)
+            Icon(painterResource(R.drawable.ic_archive), contentDescription = null, Modifier.size(24.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.archive_empty_title),
             color = p.text,
-            fontSize = 22.sp,
+            fontSize = 23.sp,
             lineHeight = 28.sp,
             fontWeight = FontWeight.SemiBold,
         )
