@@ -13,8 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
@@ -28,7 +28,16 @@ jobs:
             sdkmanager="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
           fi
           test -x "$sdkmanager"
-          "$sdkmanager" --sdk_root="$sdk_root" --install "platform-tools" "platforms;android-37" "build-tools;36.0.0"
+          "$sdkmanager" --sdk_root="$sdk_root" --install "cmdline-tools;latest"
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          "$sdkmanager" --version
+          "$sdkmanager" --sdk_root="$sdk_root" --list --channel=3 > "$RUNNER_TEMP/android-sdk-packages.txt"
+          grep -E 'platforms;android-37|CinnamonBun|build-tools;37' "$RUNNER_TEMP/android-sdk-packages.txt" || true
+          "$sdkmanager" --sdk_root="$sdk_root" --install "platform-tools" "build-tools;36.0.0"
+          if ! "$sdkmanager" --sdk_root="$sdk_root" --install "platforms;android-37"; then
+            "$sdkmanager" --sdk_root="$sdk_root" --channel=3 --install "platforms;android-37"
+          fi
+          test -f "$sdk_root/platforms/android-37/android.jar"
           echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
       - name: Build signed release APK
