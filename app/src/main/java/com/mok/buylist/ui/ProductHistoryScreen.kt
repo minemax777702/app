@@ -195,7 +195,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var pricePeriod by rememberSaveable { mutableStateOf(PricePeriod.MONTH) }
     var priceStoreFilter by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
     val today = LocalDate.now(zone)
-    val effectiveUnit = priceUnit ?: if (ownProduct?.isWeighted == true) "kg" else "piece"
+    val effectiveUnit = priceUnit ?: if (ownProduct?.isWeighted == true || (rows.isNotEmpty() && rows.all { it.weightGrams != null })) "kg" else "piece"
     val pricedRows = remember(rows, priceStoreFilter, effectiveUnit) {
         rows.filter { (priceStoreFilter == null || it.storeId == priceStoreFilter) &&
             (if (it.weightGrams != null) "kg" else "piece") == effectiveUnit }
@@ -227,7 +227,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val periodRows = remember(pricedRows, pricePeriod, today, zone) {
         pricesForPeriod(pricedRows, pricePeriod, today, zone)
     }
-    val summaries = remember(periodRows) { priceSummaries(periodRows) }
     val points = remember(periodRows) { periodRows.filter { it.unitPrice != null }.sortedBy { it.at } }
     val formatter = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm") }
     val buyers = remember(users) { users.associate { it.id to it.name } }

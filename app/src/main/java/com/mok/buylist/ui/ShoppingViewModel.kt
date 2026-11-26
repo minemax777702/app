@@ -298,21 +298,27 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String, weightGrams: Int?,
         onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.getItems().associateBy { it.id }
             val result = repository.buyScannedCustom(product, price, storeName, weightGrams)
-            if (result == null) { onResult(false); return@launch }
-            repository.actionItem(result.item.id)?.let { after -> journal.record("Покупка отмечена", after.name, before = result.item.takeUnless { it.deleted }, after = after) }
+            if (result == null) { onResult(false); return@withLock }
+            repository.actionItem(result.item.id)?.let { after ->
+                journal.record("Покупка отмечена", after.name, before = before[after.id], after = after)
+            }
             onResult(true)
-        }
+        } }
     }
 
     fun buyScanned(product: com.mok.buylist.data.LentaProduct, price: Long?, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.getItems().associateBy { it.id }
             val result = repository.buyScanned(product, price)
-            if (result == null) { onResult(false); return@launch }
-            repository.actionItem(result.item.id)?.let { after -> journal.record("Покупка отмечена", after.name, before = result.item.takeUnless { it.deleted }, after = after) }
+            if (result == null) { onResult(false); return@withLock }
+            repository.actionItem(result.item.id)?.let { after ->
+                journal.record("Покупка отмечена", after.name, before = before[after.id], after = after)
+            }
             onResult(true)
-        }
+        } }
     }
 
     fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "", weightGrams: Int? = null) {
@@ -368,7 +374,8 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { actionMutex.withLock {
             val action = actions.value.firstOrNull { it.id == id && it.canUndo } ?: return@withLock
             val success = repository.undoListAction(action.before, action.after, action.removedAt)
-            journal.completeUndo(id, success)
+            val restored = if (success) action.before?.let { repository.actionItem(it.id) } else null
+            journal.completeUndo(id, success, restored)
         } }
     }
 

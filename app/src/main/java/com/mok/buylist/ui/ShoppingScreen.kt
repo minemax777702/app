@@ -230,7 +230,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     themeSettings.setWidget(next)
                     scope.launch { ShoppingWidget().updateAll(context) }
                 },
-                onOpenThemeSettings = { showTheme = true },
                 onNotifications = { showNotifications = true },
                 canFinish = canFinish && finishEnabled,
                 onFinish = viewModel::finishTrip,
@@ -690,7 +689,6 @@ private fun Header(
     totals: com.mok.buylist.data.ShoppingTotals,
     themeEnabled: Boolean,
     onToggleTheme: () -> Unit,
-    onOpenThemeSettings: () -> Unit,
     onNotifications: () -> Unit,
     canFinish: Boolean,
     onFinish: () -> Unit,

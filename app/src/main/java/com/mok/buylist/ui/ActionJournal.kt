@@ -38,10 +38,23 @@ internal class ActionJournal private constructor(context: Context) {
         record(message)
     }
 
-    fun completeUndo(id: String, success: Boolean) {
-        val current = state.value.firstOrNull { it.id == id } ?: return
+    fun completeUndo(id: String, success: Boolean, restored: ShoppingItem? = null) {
+        val rows = state.value
+        val current = rows.firstOrNull { it.id == id } ?: return
         val result = if (success) "Отменено" else "Действие уже изменено или завершено"
-        val updated = state.value.map { if (it.id == id) it.copy(result = result) else it }
+        // After restoring a snapshot, its revision is advanced for sync. Rebase only the
+        // preceding action that actually produced this exact snapshot.
+        val previous = if (success && current.before != null && restored != null &&
+            restored.copy(updatedAt = current.before.updatedAt, authorId = current.before.authorId) == current.before)
+            rows.dropWhile { it.id != id }.drop(1).firstOrNull { it.canUndo && it.after == current.before }
+        else null
+        val updated = rows.map {
+            when (it.id) {
+                id -> it.copy(result = result)
+                previous?.id -> it.copy(after = restored)
+                else -> it
+            }
+        }
         save(listOf(ListAction(title = if (success) "Действие отменено" else "Не удалось отменить",
             detail = current.detail.ifBlank { current.title })) + updated)
     }
