@@ -75,8 +75,19 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
         if (trimmed.length >= 2) {
             if (address.isBlank()) TextButton(onClick = onSettings) { Text("Указать адрес") }
-            if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
-                Text("Ничего не найдено", color = p.textSecondary, fontSize = 13.sp)
+            if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty()) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(painterResource(R.drawable.ic_search), null, Modifier.size(36.dp), tint = p.textSecondary)
+                    Text("Ничего не найдено", color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Попробуйте другое название или создайте свой товар.", color = p.textSecondary, fontSize = 13.sp)
+                }
+            }
+            if (state.failed && !state.loading) Text("Не удалось выполнить поиск. Сохранённые товары доступны.",
+                color = p.error, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
+            if (state.local.isNotEmpty() || state.online.isNotEmpty()) {
+                FreshCutSectionTitle("Найденные товары", Modifier.padding(bottom = 8.dp))
+            }
             LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(state.local, key = { "local:${it.id}" }) { product ->
                     LentaResult(product, address, onClick = { onAdd(product) })
@@ -110,10 +121,10 @@ private fun LentaResult(product: LentaProduct, address: String, onClick: () -> U
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LentaImage(product.image, Modifier.size(52.dp))
             Column(Modifier.weight(1f)) {
-                Text(product.name, color = p.text, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(product.name, color = p.text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 val price = product.price.takeIf { product.address == address && product.channel == "locc" && it.isNotBlank() && it != "null" }
                 val details = listOfNotNull(price?.let { "$it ₽" }, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
-                if (details.isNotEmpty()) Text(details, color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
+                if (details.isNotEmpty()) Text(details, color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 product.stock?.let { Text(if (it > 0) "В наличии: $it" else "Нет в наличии", color = p.textSecondary, fontSize = 11.sp) }
             }
         }

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +22,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -58,6 +62,7 @@ internal fun StoresScreen(
     archive: List<ArchivedList>,
     bought: List<ShoppingItem>,
     onProductClick: (String) -> Unit,
+    onDetailChange: (Boolean) -> Unit = {},
 ) {
     val p = LocalPalette.current
     val stores by viewModel.stores.collectAsStateWithLifecycle()
@@ -74,7 +79,7 @@ internal fun StoresScreen(
                     receipt.copy(storeId = lentaStoreId()) else receipt
             }, custom, lenta, lentaCodes, customCodes)
     }
-    var openedStore by remember { mutableStateOf<String?>(null) }
+    var openedStore by rememberSaveable { mutableStateOf<String?>(null) }
     var shown by remember(openedStore) { mutableIntStateOf(8) }
     var productQuery by remember(openedStore) { mutableStateOf("") }
     var editing by remember { mutableStateOf<ShoppingStore?>(null) }
@@ -93,34 +98,35 @@ internal fun StoresScreen(
     var removingLink by remember { mutableStateOf<String?>(null) }
     val active = stores.filterNot { it.deleted }.distinctBy { it.id }.sortedBy { it.nameKey }
     val store = active.firstOrNull { it.id == openedStore }
+    LaunchedEffect(store?.id) { onDetailChange(store != null) }
     BackHandler(enabled = store != null && !choosingProduct && !creatingStoreProduct) { openedStore = null }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            Text(if (store == null) "Магазины" else store.name,
-                Modifier.weight(1f), color = p.text, fontSize = 20.sp,
-                fontWeight = FontWeight.Bold)
-            if (store != null) {
-                if (store.id != lentaStoreId()) IconButton(onClick = {
+        if (store != null) {
+            SubScreenHeader(store.name, { openedStore = null }) {
+                if (store.id != lentaStoreId()) HeaderButton(R.drawable.ic_plus, "Добавить товар в магазин") {
                     choosingProduct = true
                     chosenProductKey = null
                     choiceQuery = ""
                     linkPrice = ""
                     linkError = null
-                }) {
-                    Icon(painterResource(R.drawable.ic_plus), "Добавить товар в магазин",
-                        tint = p.text, modifier = Modifier.size(24.dp))
                 }
-                IconButton(onClick = { openedStore = null }) {
-                    Icon(painterResource(R.drawable.ic_back), "Назад к магазинам",
-                        tint = p.iconMuted, modifier = Modifier.size(21.dp))
-                }
-            } else {
-                IconButton(onClick = { shopName = ""; error = null; creating = true }) {
-                    Icon(painterResource(R.drawable.ic_plus), "Добавить магазин",
-                        tint = p.text, modifier = Modifier.size(24.dp))
-                }
+            }
+            val storePurchases = products.filter { it.storeId == store.id }
+            val storeCount = (storePurchases.map { it.productKey } +
+                storeLinks.filter { it.storeId == store.id && !it.deleted }.map { it.productKey } +
+                if (store.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList()).distinct().size
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(painterResource(R.drawable.ic_store), null, Modifier.size(32.dp), tint = p.text)
+                Text("$storeCount товаров · ${storePurchases.size} покупок", color = p.textSecondary, fontSize = 13.sp)
+            }
+            FreshCutSectionTitle("Товары", Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+        } else {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                FreshCutSectionTitle("Все магазины", Modifier.weight(1f))
+                HeaderButton(R.drawable.ic_plus, "Добавить магазин") { shopName = ""; error = null; creating = true }
             }
         }
         if (store == null) {
@@ -207,7 +213,7 @@ internal fun StoresScreen(
             val visibleEntries = remember(entries, productQuery) {
                 entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
             }
-            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
                 SheetTextField(productQuery, { productQuery = it }, "Поиск товаров")
             }
             LazyColumn(

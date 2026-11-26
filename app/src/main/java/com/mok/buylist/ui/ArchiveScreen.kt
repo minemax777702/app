@@ -130,6 +130,7 @@ fun ArchiveScreen(
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
         FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title), "Ваши завершённые покупки") {
+            if (initiallyExpandedId != null) HeaderButton(R.drawable.ic_back, "Назад", onBack)
             if (archive.isNotEmpty() && onOpenStats != null) {
                 HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
             }

@@ -674,7 +674,7 @@ private fun Header(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("МОЙ СПИСОК", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Text("Покупки", color = p.text, fontSize = 32.sp, lineHeight = 39.sp, fontWeight = FontWeight.SemiBold)
-                Text("Сегодня", color = p.textSecondary, fontSize = 13.sp)
+                Text(java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("EEEE, d MMMM", java.util.Locale.forLanguageTag("ru-RU"))).replaceFirstChar { it.uppercase() }, color = p.textSecondary, fontSize = 13.sp)
             }
             Box {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)

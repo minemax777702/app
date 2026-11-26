@@ -36,6 +36,7 @@ fun SettingsScreen(
     val p = LocalPalette.current
     val activeTab = tab.coerceIn(0, 1)
     var syncActive by remember { mutableStateOf(false) }
+    var storeDetail by remember { mutableStateOf(false) }
     var section by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
@@ -46,19 +47,21 @@ fun SettingsScreen(
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
         if (activeTab == 0) {
-            FreshCutRootHeader("ВАША БАЗА", if (section == 0) "Товары" else "Магазины",
-                if (section == 0) "Все товары и магазины" else "Цены и покупки по магазинам")
-            FreshCutSegments(listOf("Товары", "Магазины"), section, { section = it },
-                Modifier.padding(horizontal = 20.dp))
+            if (!storeDetail || section == 0) {
+                FreshCutRootHeader("ВАША БАЗА", if (section == 0) "Товары" else "Магазины",
+                    if (section == 0) "Все товары и магазины" else "Цены и покупки по магазинам")
+                FreshCutSegments(listOf("Товары", "Магазины"), section, { section = it; storeDetail = false },
+                    Modifier.padding(horizontal = 20.dp))
+            }
             Box(Modifier.weight(1f)) {
                 if (section == 0) stateHolder.SaveableStateProvider("products") {
                     ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(1) }, viewModel = viewModel,
                         onProductClick = { selectedProduct = it })
                 } else stateHolder.SaveableStateProvider("stores") {
-                    StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it })
+                    StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it }, onDetailChange = { storeDetail = it })
                 }
             }
-            navigation()
+            if (!storeDetail || section == 0) navigation()
         } else {
             Box(Modifier.weight(1f)) {
                 SyncScreen(profile, onRename, addressRequest, onActiveChange = { syncActive = it },
