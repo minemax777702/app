@@ -99,7 +99,6 @@ fun ArchiveScreen(
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
     var selectedProduct by rememberSaveable { mutableStateOf<String?>(null) }
     var skippedForRepeat by rememberSaveable(expandedId) { mutableStateOf(arrayListOf<Int>()) }
-    var choosingForRepeat by rememberSaveable(expandedId) { mutableStateOf(false) }
     val allArchive by viewModel.archive.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
@@ -146,8 +145,6 @@ fun ArchiveScreen(
                         featured = index == 0,
                         onToggle = { expandedId = if (expandedId == list.id) null else list.id },
                         skipped = if (expandedId == list.id) skippedForRepeat.toSet() else emptySet(),
-                        choosing = expandedId == list.id && choosingForRepeat,
-                        onChoose = { choosingForRepeat = true; skippedForRepeat = ArrayList(list.names.indices.toList()) },
                         onSelectionChange = { skippedForRepeat = ArrayList(it) },
                         onRepeat = {
                             val indices = list.names.indices.filter { it !in skippedForRepeat }
@@ -239,8 +236,6 @@ private fun ArchiveCard(
     expanded: Boolean,
     featured: Boolean,
     skipped: Set<Int>,
-    choosing: Boolean,
-    onChoose: () -> Unit,
     onSelectionChange: (Set<Int>) -> Unit,
     onToggle: () -> Unit,
     onRepeat: () -> Unit,
@@ -312,7 +307,6 @@ private fun ArchiveCard(
         }
         if (expanded) {
             Column(Modifier.padding(top = 8.dp)) {
-                if (!choosing) FreshCutSecondaryButton("Выбрать товары", onChoose)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Выбрано $chosen из ${names.size}", Modifier.weight(1f),
                         color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)

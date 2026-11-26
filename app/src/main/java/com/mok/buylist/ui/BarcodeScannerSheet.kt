@@ -68,7 +68,7 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
                 }) { Text("Подтвердить") }
                 SearchModeActionForScanner("Вернуться к камере") { manual = false }
             } else {
-                Box(Modifier.fillMaxWidth().height(350.dp).clip(RoundedCornerShape(24.dp))
+                Box(Modifier.fillMaxWidth().aspectRatio(4f / 3f).clip(RoundedCornerShape(24.dp))
                     .background(Color(0xFF141916)), contentAlignment = Alignment.Center) {
                     if (granted && !cameraError) {
                         QrScanner(useFront = false, barcode = true, modifier = Modifier.fillMaxSize(),
