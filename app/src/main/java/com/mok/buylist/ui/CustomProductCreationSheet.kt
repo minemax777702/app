@@ -63,7 +63,7 @@ internal fun CreateCustomProductAction(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_plus), contentDescription = null, tint = p.accent)
+        Icon(painterResource(R.drawable.ic_plus), contentDescription = null, tint = p.text)
         Text("Создать свой товар", modifier = Modifier.weight(1f),
             color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
@@ -164,7 +164,7 @@ internal fun CustomProductCreationSheet(
                     }
                     IconButton(onClick = { scanning = true }, enabled = !saving) {
                         Icon(painterResource(R.drawable.ic_camera),
-                            contentDescription = "Сканировать штрихкод камерой", tint = p.accent)
+                            contentDescription = "Сканировать штрихкод камерой", tint = p.text)
                     }
                 }
                 if (matchingLenta.isNotEmpty()) {
@@ -242,7 +242,7 @@ internal fun CustomProductCreationSheet(
                                 Text(suggestion.source, color = p.textSecondary, fontSize = 11.sp)
                             }
                             Icon(painterResource(R.drawable.ic_plus), null,
-                                tint = p.accent, modifier = Modifier.size(18.dp))
+                                tint = p.text, modifier = Modifier.size(18.dp))
                         }
                     }
                     if (shownSuggestions.size > 4) {

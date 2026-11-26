@@ -71,7 +71,7 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
     }
 
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(p.card).padding(18.dp),
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -79,10 +79,10 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
                 Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(p.boughtBg),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(painterResource(R.drawable.ic_sync), contentDescription = null, modifier = Modifier.size(25.dp), tint = p.accent)
+                Icon(painterResource(R.drawable.ic_sync), contentDescription = null, modifier = Modifier.size(25.dp), tint = p.text)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text("Обмен рядом", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                Text("Устройства рядом", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
                 Text("Без интернета", color = p.textSecondary, fontSize = 13.sp)
             }
             Box(Modifier.clip(CircleShape).background(p.chipBg).padding(horizontal = 11.dp, vertical = 7.dp)) {
@@ -94,7 +94,7 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
 
         Box(
             Modifier.fillMaxWidth().height(50.dp).clip(RoundedCornerShape(15.dp))
-                .background(if (state.active) p.chipBg else p.accent)
+                .background(if (state.active) p.field else p.actionFill)
                 .clickable {
                     message = ""
                     if (state.active) nearby.stop()
@@ -105,7 +105,7 @@ fun NearbyPanel(onUndo: () -> Unit, qrUndoMinutes: Int?) {
         ) {
             Text(
                 if (state.active) "Остановить" else "Синхронизировать",
-                color = if (state.active) p.chipText else p.onAccent,
+                color = if (state.active) p.text else p.actionInk,
                 fontSize = 16.sp, fontWeight = FontWeight.ExtraBold,
             )
         }

@@ -96,7 +96,7 @@ internal fun StoresScreen(
     BackHandler(enabled = store != null && !choosingProduct && !creatingStoreProduct) { openedStore = null }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 8.dp),
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Text(if (store == null) "Магазины" else store.name,
                 Modifier.weight(1f), color = p.text, fontSize = 20.sp,
@@ -110,23 +110,23 @@ internal fun StoresScreen(
                     linkError = null
                 }) {
                     Icon(painterResource(R.drawable.ic_plus), "Добавить товар в магазин",
-                        tint = p.accent, modifier = Modifier.size(24.dp))
+                        tint = p.text, modifier = Modifier.size(24.dp))
                 }
                 IconButton(onClick = { openedStore = null }) {
-                    Icon(painterResource(R.drawable.ic_close), "Назад к магазинам",
+                    Icon(painterResource(R.drawable.ic_back), "Назад к магазинам",
                         tint = p.iconMuted, modifier = Modifier.size(21.dp))
                 }
             } else {
                 IconButton(onClick = { shopName = ""; error = null; creating = true }) {
                     Icon(painterResource(R.drawable.ic_plus), "Добавить магазин",
-                        tint = p.accent, modifier = Modifier.size(24.dp))
+                        tint = p.text, modifier = Modifier.size(24.dp))
                 }
             }
         }
         if (store == null) {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(active, key = { it.id }) { shop ->
@@ -137,17 +137,17 @@ internal fun StoresScreen(
                         .distinct().size
                     Row(
                         Modifier.fillMaxWidth()
-                            .background(p.card, RoundedCornerShape(18.dp))
+                            .background(p.card, RoundedCornerShape(16.dp))
                             .clickable { openedStore = shop.id }
                             .padding(14.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Icon(painterResource(R.drawable.ic_store), null,
-                            tint = p.accent, modifier = Modifier.size(28.dp))
+                            tint = p.text, modifier = Modifier.size(28.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(shop.name, color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Товаров: $productCount · Покупок: ${entries.size}",
+                            Text(shop.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text("$productCount товаров · ${entries.size} покупок",
                                 color = p.textSecondary, fontSize = 12.sp)
                         }
                         if (shop.id != lentaStoreId()) {
@@ -212,7 +212,7 @@ internal fun StoresScreen(
             }
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (visibleEntries.isEmpty()) item {
@@ -222,7 +222,7 @@ internal fun StoresScreen(
                 items(visibleEntries.take(shown), key = { it.key }) { entry ->
                     Column(
                         Modifier.fillMaxWidth()
-                            .background(p.card, RoundedCornerShape(18.dp))
+                            .background(p.card, RoundedCornerShape(16.dp))
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
@@ -276,7 +276,7 @@ internal fun StoresScreen(
                                     choosingProduct = true
                                 }) {
                                     Icon(painterResource(R.drawable.ic_edit),
-                                        contentDescription = null, tint = p.accent,
+                                        contentDescription = null, tint = p.text,
                                         modifier = Modifier.size(17.dp))
                                     androidx.compose.foundation.layout.Spacer(Modifier.size(6.dp))
                                     Text(if (attached) "Изменить цену" else "Добавить в магазин",
@@ -325,7 +325,7 @@ internal fun StoresScreen(
                             creatingStoreProduct = true
                         }) {
                             Icon(painterResource(R.drawable.ic_plus), contentDescription = null,
-                                tint = p.accent, modifier = Modifier.size(18.dp))
+                                tint = p.text, modifier = Modifier.size(18.dp))
                             Text("Создать новый товар", color = p.accent)
                         }
                         androidx.compose.foundation.lazy.LazyColumn(
@@ -338,7 +338,7 @@ internal fun StoresScreen(
                                 }.padding(12.dp)) {
                                     Text(name, color = p.text, modifier = Modifier.weight(1f))
                                     Icon(painterResource(R.drawable.ic_plus), null,
-                                        tint = p.accent, modifier = Modifier.size(20.dp))
+                                        tint = p.text, modifier = Modifier.size(20.dp))
                                 }
                             }
                             if (options.size > choiceShown) item {

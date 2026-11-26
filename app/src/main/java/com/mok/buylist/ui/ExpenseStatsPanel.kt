@@ -49,17 +49,15 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     var showMoreImpulse by rememberSaveable { mutableStateOf(false) }
 
     PanelCard {
-        Text("Расходы", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+        Text("Расходы", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             ExpensePeriod.entries.forEach { option -> Choice(option.title, option == period) { onPeriodChange(option) } }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ExpenseMetric("За период", if (coverage.priced > 0) money(coverage.amount) else "—",
-                Modifier.weight(1f))
-            ExpenseMetric("За всё время",
-                if (allCoverage.priced > 0) money(allCoverage.amount) else "—",
-                Modifier.weight(1f))
-        }
+        Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp)
+        Text(if (coverage.priced > 0) money(coverage.amount) else "—", color = p.text,
+            fontSize = 36.sp, lineHeight = 42.sp, fontWeight = FontWeight.SemiBold)
+        Text("${coverage.priced} покупок с известной ценой", color = p.textSecondary, fontSize = 12.sp)
+        ExpenseMetric("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—", Modifier.fillMaxWidth())
         if (pricedTrips > 0) ExpenseMetric("Средний чек по покупкам с ценой",
             money(coverage.amount / pricedTrips), Modifier.fillMaxWidth())
         if (coverage.unpriced > 0) Text(
@@ -245,14 +243,14 @@ private fun MetricBar(label: String, value: String, fraction: Float) {
 
 @Composable
 private fun PanelCard(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(LocalPalette.current.card).padding(18.dp),
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(LocalPalette.current.card).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
 
 @Composable
 private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Text(label, Modifier.clip(RoundedCornerShape(20.dp)).background(if (selected) p.accent else p.chipBg)
+    Text(label, Modifier.clip(RoundedCornerShape(24.dp)).background(if (selected) p.accent else p.chipBg)
         .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
         color = if (selected) p.onAccent else p.chipText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
 }

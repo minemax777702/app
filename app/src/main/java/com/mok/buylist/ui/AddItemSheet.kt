@@ -151,8 +151,8 @@ fun AddItemSheet(
                 Modifier
                     .fillMaxWidth()
                     .height(60.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(p.field)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(p.card)
                     .drawBehind {
                         val line = 3.dp.toPx()
                         drawRect(p.accent, Offset(0f, size.height - line), Size(size.width, line))
@@ -198,7 +198,7 @@ fun AddItemSheet(
                     MicButton(voice)
                 }
                 IconButton(onClick = { scanning = true }) {
-                    Icon(painterResource(R.drawable.ic_camera), contentDescription = "Сканировать штрихкод", tint = p.accent)
+                    Icon(painterResource(R.drawable.ic_camera), contentDescription = "Сканировать штрихкод", tint = p.text)
                 }
             }
 
@@ -214,8 +214,8 @@ fun AddItemSheet(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     matches.forEach { custom ->
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                                .background(p.field)
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                .background(p.card)
                                 .clickable {
                                     onAddCustom(custom) { added ->
                                         activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
@@ -312,9 +312,9 @@ internal fun SheetHeader(title: String) {
             title,
             Modifier.weight(1f),
             color = p.text,
-            fontSize = 20.sp,
-            lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontSize = 24.sp,
+            lineHeight = 30.sp,
+            fontWeight = FontWeight.SemiBold,
         )
     }
 }

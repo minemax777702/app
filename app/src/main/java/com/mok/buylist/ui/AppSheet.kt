@@ -2,6 +2,12 @@ package com.mok.buylist.ui
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,11 +43,12 @@ private val LocalSecondaryAction = staticCompositionLocalOf { false }
 internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, destructive: Boolean = false, content: @Composable RowScope.() -> Unit) {
     val p = LocalPalette.current
     val secondary = LocalSecondaryAction.current
-    val background = if (secondary) p.chipBg else if (destructive) p.error else p.accent
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(56.dp),
-        shape = RoundedCornerShape(28.dp), colors = ButtonDefaults.buttonColors(
-            containerColor = background, contentColor = if (secondary) p.chipText else p.onAccent,
-            disabledContainerColor = background.copy(alpha = 0.38f), disabledContentColor = p.onAccent.copy(alpha = 0.7f),
+    val background = if (secondary) p.field else if (destructive) p.error else p.actionFill
+    val ink = if (secondary) p.text else if (destructive) p.onDanger else p.actionInk
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(if (secondary) 52.dp else 54.dp),
+        shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(
+            containerColor = background, contentColor = ink,
+            disabledContainerColor = p.field, disabledContentColor = p.textSecondary.copy(alpha = 0.7f),
         ), content = content)
 }
 
@@ -50,16 +57,22 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default, keyboardActions: KeyboardActions = KeyboardActions.Default,
     isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
-    val lineColor = if (isError) p.error else p.accent
-    Box(Modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(20.dp)).background(p.field)
-        .drawBehind { val line = 3.dp.toPx(); drawRect(lineColor, Offset(0f, size.height - line), Size(size.width, line)) }
-        .padding(horizontal = 18.dp), contentAlignment = Alignment.CenterStart) {
-        BasicTextField(value = value, onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp), singleLine = true,
-            textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
-            cursorBrush = SolidColor(p.accent), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
-            decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, color = p.textSecondary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold); inner() } })
-        if (trailingAction != null) Box(Modifier.align(Alignment.CenterEnd)) { trailingAction() }
+    var focused by remember { mutableStateOf(false) }
+    val lineColor = if (isError) p.error else if (focused) p.text else p.line
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(hint, color = if (isError) p.error else p.textSecondary, fontSize = 12.sp,
+            fontWeight = FontWeight.Medium)
+        Box(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(16.dp))
+            .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+            BasicTextField(value = value, onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp)
+                    .onFocusChanged { focused = it.isFocused }, singleLine = true,
+                textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                cursorBrush = SolidColor(p.text), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
+                decorationBox = { inner -> inner() })
+            if (trailingAction != null) Box(Modifier.align(Alignment.CenterEnd)) { trailingAction() }
+        }
     }
 }
 
@@ -68,7 +81,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
 internal fun SheetDragHandle(onDismiss: () -> Unit) {
     Box(Modifier.fillMaxWidth().height(40.dp).clickable(onClickLabel = "Закрыть", onClick = onDismiss),
         contentAlignment = Alignment.Center) {
-        BottomSheetDefaults.DragHandle()
+        Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(LocalPalette.current.line))
     }
 }
 
@@ -99,7 +112,9 @@ internal fun AppSheet(
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp).padding(top = if (required) 24.dp else 4.dp, bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NoticeInSheet()
-            Box(Modifier.fillMaxWidth()) { title() }
+            Box(Modifier.fillMaxWidth()) {
+                ProvideTextStyle(MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp, fontWeight = FontWeight.SemiBold)) { title() }
+            }
             text()
             Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 confirmButton()

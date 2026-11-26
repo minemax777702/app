@@ -236,7 +236,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 enabled = !barcodeSaving,
                             ) {
                                 Icon(painterResource(R.drawable.ic_camera),
-                                    contentDescription = "Сканировать камерой", tint = p.accent)
+                                    contentDescription = "Сканировать камерой", tint = p.text)
                             }
                         },
                     )
@@ -476,7 +476,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Icon(painterResource(R.drawable.ic_store), null,
-                                    tint = p.accent, modifier = Modifier.size(21.dp))
+                                    tint = p.text, modifier = Modifier.size(21.dp))
                                 Text("Лента", color = p.text,
                                     fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                             }
@@ -527,7 +527,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("Информация о товаре", onBack)
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp,
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp,
             bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -541,8 +541,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         else LentaImage(product?.image.orEmpty(), Modifier.size(92.dp))
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(product?.name ?: ownProduct?.name ?: rows.firstOrNull()?.name
-                                ?: "Товар не найден", color = p.text, fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold, lineHeight = 24.sp)
+                                ?: "Товар не найден", color = p.text, fontSize = 22.sp,
+                                fontWeight = FontWeight.SemiBold, lineHeight = 28.sp)
                             Text(if (ownProduct != null) "Свой товар" else "Лента",
                                 color = p.textSecondary, fontSize = 12.sp)
                         }
@@ -652,7 +652,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }) {
                             Icon(painterResource(R.drawable.ic_plus),
                                 contentDescription = "Добавить магазин к товару",
-                                tint = p.accent)
+                                tint = p.text)
                         }
                     }
                     if (shopPrices.isEmpty()) Text("Магазины пока не добавлены",
@@ -681,7 +681,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 }) {
                                     Icon(painterResource(R.drawable.ic_edit),
                                         contentDescription = "Изменить цену магазина",
-                                        tint = p.accent, modifier = Modifier.size(19.dp))
+                                        tint = p.text, modifier = Modifier.size(19.dp))
                                 }
                                 if (storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&
                                     (identities[it.productKey] ?: it.productKey) == sharedKey })
@@ -709,7 +709,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                             barcodeEditorOpen = true
                         }, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(p.chipBg)) {
                             Icon(painterResource(R.drawable.ic_plus), contentDescription = "Добавить штрихкод",
-                                tint = p.accent, modifier = Modifier.size(22.dp))
+                                tint = p.text, modifier = Modifier.size(22.dp))
                         }
                     }
                     if (barcodes.isEmpty()) Text("Штрихкоды ещё не добавлены", color = p.textSecondary, fontSize = 14.sp)
@@ -731,7 +731,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 barcodeEditorOpen = true
                             }) {
                                 Icon(painterResource(R.drawable.ic_edit),
-                                    contentDescription = "Изменить штрихкод $code", tint = p.accent,
+                                    contentDescription = "Изменить штрихкод $code", tint = p.text,
                                     modifier = Modifier.size(20.dp))
                             }
                             IconButton(onClick = { deletingBarcode = code }) {
@@ -818,7 +818,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             Icon(painterResource(R.drawable.ic_edit), contentDescription = null,
-                                tint = p.accent, modifier = Modifier.size(17.dp))
+                                tint = p.text, modifier = Modifier.size(17.dp))
                             Text("Изменить цену и магазин", color = p.accent,
                                 fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }

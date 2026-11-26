@@ -56,7 +56,7 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
                     IconButton(onClick = onDismiss) {
                         Icon(painterResource(R.drawable.ic_back), contentDescription = "Назад", tint = Color.White)
                     }
-                    Text("Штрихкод", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text("Сканировать штрихкод", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
                 }
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                     if (granted && !cameraError) {
@@ -68,9 +68,17 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
                                 .padding(horizontal = 16.dp, vertical = 8.dp), color = Color.White, textAlign = TextAlign.Center)
                         }
                     } else if (cameraError) {
-                        Text("Не удалось открыть камеру", color = Color.White, textAlign = TextAlign.Center)
+                        Column(Modifier.padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Icon(painterResource(R.drawable.ic_camera), null, Modifier.size(48.dp), tint = Color.White)
+                            Text("Не удалось открыть камеру", color = Color.White, textAlign = TextAlign.Center, fontSize = 20.sp)
+                            SheetActionButton(onClick = { cameraError = false }) { Text("Повторить") }
+                        }
                     } else {
-                        Column(Modifier.padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(Modifier.padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(painterResource(R.drawable.ic_camera), null, Modifier.size(48.dp), tint = Color.White)
+                            Text("Нужен доступ к камере", color = Color.White, fontSize = 20.sp, textAlign = TextAlign.Center)
                             SheetActionButton(onClick = { permission.launch(Manifest.permission.CAMERA) }) { Text("Разрешить камеру") }
                         }
                     }

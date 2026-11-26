@@ -43,7 +43,7 @@ fun LentaSettings(onDismiss: () -> Unit) {
     var address by rememberSaveable { mutableStateOf(current) }
     val p = LocalPalette.current
     AppSheet(onDismissRequest = onDismiss, containerColor = p.sheet,
-        title = { Text("Магазин Ленты", color = p.text, fontWeight = FontWeight.Bold) },
+        title = { SheetHeader("Магазин Ленты") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetTextField(address, { address = it }, "Город, улица и дом")
         } },
@@ -106,7 +106,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
 @Composable
 private fun LentaResult(product: LentaProduct, address: String, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.field).clickable(onClick = onClick).padding(10.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card).clickable(onClick = onClick).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LentaImage(product.image, Modifier.size(52.dp))
             Column(Modifier.weight(1f)) {

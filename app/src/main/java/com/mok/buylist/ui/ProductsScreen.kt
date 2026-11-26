@@ -1,6 +1,7 @@
 package com.mok.buylist.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -115,36 +116,51 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             .sortedBy { nameKeyOf(it.name) }
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ProductSearch(query, { query = it }, Modifier.weight(1f))
             IconButton(onClick = { scanning = true }) {
-                Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.accent)
+                Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.text)
             }
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(p.accent)
+            Box(Modifier.size(54.dp).clip(RoundedCornerShape(16.dp)).background(p.actionFill)
                 .clickable(role = Role.Button) { onlineQuery = ""; adding = true }, contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_plus), stringResource(R.string.products_add), tint = p.onAccent)
+                Icon(painterResource(R.drawable.ic_plus), stringResource(R.string.products_add), tint = p.actionInk)
             }
         }
         if (products.isNotEmpty()) TextButton(onClick = viewModel::refreshAllPrices, enabled = batch?.running != true,
             modifier = Modifier.padding(start = 8.dp)) {
             Text(if (batch?.running == true) "Обновление ${batch!!.completed}/${batch!!.total}" else "Обновить все цены")
         }
-        if (rows.isEmpty() && ownRows.isEmpty()) Text(if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено", Modifier.fillMaxWidth().padding(32.dp), color = p.textSecondary, fontSize = 16.sp, textAlign = TextAlign.Center)
+        if (rows.isEmpty() && ownRows.isEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(painterResource(R.drawable.ic_package), null, Modifier.size(40.dp), tint = p.textSecondary)
+                Text(if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено",
+                    color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                Text(if (query.isBlank()) "Добавьте товар, чтобы начать." else "Попробуйте другое название или штрихкод.",
+                    color = p.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+            }
+        }
         CreateCustomProductAction(onClick = {
             customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
             customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
             createCustom = true
         }, modifier = Modifier.padding(horizontal = 16.dp))
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (ownRows.isNotEmpty() || rows.isNotEmpty()) item(key = "catalog-section") {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    FreshCutSectionTitle("Все товары", Modifier.weight(1f))
+                    Text("${ownRows.size + rows.size} товаров", color = p.textSecondary, fontSize = 12.sp)
+                }
+            }
             items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card)
                     .clickable(role = Role.Button) { onProductClick("custom:${product.id}") }
                     .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     CustomProductImage(product.id, Modifier.size(42.dp))
                     androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
                     Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        Text(product.name, color = p.text, fontSize = 16.sp,
+                        Text(product.name, color = p.text, fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold)
                         if (product.isWeighted) Text("Весовой · ₽/кг",
                             color = p.textSecondary, fontSize = 12.sp)
@@ -162,14 +178,14 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                                     java.math.BigDecimal.valueOf(bestPrice, 2)
                                         .stripTrailingZeros().toPlainString() + " ₽" +
                                     if (cheapest != null) " · ${cheapest.storeName}" else "",
-                                color = p.accent, fontSize = 13.sp,
+                                color = p.text, fontSize = 14.sp,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
                         }
                     }
                     IconButton(onClick = { viewModel.addCustomProduct(product) { added ->
                         activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                     } }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent,
+                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.text,
                             modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = { pendingCustomDelete = product }) {
@@ -179,13 +195,13 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 }
             }
             items(rows.take(shownCount), key = { "lenta:${it.id}" }) { product ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card)
                     .clickable(role = Role.Button) { onProductClick("lenta:${product.id}") }
                     .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     LentaImage(product.image, Modifier.size(42.dp))
                     androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
                     Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        Text(product.name, color = p.text, fontSize = 16.sp,
+                        Text(product.name, color = p.text, fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold, maxLines = 2,
                             overflow = TextOverflow.Ellipsis)
                         val linked = storeLinks.filter { !it.deleted &&
@@ -199,7 +215,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                         }, color = p.textSecondary, fontSize = 12.sp)
                     }
                     IconButton(onClick = { onAdd(product) }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent, modifier = Modifier.size(20.dp))
+                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.text, modifier = Modifier.size(20.dp))
                     }
                     IconButton(onClick = { pendingDelete = product }) {
                         Icon(painterResource(R.drawable.ic_trash), stringResource(R.string.products_delete), tint = p.iconMuted, modifier = Modifier.size(20.dp))
@@ -235,7 +251,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ProductSearch(onlineQuery, { onlineQuery = it; scannedOnlineCode = null }, Modifier.weight(1f))
                     IconButton(onClick = { scanningOnline = true }) {
-                        Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.accent)
+                        Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.text)
                     }
                 }
                 LentaSuggestions(onlineQuery, Modifier.weight(1f), onAdd = { product ->
@@ -290,23 +306,18 @@ internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modif
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+        textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         cursorBrush = SolidColor(p.accent),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Search),
         decorationBox = { inner ->
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(p.field)
-                    .padding(horizontal = 18.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (value.isEmpty()) {
-                    Text(stringResource(R.string.products_search), color = p.textSecondary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(16.dp))
+                .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp), tint = p.textSecondary)
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(stringResource(R.string.products_search), color = p.textSecondary, fontSize = 15.sp)
+                    inner()
                 }
-                inner()
             }
         },
     )

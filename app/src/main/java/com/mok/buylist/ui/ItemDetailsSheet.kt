@@ -79,11 +79,11 @@ internal fun ItemDetailsSheet(
     ) {
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-                .navigationBarsPadding().padding(horizontal = 24.dp).padding(bottom = 24.dp),
+                .navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             NoticeInSheet()
-            Text("Подробно о товаре", color = p.text, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            SheetHeader("Информация о товаре")
             Row(
                 Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
                     .padding(14.dp),
