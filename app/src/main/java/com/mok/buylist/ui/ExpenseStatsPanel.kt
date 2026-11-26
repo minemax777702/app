@@ -53,7 +53,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Text(if (coverage.priced > 0) money(coverage.amount) else "—", color = p.text,
             fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold)
-        Text("${coverage.priced} покупок с известной ценой", color = p.textSecondary, fontSize = 12.sp)
+        Text("${coverage.purchases} покупок", color = p.textSecondary, fontSize = 12.sp)
         val first = start ?: selected.minOfOrNull { expenseDate(it, zone) } ?: today
         val length = (java.time.temporal.ChronoUnit.DAYS.between(first, today) + 1).coerceAtLeast(1L)
         val bucketCount = minOf(7L, length).toInt()
@@ -107,7 +107,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                 else -> stores.firstOrNull { it.id == store.id }?.name ?: "Другой магазин"
             }
             FreshCutListRow(R.drawable.ic_store, title, "${store.events} покупок",
-                value = if (store.priced > 0) money(store.total) else "Без цен")
+                value = if (store.priced > 0) money(store.total) else "—")
         }
         if (byStore.size > storeLimit) FreshCutSecondaryButton("Показать ещё", { storeLimit += 10 })
     }
@@ -115,10 +115,6 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         Text("Расходы подробнее", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         FreshCutDetailLine("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—")
         if (pricedTrips > 0) FreshCutDetailLine("Средний чек", money(coverage.amount / pricedTrips))
-        if (coverage.purchases > 0) MetricBar("Покупки с известной ценой", "${coverage.priced} из ${coverage.purchases}",
-            coverage.priced.toFloat() / coverage.purchases)
-        if (coverage.unpriced > 0) Text("Без цены: ${coverage.unpriced} покупок. Учитываются в количестве, но не в расходах.",
-            color = p.textSecondary, fontSize = 12.sp)
     }
 
     val topProducts = remember(selected) { frequentProducts(selected) }
@@ -165,9 +161,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
 
     if (section == 3) PanelCard {
         Text("Динамика расходов", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ExpenseInterval.entries.forEach { option -> Choice(option.title, option == interval) { interval = option } }
-        }
+        FilterSelect("Группировка", interval.title, ExpenseInterval.entries.map { it.title }) { interval = ExpenseInterval.entries[it] }
         val allGrouped = selected.groupBy {
             val day = expenseDate(it, zone)
             when (interval) {

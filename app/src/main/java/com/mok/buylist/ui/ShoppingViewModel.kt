@@ -277,7 +277,15 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun addManualProduct(name: String, barcode: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
         onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode, estimatedPriceKopecks, isWeighted)) }
+        viewModelScope.launch { actionMutex.withLock {
+            val existing = repository.getItems().map { it.id }.toSet()
+            val added = repository.addManualProduct(name, barcode, estimatedPriceKopecks, isWeighted)
+            if (added) {
+                val item = repository.getItems().filter { it.id !in existing }.singleOrNull()
+                journal.record("Создан товар", name, after = item)
+            }
+            onResult(added)
+        } }
     }
 
     fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {

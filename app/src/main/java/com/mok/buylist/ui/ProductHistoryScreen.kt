@@ -22,6 +22,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.foundation.border
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -174,7 +180,11 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var purchasePriceRevision by remember(productKey) { mutableIntStateOf(0) }
     var purchaseError by remember(productKey) { mutableStateOf<String?>(null) }
     var detailTab by rememberSaveable(productKey) { mutableIntStateOf(0) }
+    LaunchedEffect(detailTab) { if (detailTab > 1) { detailTab = 0 } }
     val historyOpen = detailTab == 1
+    var barcodeExpanded by rememberSaveable(productKey) { mutableStateOf(false) }
+    var priceFiltersOpen by rememberSaveable(productKey) { mutableStateOf(false) }
+    var priceUnit by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
     var historyCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var tripCount by rememberSaveable(productKey) { mutableIntStateOf(5) }
     var openedTrip by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
@@ -185,8 +195,34 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     var pricePeriod by rememberSaveable { mutableStateOf(PricePeriod.MONTH) }
     var priceStoreFilter by rememberSaveable(productKey) { mutableStateOf<String?>(null) }
     val today = LocalDate.now(zone)
-    val pricedRows = remember(rows, priceStoreFilter) {
-        if (priceStoreFilter == null) rows else rows.filter { it.storeId == priceStoreFilter }
+    val effectiveUnit = priceUnit ?: if (ownProduct?.isWeighted == true) "kg" else "piece"
+    val pricedRows = remember(rows, priceStoreFilter, effectiveUnit) {
+        rows.filter { (priceStoreFilter == null || it.storeId == priceStoreFilter) &&
+            (if (it.weightGrams != null) "kg" else "piece") == effectiveUnit }
+    }
+    fun storeLabel(id: String?): String = if (id == null) "Все магазины" else
+        stores.firstOrNull { it.id == id }?.name ?: if (id.isBlank()) "Без магазина" else "Другой магазин"
+    if (priceFiltersOpen) {
+        var draftPeriod by remember { mutableStateOf(pricePeriod) }
+        var draftStore by remember { mutableStateOf(priceStoreFilter) }
+        var draftUnit by remember { mutableStateOf(effectiveUnit) }
+        AppSheet(onDismissRequest = { priceFiltersOpen = false }, containerColor = p.sheet,
+            title = { SheetHeader("Фильтры графика") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    FilterSelect("Период", draftPeriod.title, PricePeriod.entries.map { it.title }) { draftPeriod = PricePeriod.entries[it] }
+                    val ids = listOf<String?>(null) + rows.map { it.storeId }.distinct()
+                    FilterSelect("Магазин", storeLabel(draftStore), ids.map(::storeLabel)) { draftStore = ids[it] }
+                    FilterSelect("Единица цены", if (draftUnit == "kg") "За кг" else "За штуку", listOf("За штуку", "За кг")) {
+                        draftUnit = if (it == 1) "kg" else "piece"
+                    }
+                    TextButton(onClick = { draftPeriod = PricePeriod.MONTH; draftStore = null; draftUnit = if (ownProduct?.isWeighted == true) "kg" else "piece" }) {
+                        Text("Сбросить фильтры", color = p.text)
+                    }
+                }
+            }, confirmButton = { SheetActionButton(onClick = {
+                pricePeriod = draftPeriod; priceStoreFilter = draftStore; priceUnit = draftUnit; priceFiltersOpen = false
+            }) { Text("Применить") } })
     }
     val periodRows = remember(pricedRows, pricePeriod, today, zone) {
         pricesForPeriod(pricedRows, pricePeriod, today, zone)
@@ -524,39 +560,64 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                             }
                         }
         }
-        FreshCutTabs(listOf("Цены", "История", "Штрихкоды"), detailTab, { detailTab = it },
+        FreshCutTabs(listOf("Цены", "История"), detailTab.coerceIn(0, 1), { detailTab = it },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         androidx.compose.runtime.key(detailTab) {
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(64.dp))
-                    else LentaImage(product?.image.orEmpty(), Modifier.size(64.dp))
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(title, color = p.text, fontSize = 19.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
-                        val subtitle = listOfNotNull(product?.pack?.takeIf { it.isNotBlank() },
-                            if (ownProduct != null) (if (ownProduct.isWeighted) "Весовой товар" else "Свой товар") else if (product != null) "Лента" else null)
-                            .joinToString(" · ")
-                        if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp)
-                    }
-                }
-            }
-            if (detailTab == 0) item {
                 val current = product?.takeIf { it.address == address && address.isNotBlank() && it.channel == "locc" }
                 val best = cheapestShopPrice(shopPrices)
                 val cost = best?.priceKopecks?.let(::historyMoney)
                     ?: ownProduct?.estimatedPriceKopecks?.let(::historyMoney)
                     ?: current?.price?.takeIf { it.isNotBlank() && it != "null" }?.plus(" ₽")
                 HistoryCard {
-                    Text(if (best != null) "Минимальная известная цена" else "Цена", color = p.textSecondary, fontSize = 13.sp)
-                    Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "Не указана",
-                        color = p.text, fontSize = 30.sp, lineHeight = 36.sp, fontWeight = FontWeight.SemiBold)
-                    best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 13.sp) }
-                    val lastPurchase = rows.firstOrNull()
-                    if (lastPurchase != null) FreshCutDetailLine("Последняя покупка",
-                        DateTimeFormatter.ofPattern("dd.MM.yyyy").format(Instant.ofEpochMilli(lastPurchase.at).atZone(zone)))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(64.dp))
+                        else LentaImage(product?.image.orEmpty(), Modifier.size(64.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(title, color = p.text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold)
+                            Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "—",
+                                color = p.text, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
+                            best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 12.sp) }
+                        }
+                    }
+                    if (!historyOpen) {
+                        CompactProductLine("Упаковка", product?.pack?.takeIf { it.isNotBlank() }
+                            ?: if (ownProduct?.isWeighted == true) "Весовой товар" else "Штучный товар")
+                        CompactProductLine("Последняя покупка", rows.firstOrNull()?.let {
+                            DateTimeFormatter.ofPattern("dd.MM.yyyy").format(Instant.ofEpochMilli(it.at).atZone(zone))
+                        } ?: "—")
+                        if (product != null || ownProduct != null) {
+                            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable(role = Role.Button) { barcodeExpanded = !barcodeExpanded },
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(if (barcodes.size > 1) "Штрихкоды · ${barcodes.size}" else "Штрихкод",
+                                    Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
+                                Text(barcodes.firstOrNull() ?: "Добавить", color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Icon(painterResource(R.drawable.ic_chevron_down), if (barcodeExpanded) "Свернуть" else "Раскрыть",
+                                    Modifier.size(20.dp).then(if (barcodeExpanded) Modifier.rotate(180f) else Modifier), tint = p.textSecondary)
+                            }
+                            if (barcodeExpanded) {
+                                barcodes.forEach { code ->
+                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.field).padding(start = 12.dp),
+                                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                        Text(code, Modifier.weight(1f), color = p.text, fontSize = 14.sp)
+                                        IconButton(onClick = { editingBarcode = code; barcodeInput = code; barcodeError = null; barcodeEditorOpen = true }) {
+                                            Icon(painterResource(R.drawable.ic_edit), "Изменить $code", Modifier.size(20.dp), tint = p.text)
+                                        }
+                                        IconButton(onClick = { deletingBarcode = code }) {
+                                            Icon(painterResource(R.drawable.ic_trash), "Удалить $code", Modifier.size(20.dp), tint = p.text)
+                                        }
+                                    }
+                                }
+                                TextButton(onClick = { editingBarcode = null; barcodeInput = ""; barcodeError = null; barcodeEditorOpen = true }) {
+                                    Text("Добавить штрихкод", color = p.text)
+                                }
+                                if (ownProduct != null) CustomProductImageActions(ownProduct.id, barcodes.firstOrNull() ?: ownProduct.barcode)
+                            }
+                        }
+                    }
                 }
             }
             if (detailTab == 0 && (product != null || ownProduct != null)) {
@@ -601,87 +662,23 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }) else null)
                 }
             }
-            if (detailTab == 2 && product == null && ownProduct == null) item { Text("Карточка товара отсутствует в каталоге", color = p.textSecondary) }
-            if (detailTab == 2 && (product != null || ownProduct != null)) item {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            FreshCutSectionTitle("Штрихкоды")
-                        }
-                        IconButton(onClick = {
-                            editingBarcode = null
-                            barcodeInput = ""
-                            barcodeError = null
-                            barcodeEditorOpen = true
-                        }, modifier = Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(p.chipBg)) {
-                            Icon(painterResource(R.drawable.ic_plus), contentDescription = "Добавить штрихкод",
-                                tint = p.text, modifier = Modifier.size(22.dp))
-                        }
-                    }
-                    if (barcodes.isEmpty()) Text("Штрихкоды ещё не добавлены", color = p.textSecondary, fontSize = 14.sp)
-                    barcodes.forEach { code ->
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.field)
-                                .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(2.dp),
-                        ) {
-                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(code, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                                if (code == product?.ean) Text("Код из Ленты", color = p.textSecondary, fontSize = 11.sp)
-                            }
-                            IconButton(onClick = {
-                                editingBarcode = code
-                                barcodeInput = code
-                                barcodeError = null
-                                barcodeEditorOpen = true
-                            }) {
-                                Icon(painterResource(R.drawable.ic_edit),
-                                    contentDescription = "Изменить штрихкод $code", tint = p.text,
-                                    modifier = Modifier.size(20.dp))
-                            }
-                            IconButton(onClick = { deletingBarcode = code }) {
-                                Icon(painterResource(R.drawable.ic_trash),
-                                    contentDescription = "Удалить штрихкод $code", tint = p.iconMuted,
-                                    modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
-                }
-            }
             if (historyOpen) item {
                 HistoryCard {
                     FreshCutDetailLine("Покупок", rows.size.toString())
                     FreshCutDetailLine("Средний интервал", interval?.let { "$it дн." } ?: "—")
                 }
             }
-            if (detailTab == 0) item { FreshCutSectionTitle("Динамика цен", Modifier.padding(top = 8.dp)) }
             if (detailTab == 0) item {
-                HistoryCard {
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        PricePeriod.entries.forEach { option ->
-                            HistoryChoice(option.title, option == pricePeriod) { pricePeriod = option }
-                        }
-                    }
-                    Row(Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        HistoryChoice("Все магазины", priceStoreFilter == null) { priceStoreFilter = null }
-                        rows.map { it.storeId }.distinct().forEach { storeId ->
-                            val storeLabel = stores.firstOrNull { it.id == storeId }?.name
-                                ?: if (storeId.isBlank()) "Без магазина" else "Другой магазин"
-                            HistoryChoice(storeLabel, priceStoreFilter == storeId) { priceStoreFilter = storeId }
-                        }
-                    }
-                    if (summaries.isEmpty()) Text("Известных цен за период нет", color = p.textSecondary)
-                    if (summaries.isNotEmpty()) {
-                        PriceChart(points, zone)
-                    }
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    FreshCutSectionTitle("Динамика цен", Modifier.weight(1f))
+                    TextButton(onClick = { priceFiltersOpen = true }) { Text("Фильтры", color = p.text) }
                 }
-            }
-            if (detailTab == 2 && ownProduct != null) item {
-                FreshCutSectionTitle("Изображение товара")
-                CustomProductImageActions(ownProduct.id, barcodes.firstOrNull() ?: ownProduct.barcode)
+                HistoryCard {
+                    Text("${pricePeriod.title} · ${storeLabel(priceStoreFilter)} · ${if (effectiveUnit == "kg") "за кг" else "за шт."}",
+                        color = p.textSecondary, fontSize = 12.sp)
+                    if (points.isEmpty()) Text("Нет данных за период", color = p.textSecondary)
+                    else PriceChart(points, zone)
+                }
             }
             if (historyOpen) {
             val storePrices = rows.filter { it.unitPrice != null }.groupBy { it.storeId }.toList()
@@ -760,68 +757,93 @@ private fun HistoryChoice(label: String, selected: Boolean, onClick: () -> Unit)
 private fun PriceChart(points: List<ExpensePurchase>, zone: ZoneId) {
     if (points.isEmpty()) return
     val p = LocalPalette.current
-    val minPrice = points.minOf { it.unitPrice!! }
-    val maxPrice = points.maxOf { it.unitPrice!! }
+    val values = points.mapNotNull { it.unitPrice }
+    val min = values.min()
+    val max = values.max()
+    val padding = ((max.toDouble() - min) * .12).coerceAtLeast(max.toDouble() * .025).coerceAtLeast(100.0)
+    val lo = (min - padding).coerceAtLeast(0.0)
+    val hi = max + padding
     val first = points.first().at
     val last = points.last().at
-    val date = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm") }
     var selected by remember(points) { mutableIntStateOf(points.lastIndex) }
     val current = points[selected]
-    val description = points.joinToString("; ") {
-        "${date.format(Instant.ofEpochMilli(it.at).atZone(zone))}: ${historyMoney(it.unitPrice!!)}"
-    }
+    val date = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+    val shortDate = DateTimeFormatter.ofPattern("dd.MM")
+    val axis = listOf(hi, (hi+lo)/2, lo)
+    val chartColor = p.text
     Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        androidx.compose.material3.IconButton(onClick = { selected-- }, enabled = selected > 0) {
-            Text("‹", color = if (selected > 0) p.text else p.textSecondary, fontSize = 26.sp,
-                modifier = Modifier.semantics { contentDescription = "Предыдущая цена" })
-        }
-        Column(Modifier.weight(1f), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            Text(historyMoney(current.unitPrice!!), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.weight(1f)) {
+            Text(historyMoney(current.unitPrice!!), color = p.text, fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
             Text(date.format(Instant.ofEpochMilli(current.at).atZone(zone)), color = p.textSecondary, fontSize = 12.sp)
         }
-        androidx.compose.material3.IconButton(onClick = { selected++ }, enabled = selected < points.lastIndex) {
-            Text("›", color = if (selected < points.lastIndex) p.text else p.textSecondary, fontSize = 26.sp,
-                modifier = Modifier.semantics { contentDescription = "Следующая цена" })
+        if (points.size > 1) {
+            IconButton(onClick = { selected-- }, enabled = selected > 0) { Text("‹", fontSize = 24.sp, color = p.text) }
+            IconButton(onClick = { selected++ }, enabled = selected < points.lastIndex) { Text("›", fontSize = 24.sp, color = p.text) }
         }
     }
-    Text(historyMoney(maxPrice), color = p.textSecondary, fontSize = 12.sp)
-    Canvas(Modifier.fillMaxWidth().height(160.dp)
-        .pointerInput(points) {
+    Row(Modifier.fillMaxWidth().height(168.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceBetween) {
+            axis.forEach { Text(historyMoney(it.toLong()), color = p.textSecondary, fontSize = 10.sp) }
+        }
+        Canvas(Modifier.weight(1f).fillMaxHeight().pointerInput(points) {
             detectTapGestures { tap ->
-                val pad = 8.dp.toPx()
-                val width = (size.width - 2 * pad).coerceAtLeast(1f)
-                val height = (size.height - 2 * pad).coerceAtLeast(1f)
-                val span = last.toDouble() - first.toDouble()
-                val range = maxPrice.toDouble() - minPrice.toDouble()
+                val span = (last - first).coerceAtLeast(1L).toDouble()
                 selected = points.indices.minBy { index ->
-                    val point = points[index]
-                    val x = if (span == 0.0) 0.5 else (point.at.toDouble() - first.toDouble()) / span
-                    val y = if (range == 0.0) 0.5 else (point.unitPrice!!.toDouble() - minPrice.toDouble()) / range
-                    val dx = tap.x - (pad + width * x.toFloat())
-                    val dy = tap.y - (pad + height * (1f - y.toFloat()))
-                    dx * dx + dy * dy
+                    val x = if (last == first) size.width / 2f else ((points[index].at-first)/span*size.width).toFloat()
+                    kotlin.math.abs(tap.x - x)
                 }
             }
-        }.semantics { contentDescription = "График цен: $description" }) {
-        val pad = 8.dp.toPx()
-        val width = (size.width - 2 * pad).coerceAtLeast(1f)
-        val height = (size.height - 2 * pad).coerceAtLeast(1f)
-        drawLine(p.textSecondary, Offset(pad, pad), Offset(pad, size.height - pad), strokeWidth = 1.dp.toPx())
-        drawLine(p.textSecondary, Offset(pad, size.height - pad), Offset(size.width - pad, size.height - pad), strokeWidth = 1.dp.toPx())
-        val span = last.toDouble() - first.toDouble()
-        val range = maxPrice.toDouble() - minPrice.toDouble()
-        val coords = points.map { point ->
-            val x = if (span == 0.0) 0.5 else (point.at.toDouble() - first.toDouble()) / span
-            val y = if (range == 0.0) 0.5 else (point.unitPrice!!.toDouble() - minPrice.toDouble()) / range
-            Offset(pad + width * x.toFloat(), pad + height * (1f - y.toFloat()))
+        }.semantics { contentDescription = "График цен. ${points.size} покупок. От ${historyMoney(min)} до ${historyMoney(max)}" }) {
+            val pad = 7.dp.toPx()
+            val width = (size.width - pad*2).coerceAtLeast(1f)
+            val height = (size.height - pad*2).coerceAtLeast(1f)
+            val span = (last-first).coerceAtLeast(1L).toDouble()
+            val coords = points.map { point ->
+                val x = if (last == first) .5 else (point.at-first)/span
+                Offset(pad + width*x.toFloat(), pad + height*(1f-((point.unitPrice!!.toDouble()-lo)/(hi-lo)).toFloat()))
+            }
+            repeat(3) { index ->
+                val y = pad + height*index/2
+                drawLine(p.line, Offset(0f,y), Offset(size.width,y), strokeWidth = 1.dp.toPx())
+            }
+            if (coords.size > 1) {
+                val line = Path().apply { moveTo(coords.first().x, coords.first().y); coords.drop(1).forEach { lineTo(it.x,it.y) } }
+                val area = Path().apply {
+                    moveTo(coords.first().x, pad+height); coords.forEach { lineTo(it.x,it.y) }
+                    lineTo(coords.last().x,pad+height); close()
+                }
+                drawPath(area, Brush.verticalGradient(listOf(chartColor.copy(alpha=.15f), chartColor.copy(alpha=0f))))
+                drawPath(line, chartColor, style = Stroke(width=2.dp.toPx(), cap=StrokeCap.Round))
+            }
+            val chosen = coords[selected]
+            drawLine(p.textSecondary.copy(alpha=.5f), Offset(chosen.x,pad), Offset(chosen.x,pad+height), strokeWidth=1.dp.toPx())
+            coords.forEachIndexed { index, pt ->
+                if (coords.size <= 24 || index == selected) drawCircle(chartColor, if (index==selected) 5.dp.toPx() else 2.5.dp.toPx(), pt)
+            }
+            drawCircle(p.card, 2.dp.toPx(), chosen)
         }
-        coords.zipWithNext().forEach { (a, b) -> drawLine(p.accent, a, b, strokeWidth = 2.dp.toPx()) }
-        coords.forEachIndexed { index, point -> drawCircle(p.accent, radius = if (index == selected) 7.dp.toPx() else 4.dp.toPx(), center = point) }
     }
-    Text(historyMoney(minPrice), color = p.textSecondary, fontSize = 12.sp)
-    Text("Дата: ${date.format(Instant.ofEpochMilli(first).atZone(zone))}" +
-        if (first == last) "" else " — ${date.format(Instant.ofEpochMilli(last).atZone(zone))}",
-        color = p.textSecondary, fontSize = 12.sp)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(shortDate.format(Instant.ofEpochMilli(first).atZone(zone)), color = p.textSecondary, fontSize = 11.sp)
+        if (first != last) Text(shortDate.format(Instant.ofEpochMilli(last).atZone(zone)), color = p.textSecondary, fontSize = 11.sp)
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("Минимум" to min, "Максимум" to max).forEach { (label, value) ->
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(p.field).padding(10.dp)) {
+                Text(label, color = p.textSecondary, fontSize = 11.sp)
+                Text(historyMoney(value), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactProductLine(label: String, value: String) {
+    val p = LocalPalette.current
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
+        Text(value, Modifier.weight(1f), color = p.text, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+    }
 }
 
 @Composable

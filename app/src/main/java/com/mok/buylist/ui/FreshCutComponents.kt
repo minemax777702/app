@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -179,6 +181,29 @@ internal fun FreshCutTabs(labels: List<String>, current: Int, onSelect: (Int) ->
                 Text(label, color = if (active) p.text else p.textSecondary,
                     fontSize = 12.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+}
+
+/** One labeled dropdown, shared by filter sheets. */
+@Composable
+internal fun FilterSelect(label: String, value: String, options: List<String>, onSelect: (Int) -> Unit) {
+    val p = LocalPalette.current
+    var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = p.textSecondary, fontSize = 12.sp)
+        Box(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp))
+                .background(p.card).border(1.dp,p.line,RoundedCornerShape(14.dp))
+                .clickable { expanded = true }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(value, Modifier.weight(1f), color = p.text, fontSize = 14.sp)
+                Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать $label", Modifier.size(20.dp), tint = p.textSecondary)
+            }
+            AppDropdownMenu(expanded, { expanded = false }) {
+                options.forEachIndexed { index, title ->
+                    AppDropdownMenuItem(text = { Text(title) }, onClick = { expanded = false; onSelect(index) })
+                }
             }
         }
     }

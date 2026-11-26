@@ -94,6 +94,7 @@ fun StatsScreen(
     var selectedUser by rememberSaveable { mutableStateOf<String?>(null) }
     var period by rememberSaveable { mutableStateOf(ExpensePeriod.MONTH) }
     var section by rememberSaveable { mutableStateOf(0) }
+    var filterOpen by rememberSaveable { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     val today = remember { java.time.LocalDate.now(zone) }
     // Выбранного человека могло не стать (например, после обмена): тогда снова показываем всех.
@@ -131,25 +132,24 @@ fun StatsScreen(
         FreshCutRootHeader("ВАШИ ПОКУПКИ", stringResource(R.string.stats_title), "Расходы и привычки") {
             FreshCutToolbarAction(R.drawable.ic_history, "История покупок", { showHistory = true })
         }
-        if (buyers.size > 1) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                UserChip(stringResource(R.string.stats_everyone), selected = userId == null) { selectedUser = null }
-                buyers.forEach { user ->
-                    UserChip(
-                        if (user.id == meId) stringResource(R.string.stats_you, user.name) else user.name,
-                        selected = userId == user.id,
-                    ) { selectedUser = user.id }
-                }
-            }
+        if (filterOpen) {
+            var draftPeriod by remember { mutableStateOf(period) }
+            var draftUser by remember { mutableStateOf(userId) }
+            val ids = listOf<String?>(null) + buyers.map { it.id }
+            val labels = listOf("Все покупатели") + buyers.map { it.name }
+            AppSheet(onDismissRequest = { filterOpen = false }, containerColor = p.sheet,
+                title = { SheetHeader("Фильтры статистики") }, text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FilterSelect("Период", draftPeriod.title, ExpensePeriod.entries.map { it.title }) { draftPeriod = ExpensePeriod.entries[it] }
+                        if (buyers.size > 1) FilterSelect("Покупатель", labels[ids.indexOf(draftUser).coerceAtLeast(0)], labels) { draftUser = ids[it] }
+                        androidx.compose.material3.TextButton(onClick = { draftPeriod = ExpensePeriod.MONTH; draftUser = null }) { Text("Сбросить", color = p.text) }
+                    }
+                }, confirmButton = { SheetActionButton(onClick = { period = draftPeriod; selectedUser = draftUser; filterOpen = false }) { Text("Применить") } })
         }
-        FreshCutSegments(ExpensePeriod.entries.map { it.title }, ExpensePeriod.entries.indexOf(period),
-            { period = ExpensePeriod.entries[it] }, Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(period.title + " · " + (buyers.firstOrNull { it.id == userId }?.name ?: "Все покупатели"), Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
+            androidx.compose.material3.TextButton(onClick = { filterOpen = true }) { Text("Фильтры", color = p.text) }
+        }
         FreshCutTabs(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         if (stats.lists == 0 && purchases.none { userId == null || it.buyer == userId }) {
