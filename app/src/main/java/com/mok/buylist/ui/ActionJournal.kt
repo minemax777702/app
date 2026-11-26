@@ -23,7 +23,7 @@ internal data class ListAction(
 
 internal class ActionJournal private constructor(context: Context) {
     private val prefs = context.getSharedPreferences("shopping_action_journal", Context.MODE_PRIVATE)
-    private val state = MutableStateFlow(read())
+    private val state = MutableStateFlow(read().filterNot { it.title == "Действие отменено" })
     val entries: StateFlow<List<ListAction>> = state
 
     fun record(title: String, detail: String = "", before: ShoppingItem? = null,
@@ -32,6 +32,7 @@ internal class ActionJournal private constructor(context: Context) {
     }
 
     fun notice(message: String) {
+        if (message == "Действие отменено") return
         val latest = state.value.firstOrNull()
         if (latest != null && System.currentTimeMillis() - latest.at < 1500 &&
             (latest.title == message || (message == "Добавлено в список" && latest.title == "Добавлен товар"))) return
@@ -55,8 +56,7 @@ internal class ActionJournal private constructor(context: Context) {
                 else -> it
             }
         }
-        save(listOf(ListAction(title = if (success) "Действие отменено" else "Не удалось отменить",
-            detail = current.detail.ifBlank { current.title })) + updated)
+        save(updated)
     }
 
     private fun save(rows: List<ListAction>) {
@@ -101,3 +101,8 @@ internal class ActionJournal private constructor(context: Context) {
         }
     }
 }
+
+/** Only the newest three reversible operations, excluding status messages, are eligible. */
+internal fun undoableRecentActions(rows: List<ListAction>): List<ListAction> =
+    rows.filter { it.after != null || (it.before != null && it.removedAt != null) }
+        .take(3).filter { it.canUndo }

@@ -28,9 +28,11 @@ internal fun NotificationsScreen(actions: List<ListAction>, onBack: () -> Unit, 
     val zone = ZoneId.systemDefault()
     val date = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm") }
     var limit by remember { mutableIntStateOf(20) }
+    val visible = actions.filterNot { it.title == "Действие отменено" }
+    val undoIds = undoableRecentActions(visible).mapTo(HashSet()) { it.id }
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("Уведомления", onBack)
-        if (actions.isEmpty()) Column(Modifier.weight(1f).fillMaxWidth(),
+        if (visible.isEmpty()) Column(Modifier.weight(1f).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(painterResource(R.drawable.ic_bell), null, Modifier.size(40.dp), tint = p.textSecondary)
             Spacer(Modifier.height(12.dp))
@@ -38,7 +40,7 @@ internal fun NotificationsScreen(actions: List<ListAction>, onBack: () -> Unit, 
             Text("Здесь появятся ваши действия", color = p.textSecondary, fontSize = 13.sp)
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(actions.take(limit), key = { it.id }) { action ->
+            items(visible.take(limit), key = { it.id }) { action ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(painterResource(when (action.title) {
@@ -53,10 +55,10 @@ internal fun NotificationsScreen(actions: List<ListAction>, onBack: () -> Unit, 
                         Text(date.format(Instant.ofEpochMilli(action.at).atZone(zone)), color = p.textSecondary, fontSize = 11.sp)
                         if (action.result.isNotBlank()) Text(action.result, color = p.textSecondary, fontSize = 12.sp)
                     }
-                    if (action.canUndo) TextButton(onClick = { onUndo(action.id) }) { Text("Отменить", color = p.text) }
+                    if (action.id in undoIds) TextButton(onClick = { onUndo(action.id) }) { Text("Отменить", color = p.text) }
                 }
             }
-            if (actions.size > limit) item { FreshCutSecondaryButton("Показать ещё", { limit += 20 }) }
+            if (visible.size > limit) item { FreshCutSecondaryButton("Показать ещё", { limit += 20 }) }
         }
     }
 }

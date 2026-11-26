@@ -187,7 +187,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             }
             items(rows.take(shownCount), key = { "lenta:${it.id}" }) { product ->
                 val prices = productShopPrices("lenta:${product.id}", stores, storeLinks, knownPurchases, identities, products, address)
-                val value = cheapestShopPrice(prices)?.priceKopecks ?: product.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" }?.let { com.mok.buylist.data.parsePriceKopecks(it.price) }
+                val value = displayShopPrice("lenta:${product.id}", prices)?.priceKopecks ?: product.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" }?.let { com.mok.buylist.data.parsePriceKopecks(it.price) }
                 val subtitle = (listOf("Лента") + prices.map { it.storeName }).distinct().joinToString(" · ")
                 var menu by remember { mutableStateOf(false) }
                 FreshCutListRow(R.drawable.ic_package, product.name, subtitle,

@@ -219,6 +219,7 @@ fun AddItemSheet(
                     query = text,
                     modifier = Modifier.weight(1f),
                     hasOtherResults = matches.isNotEmpty(),
+                    onUserScroll = { dismissKeyboard() },
                     leadingResults = {
                         matches.forEach { custom ->
                             item(key = "custom:${custom.id}") {

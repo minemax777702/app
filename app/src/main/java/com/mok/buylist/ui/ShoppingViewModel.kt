@@ -124,7 +124,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         val lines = items.map { item ->
             val key = if (item.customProductId.isNotBlank()) "custom:${item.customProductId}" else "lenta:${item.productId}"
             val price = if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.unitPrice else
-                cheapestShopPrice(productShopPrices(key, emptyList(), links, purchases, aliases, products, address))?.priceKopecks
+                displayShopPrice(key, productShopPrices(key, emptyList(), links, purchases, aliases, products, address))?.priceKopecks
                     ?: custom.firstOrNull { it.id == item.customProductId }?.estimatedPriceKopecks
             PricedLine(item.quantity, item.deleted, price, if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.weightGrams else item.weightGrams)
         }
@@ -373,13 +373,13 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun restore(item: ShoppingItem) {
-        actions.value.firstOrNull { it.canUndo && (it.before?.id == item.id || it.after?.id == item.id) }
+        undoableRecentActions(actions.value).firstOrNull { it.before?.id == item.id || it.after?.id == item.id }
             ?.let { undoAction(it.id) }
     }
 
     internal fun undoAction(id: String) {
         viewModelScope.launch { actionMutex.withLock {
-            val action = actions.value.firstOrNull { it.id == id && it.canUndo } ?: return@withLock
+            val action = undoableRecentActions(actions.value).firstOrNull { it.id == id } ?: return@withLock
             val success = repository.undoListAction(action.before, action.after, action.removedAt)
             val restored = if (success) action.before?.let { repository.actionItem(it.id) } else null
             journal.completeUndo(id, success, restored)

@@ -221,8 +221,9 @@ internal fun StoresScreen(
                     }
                     var menu by remember { mutableStateOf(false) }
                     FreshCutListRow(R.drawable.ic_package, entry.name,
-                        listOfNotNull(purchasedAt?.let { "Куплен $it" }, if (entry.weighted) "Цена за кг" else null)
-                            .joinToString(" · ").ifBlank { "Товар магазина" },
+                        listOfNotNull(if (store.id == lentaStoreId() && storeLinks.any { !it.deleted && it.storeId == store.id &&
+                            (identities[it.productKey] ?: it.productKey) == (identities[entry.key] ?: entry.key) && it.priceKopecks != null }) "Ручная цена" else null,
+                            if (entry.weighted) "Цена за кг" else null).joinToString(" · "),
                         entry.price?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
                         onClick = { onProductClick(entry.key) },
                         leading = {
@@ -236,7 +237,7 @@ internal fun StoresScreen(
                                     Icon(painterResource(R.drawable.ic_more), "Действия с ценой", Modifier.size(20.dp), tint = p.textSecondary)
                                 }
                                 AppDropdownMenu(menu, { menu = false }) {
-                                    AppDropdownMenuItem(text = { Text(if (attached) "Изменить цену" else "Добавить в магазин") }, onClick = {
+                                    AppDropdownMenuItem(text = { Text("Изменить цену") }, onClick = {
                                         menu = false; chosenProductKey = entry.key
                                         linkPrice = entry.price?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() }.orEmpty()
                                         choiceQuery = ""; linkError = null; choosingProduct = true

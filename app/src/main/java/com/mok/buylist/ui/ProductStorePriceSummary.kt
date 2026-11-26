@@ -61,3 +61,8 @@ internal fun productShopPrices(
 internal fun cheapestShopPrice(prices: List<ProductShopPrice>): ProductShopPrice? =
     prices.filter { it.priceKopecks != null }.minWithOrNull(
         compareBy<ProductShopPrice> { it.priceKopecks!! }.thenBy { it.storeName.lowercase() })
+
+/** Lenta catalog items are purchased in Lenta; custom products use their cheapest store. */
+internal fun displayShopPrice(key: String, prices: List<ProductShopPrice>): ProductShopPrice? =
+    if (key.startsWith("lenta:")) prices.firstOrNull { it.storeId == com.mok.buylist.data.lentaStoreId() && it.priceKopecks != null }
+    else cheapestShopPrice(prices)

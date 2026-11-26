@@ -269,13 +269,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                         ),
                         verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        item(key = "fresh-cut-section") {
-                            Text(
-                                "Нужно купить · ${list.size}",
-                                color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(bottom = 4.dp),
-                            )
-                        }
                         items(list, key = { it.item.id }, contentType = { "row" }) { row ->
                             ItemRow(
                                 row = row,
@@ -610,6 +603,12 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             stores = stores,
             archive = archive,
             bought = bought,
+            prices = shopPricesByKey[selected.item.id].orEmpty(),
+            lentaCodes = lentaBarcodes.filter { it.productId == selected.item.productId && !it.deleted }.map { it.code },
+            onSaveManualPrice = { amount, done ->
+                val key = if (selected.item.productId > 0) "lenta:${selected.item.productId}" else "custom:${selected.item.customProductId}"
+                viewModel.saveStoreProduct(com.mok.buylist.data.lentaStoreId(), key, amount, done)
+            },
         ) { detailsRow = null }
     }
     if (showTheme) {
@@ -713,8 +712,6 @@ private fun Header(
                 AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     AppDropdownMenuItem(text = { Text("Переключить тему") },
                         onClick = { expanded = false; onToggleTheme() })
-                    AppDropdownMenuItem(text = { Text("Уведомления") },
-                        onClick = { expanded = false; onNotifications() })
                     AppDropdownMenuItem(text = { Text("Завершить список") },
                         enabled = canFinish, onClick = { expanded = false; onFinish() })
                 }
@@ -1059,7 +1056,7 @@ private fun ItemRowContent(
         address.isNotBlank() && it.address == address && it.channel == "locc" &&
             it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null
     }
-    val lowest = cheapestShopPrice(shopPrices)
+    val lowest = displayShopPrice(if (row.item.productId > 0) "lenta:${row.item.productId}" else "custom:${row.item.customProductId}", shopPrices)
     val ownPrice = lowest?.priceKopecks ?: ownEstimate
     val subtitle = when {
         ownPrice != null -> {

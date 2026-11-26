@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,7 +58,8 @@ fun LentaSettings(onDismiss: () -> Unit) {
 fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
     onlineOnly: Boolean = false, hasOtherResults: Boolean = false,
-    leadingResults: LazyListScope.() -> Unit = {}, footer: (@Composable () -> Unit)? = null) {
+    leadingResults: LazyListScope.() -> Unit = {}, footer: (@Composable () -> Unit)? = null,
+    onUserScroll: () -> Unit = {}) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
@@ -64,6 +67,13 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     val ready by catalog.ready.collectAsStateWithLifecycle()
     val p = LocalPalette.current
     val trimmed = query.trim()
+    val listState = rememberLazyListState()
+    val scrollCallback by rememberUpdatedState(onUserScroll)
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) scrollCallback()
+        }
+    }
     val scope = rememberCoroutineScope()
     val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
     val state by controller.state.collectAsStateWithLifecycle()
@@ -77,7 +87,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (trimmed.length >= 2 || hasOtherResults || footer != null) {
             // Вспомогательные действия прокручиваются вместе с результатами.
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(Modifier.fillMaxWidth().weight(1f), state = listState, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
                 if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
                 if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
@@ -120,13 +130,12 @@ private fun LentaResult(product: LentaProduct, address: String, onClick: () -> U
                 val price = product.price.takeIf { product.address == address && product.channel == "locc" && it.isNotBlank() && it != "null" }
                 val details = listOfNotNull(price?.let { "$it ₽" }, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
                 if (details.isNotEmpty()) Text(details, color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                product.stock?.let { Text(if (it > 0) "В наличии: $it" else "Нет в наличии", color = p.textSecondary, fontSize = 11.sp) }
             }
         }
     }
 }
 
-fun lentaPrice(product: LentaProduct): String = if (product.price.isBlank() || product.price == "null") "Цена неизвестна" else
+fun lentaPrice(product: LentaProduct): String = if (product.price.isBlank() || product.price == "null") "—" else
     "${product.price} ₽"
 
 @Composable
