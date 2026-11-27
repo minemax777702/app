@@ -56,6 +56,18 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
 }
 
 @Composable
+internal fun SheetDeleteButton(title: String, onClick: () -> Unit, enabled: Boolean = true, icon: Int = R.drawable.ic_trash) {
+    val p = LocalPalette.current
+    OutlinedButton(onClick=onClick, enabled=enabled, modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),
+        shape=RoundedCornerShape(16.dp), border=androidx.compose.foundation.BorderStroke(1.dp,p.error),
+        colors=ButtonDefaults.outlinedButtonColors(contentColor=p.error)) {
+        Icon(painterResource(icon),null,Modifier.size(18.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(title)
+    }
+}
+
+@Composable
 internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint: String,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default, keyboardActions: KeyboardActions = KeyboardActions.Default,
     isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null, placeholder: String = "", readOnly: Boolean = false,
@@ -114,11 +126,11 @@ internal fun AppSheet(
         dragHandle = if (required) null else { { SheetDragHandle(onDismissRequest) } },
     ) {
         BackHandler(enabled = required) { }
-        Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
+        Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()
             .heightIn(min = minBodyHeight).padding(horizontal = 20.dp)
             .padding(top = if (required) 24.dp else 0.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.SpaceBetween) {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1f)) {

@@ -79,7 +79,7 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
     }
     LaunchedEffect(Unit){refresh()}
     val busy=loading || deleting || stage!=PasskeyStage.IDLE
-    AppSheet(onDismissRequest={if(!busy)onClose()},containerColor=p.sheet,title={SheetHeader("Ключи доступа")},text={
+    AppSheet(onDismissRequest={if(!busy)onClose()},containerColor=p.sheet,title={SheetHeader("Безопасность")},text={
         Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp)) {
                 Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {

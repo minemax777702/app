@@ -157,7 +157,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "cloud" -> SupabasePanel()
+                "cloud" -> SupabasePanel(fixedLogout = signedIn && me != null)
                 "admin" -> if (isAdmin) SupabasePanel(adminOnly = true)
                 else -> {
                     if (signedIn) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
@@ -188,6 +188,22 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     if (isAdmin) ProfileMenuRow(R.drawable.ic_shield, "Администрирование", "", { page = "admin" })
                     if (!signedIn) ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }
+            }
+        }
+        if (page == "cloud" && signedIn && me != null) {
+            var signingOut by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            Box(Modifier.fillMaxWidth().padding(horizontal=20.dp, vertical=12.dp)) {
+                SheetDeleteButton("Выйти из аккаунта", {
+                    if (!signingOut) {
+                        signingOut=true
+                        scope.launch {
+                            try {
+                                app.cloud.signOut()
+                                if(activity!=null) app.cloud.passkeys.clearCredentialState(activity)
+                            } finally { signingOut=false }
+                        }
+                    }
+                }, enabled=!signingOut, icon=R.drawable.ic_log_out)
             }
         }
     }

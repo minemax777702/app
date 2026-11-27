@@ -27,7 +27,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false) {
+internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false, fixedLogout: Boolean = false) {
     val p = LocalPalette.current
     val app = LocalContext.current.applicationContext as ShoppingApp
     val cloud = app.cloud
@@ -117,7 +117,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
         if (!adminOnly) FreshCutListRow(R.drawable.ic_user_round, me.name,
             onClick={ if(!busy) editName=true }, showChevron=false,
             trailing=if(activity!=null) {{
-                FreshCutToolbarAction(R.drawable.ic_fingerprint,"Ключи доступа",
+                FreshCutToolbarAction(R.drawable.ic_shield,"Безопасность",
                     {passkeySheet=true},enabled=!busy)
             }} else null)
         if (pendingCount > 0) Text("Ожидают синхронизации: $pendingCount",color=p.textSecondary,fontSize=13.sp)
@@ -154,7 +154,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 FreshCutSecondaryButton("Создать пользователя",{createUserGroup=null;createUser=true},enabled=!busy)
             }
         }
-        if (!adminOnly) FreshCutSecondaryButton("Выйти",{perform{
+        if (!adminOnly && !fixedLogout) FreshCutSecondaryButton("Выйти",{perform{
             cloud.signOut()
             if(activity!=null) try { cloud.passkeys.clearCredentialState(activity) }
             catch(e:CancellationException){throw e} catch(_:Exception){}
@@ -179,7 +179,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 if(row==null){
                     val choices=directory.groups.filter{directory.participates(it)}
                     FilterSelect("Группа",choices.firstOrNull{it.id==group}?.name ?: "Личный",listOf("Личный")+choices.map{it.name}) { index -> group=choices.getOrNull(index-1)?.id }
-                }else FreshCutSecondaryButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id);notifyPending("Список удалён · ${row.name}") }},enabled=!busy)
+                }else SheetDeleteButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id);notifyPending("Список удалён · ${row.name}") }},enabled=!busy)
             }
         },confirmButton={SheetActionButton(onClick={listSheet=false;perform{cloud.saveList(row?.id,title,group);notifyPending((if(row==null) "Список создан" else "Список изменён")+" · "+title.trim())}},enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
     }
@@ -257,7 +257,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                             })
                         }
                         if(manage) {
-                            FreshCutSecondaryButton("Удалить группу",{
+                            SheetDeleteButton("Удалить группу",{
                                 groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id);notifyPending("Группа удалена · ${row.name}")}
                             },enabled=!busy)
                         }
