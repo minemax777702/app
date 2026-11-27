@@ -31,6 +31,50 @@ class CloudUserRegistryTest {
         assertTrue(runCatching { CloudRegistryCrypto.decrypt(SecretKeySpec(ByteArray(32), "AES"), a) }.isFailure)
     }
 
+    @Test fun groupsPreserveRolesAndRequireExactlyOneOwner() {
+        val initial = CloudUserRegistry().add("Анна").add("Борис").add("Вера")
+        val (anna, boris, vera) = initial.users.map { it.id }
+        val roles = mapOf(anna to CloudGroupRole.OWNER, boris to CloudGroupRole.MEMBER, vera to CloudGroupRole.VIEWER)
+        val created = initial.saveGroup(null, "Семья", roles)
+        val group = created.groups.single()
+        assertEquals(roles, group.members)
+        assertEquals(created, CloudRegistryCrypto.decrypt(key, CloudRegistryCrypto.encrypt(key, created)))
+        assertTrue(runCatching { created.saveGroup(group.id, "Семья", mapOf(anna to CloudGroupRole.MEMBER)) }.isFailure)
+        assertTrue(runCatching { created.saveGroup(group.id, "Семья", mapOf(anna to CloudGroupRole.OWNER, boris to CloudGroupRole.OWNER)) }.isFailure)
+        val transferred = created.saveGroup(group.id, "Дом", roles + mapOf(anna to CloudGroupRole.MEMBER, boris to CloudGroupRole.OWNER))
+        assertEquals(group.id, transferred.groups.single().id)
+        assertEquals(CloudGroupRole.OWNER, transferred.groups.single().members[boris])
+    }
+
+    @Test fun archivedUserCannotBelongToActiveGroup() {
+        val initial = CloudUserRegistry().add("Анна").add("Борис")
+        val (anna, boris) = initial.users.map { it.id }
+        val created = initial.saveGroup(null, "Семья", mapOf(anna to CloudGroupRole.OWNER, boris to CloudGroupRole.VIEWER))
+        val id = created.groups.single().id
+        assertTrue(runCatching { created.archive(boris, true) }.isFailure)
+        val archived = created.archiveGroup(id, true).archive(boris, true)
+        assertTrue(runCatching { archived.archiveGroup(id, false) }.isFailure)
+        assertFalse(archived.archive(boris, false).archiveGroup(id, false).groups.single().archived)
+        assertTrue(runCatching { initial.saveGroup(null, "Дом", mapOf(java.util.UUID.randomUUID().toString() to CloudGroupRole.OWNER)) }.isFailure)
+    }
+
+    @Test fun oldRegistryPayloadCanBeReadWithoutLosingUsers() {
+        val initial = CloudUserRegistry().add("Анна")
+        val user = initial.users.single()
+        val output = java.io.ByteArrayOutputStream()
+        java.io.DataOutputStream(output).use {
+            it.writeInt(0x42554331)
+            it.writeLong(initial.revision)
+            it.writeInt(1)
+            it.writeUTF(user.id)
+            it.writeUTF(user.name)
+            it.writeBoolean(false)
+        }
+        val old = CloudRegistryCodec.decode(output.toByteArray())
+        assertEquals(initial, old)
+        assertEquals(old, CloudRegistryCodec.decode(CloudRegistryCodec.encode(old)))
+    }
+
     @Test fun malformedRecordsAreRejected() {
         val registry = CloudUserRegistry().add("Анна")
         assertTrue(runCatching { registry.add(" ") }.isFailure)

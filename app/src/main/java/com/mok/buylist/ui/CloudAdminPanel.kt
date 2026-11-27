@@ -214,7 +214,7 @@ internal fun CloudAdminPanel() {
                     null -> "Не проверены"
                 })
                 if (current.actionsEnabled == false) {
-                    FreshCutSecondaryButton("Пользователи", { showUsers = true }, enabled = !busy)
+                    FreshCutSecondaryButton("Пользователи и группы", { showUsers = true }, enabled = !busy)
                 }
                 if (current.actionsEnabled != false) {
                     Text("Перед подключением пользователей отключите Actions в репозитории данных.", color = p.textSecondary, fontSize = 14.sp)

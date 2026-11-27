@@ -18,11 +18,47 @@ internal data class CloudUserDraft(val id: String, val name: String, val archive
     }
 }
 
-internal data class CloudUserRegistry(val revision: Long = 0, val users: List<CloudUserDraft> = emptyList()) {
+/** Draft roles describe intended permissions, never GitHub or runtime authorization. */
+internal enum class CloudGroupRole(val wire: Int) {
+    OWNER(1), MEMBER(2), VIEWER(3);
+
+    companion object {
+        fun fromWire(value: Int): CloudGroupRole =
+            entries.firstOrNull { it.wire == value } ?: error("Unknown group role")
+    }
+}
+
+internal data class CloudGroupDraft(
+    val id: String,
+    val name: String,
+    val members: Map<String, CloudGroupRole>,
+    val archived: Boolean = false,
+) {
+    init {
+        require(UUID.fromString(id).toString() == id)
+        require(name == name.trim() && name.isNotEmpty() && name.length <= 50 && name.none { it.isISOControl() })
+        require(members.size in 1..CloudUserRegistry.MAX_USERS)
+        require(members.keys.all { UUID.fromString(it).toString() == it })
+        require(members.values.count { it == CloudGroupRole.OWNER } == 1) { "В группе должен быть один владелец" }
+    }
+}
+
+internal data class CloudUserRegistry(
+    val revision: Long = 0,
+    val users: List<CloudUserDraft> = emptyList(),
+    val groups: List<CloudGroupDraft> = emptyList(),
+) {
     init {
         require(revision >= 0)
         require(users.size <= MAX_USERS && users.map { it.id }.distinct().size == users.size)
-        require(revision > 0 || users.isEmpty())
+        require(revision > 0 || (users.isEmpty() && groups.isEmpty()))
+        require(groups.size <= MAX_GROUPS && groups.map { it.id }.distinct().size == groups.size)
+        require(groups.sumOf { it.members.size } <= MAX_MEMBERSHIPS) { "Достигнут предел числа участников групп" }
+        val byId = users.associateBy { it.id }
+        require(groups.all { group -> group.members.keys.all { it in byId } }) { "Неизвестный участник группы" }
+        require(groups.all { group -> group.archived || group.members.keys.all { byId.getValue(it).archived.not() } }) {
+            "Сначала исключите пользователя из активных групп или архивируйте эти группы"
+        }
     }
 
     fun add(name: String) = copy(
@@ -39,24 +75,54 @@ internal data class CloudUserRegistry(val revision: Long = 0, val users: List<Cl
             users = users.map { if (it.id == id) transform(it) else it })
     }
 
-    companion object { const val MAX_USERS = 100 }
+    fun saveGroup(id: String?, name: String, members: Map<String, CloudGroupRole>): CloudUserRegistry {
+        val previous = id?.let { key -> groups.firstOrNull { it.id == key } ?: error("Group missing") }
+        require(previous?.archived != true) { "Сначала восстановите группу" }
+        val updated = CloudGroupDraft(id ?: UUID.randomUUID().toString(), name.trim(), members.toMap())
+        return copy(revision = Math.addExact(revision, 1),
+            groups = if (previous == null) groups + updated else groups.map { if (it.id == id) updated else it })
+    }
+
+    fun archiveGroup(id: String, archived: Boolean): CloudUserRegistry {
+        require(groups.any { it.id == id })
+        return copy(revision = Math.addExact(revision, 1),
+            groups = groups.map { if (it.id == id) it.copy(archived = archived) else it })
+    }
+
+    companion object {
+        const val MAX_USERS = 100
+        const val MAX_GROUPS = 20
+        const val MAX_MEMBERSHIPS = 1000
+    }
 }
 
 /** Versioned bounded format, independent of Android and JSON. */
 internal object CloudRegistryCodec {
-    private const val MAGIC = 0x42554331
+    private const val MAGIC_V1 = 0x42554331
+    private const val MAGIC_V2 = 0x42554332
     const val MAX_BYTES = 65_536
 
     fun encode(registry: CloudUserRegistry): ByteArray {
         val out = ByteArrayOutputStream()
         DataOutputStream(out).use { data ->
-            data.writeInt(MAGIC)
+            data.writeInt(MAGIC_V2)
             data.writeLong(registry.revision)
             data.writeInt(registry.users.size)
             registry.users.forEach {
                 data.writeUTF(it.id)
                 data.writeUTF(it.name)
                 data.writeBoolean(it.archived)
+            }
+            data.writeInt(registry.groups.size)
+            registry.groups.forEach { group ->
+                data.writeUTF(group.id)
+                data.writeUTF(group.name)
+                data.writeBoolean(group.archived)
+                data.writeInt(group.members.size)
+                group.members.toSortedMap().forEach { (id, role) ->
+                    data.writeUTF(id)
+                    data.writeByte(role.wire)
+                }
             }
         }
         return out.toByteArray().also { require(it.size <= MAX_BYTES) }
@@ -65,13 +131,35 @@ internal object CloudRegistryCodec {
     fun decode(bytes: ByteArray): CloudUserRegistry {
         require(bytes.size in 16..MAX_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { data ->
-            require(data.readInt() == MAGIC)
+            val magic = data.readInt()
+            require(magic == MAGIC_V1 || magic == MAGIC_V2)
             val revision = data.readLong()
             val count = data.readInt()
             require(count in 0..CloudUserRegistry.MAX_USERS)
             val users = List(count) { CloudUserDraft(data.readUTF(), data.readUTF(), data.readBoolean()) }
+            val groups = if (magic == MAGIC_V1) emptyList() else {
+                val groupCount = data.readInt()
+                require(groupCount in 0..CloudUserRegistry.MAX_GROUPS)
+                var totalMembers = 0
+                List(groupCount) {
+                    val id = data.readUTF()
+                    val name = data.readUTF()
+                    val archived = data.readBoolean()
+                    val memberCount = data.readInt()
+                    require(memberCount in 1..CloudUserRegistry.MAX_USERS)
+                    totalMembers += memberCount
+                    require(totalMembers <= CloudUserRegistry.MAX_MEMBERSHIPS)
+                    val members = linkedMapOf<String, CloudGroupRole>()
+                    repeat(memberCount) {
+                        val userId = data.readUTF()
+                        val role = CloudGroupRole.fromWire(data.readUnsignedByte())
+                        require(members.put(userId, role) == null)
+                    }
+                    CloudGroupDraft(id, name, members, archived)
+                }
+            }
             require(data.read() == -1)
-            CloudUserRegistry(revision, users)
+            CloudUserRegistry(revision, users, groups)
         }
     }
 }

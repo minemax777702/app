@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 import com.mok.buylist.cloud.CloudAdminException
 import com.mok.buylist.cloud.CloudUserDraft
+import com.mok.buylist.cloud.CloudGroupDraft
+import com.mok.buylist.cloud.CloudUserRegistry
 import com.mok.buylist.cloud.CloudUserRegistryStore
 import com.mok.buylist.cloud.GitHubCloudAdmin
 import com.mok.buylist.cloud.LoadedCloudUsers
@@ -38,6 +40,9 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     var selected by remember(admin) { mutableStateOf<CloudUserDraft?>(null) }
     var name by remember(admin) { mutableStateOf("") }
     var showArchived by remember(admin) { mutableStateOf(false) }
+    var section by remember(admin) { mutableStateOf(0) }
+    var groupEditing by remember(admin) { mutableStateOf(false) }
+    var selectedGroup by remember(admin) { mutableStateOf<CloudGroupDraft?>(null) }
 
     suspend fun reload() {
         busy = true
@@ -55,10 +60,14 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     fun change(transform: (LoadedCloudUsers) -> com.mok.buylist.cloud.CloudUserRegistry) {
         val previous = loaded ?: return
         if (busy) return
+        val next = try { transform(previous) } catch (e: IllegalArgumentException) {
+            error = e.message ?: "Некорректные данные"
+            return
+        }
         busy = true
         error = null
         scope.launch {
-            try { loaded = store.save(admin, previous, transform(previous)) }
+            try { loaded = store.save(admin, previous, next) }
             catch (e: CancellationException) { throw e }
             catch (e: CloudAdminException) { loaded = null; error = e.message }
             catch (_: Exception) { loaded = null; error = "Запись не подтверждена. Обновите реестр перед повторной попыткой." }
@@ -68,12 +77,13 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSecondaryButton("К настройкам облака", onBack)
-        FreshCutSectionTitle("Пользователи")
+        FreshCutSectionTitle("Пользователи и группы")
+        FreshCutTabs(listOf("Пользователи", "Группы"), section, { section = it; showArchived = false })
         Text("Предварительный реестр. Записи пока не предоставляют доступ и не подключают устройства. Имена шифруются. До появления восстановления используйте только тестовые имена. При удалении приложения ключ может быть потерян. Реестр доступен только на создавшем его устройстве.", color = p.textSecondary, fontSize = 14.sp)
         val current = loaded
         if (busy) Text("Загрузка…", color = p.textSecondary, fontSize = 14.sp)
         error?.let { Text(it, color = p.error, fontSize = 14.sp) }
-        if (current != null) {
+        if (current != null && section == 0) {
             val users = current.registry.users
             FreshCutDetailLine("Активные записи", users.count { !it.archived }.toString())
             FreshCutDetailLine("В архиве", users.count { it.archived }.toString())
@@ -97,7 +107,42 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
                     })
             }
         }
+        if (current != null && section == 1) {
+            val groups = current.registry.groups
+            FreshCutDetailLine("Активные группы", groups.count { !it.archived }.toString())
+            FreshCutDetailLine("В архиве", groups.count { it.archived }.toString())
+            FreshCutSecondaryButton("Создать группу", {
+                selectedGroup = null
+                groupEditing = true
+            }, enabled = !busy && groups.size < CloudUserRegistry.MAX_GROUPS && current.registry.users.any { !it.archived })
+            if (current.registry.users.none { !it.archived }) Text("Сначала добавьте пользователя.", color = p.textSecondary, fontSize = 14.sp)
+            FreshCutTabs(listOf("Активные", "Архив"), if (showArchived) 1 else 0, { showArchived = it == 1 })
+            val visible = groups.filter { it.archived == showArchived }.sortedBy { it.name.lowercase() }
+            if (visible.isEmpty()) Text("Нет групп", color = p.textSecondary, fontSize = 14.sp)
+            visible.forEach { group ->
+                FreshCutListRow(R.drawable.ic_group, group.name, "Участников: ${group.members.size}", onClick = {
+                    if (!busy) { selectedGroup = group; groupEditing = true }
+                })
+            }
+        }
         FreshCutSecondaryButton("Обновить список", { scope.launch { reload() } }, enabled = !busy)
+    }
+
+    if (groupEditing && loaded != null) {
+        val group = selectedGroup
+        CloudGroupSheet(
+            registry = requireNotNull(loaded).registry,
+            group = group,
+            onDismiss = { groupEditing = false },
+            onSave = { groupName, members ->
+                groupEditing = false
+                change { it.registry.saveGroup(group?.id, groupName, members) }
+            },
+            onArchive = {
+                groupEditing = false
+                if (group != null) change { it.registry.archiveGroup(group.id, !group.archived) }
+            },
+        )
     }
 
     if (editing) {
