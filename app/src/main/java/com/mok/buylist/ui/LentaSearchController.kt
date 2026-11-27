@@ -9,6 +9,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.currentCoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -139,6 +140,7 @@ internal class LentaSearchController(
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
+            currentCoroutineContext().ensureActive()
             state.value = state.value.copy(loading = false, failed = true, hasMore = true)
         }
     }

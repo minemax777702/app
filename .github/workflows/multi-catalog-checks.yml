@@ -1,6 +1,13 @@
 name: Multi-catalog Android checks
 
 on:
+  push:
+    branches: [beta]
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - '**/*.gradle.kts'
+      - '.github/workflows/multi-catalog-checks.yml'
   pull_request:
     paths:
       - "app/**"
