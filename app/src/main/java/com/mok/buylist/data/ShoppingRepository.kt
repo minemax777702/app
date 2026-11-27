@@ -947,6 +947,19 @@ class ShoppingRepository(
      * Сливает данные второго телефона с локальными и записывает результат. Слияние делается над свежим снимком
      * внутри транзакции, поэтому правки, сделанные пока шёл обмен, не теряются.
      */
+    internal suspend fun applyLateChanges(plan: com.mok.buylist.cloud.CloudLatePlan): Boolean {
+        require(isolatedWorkspace)
+        val applied = db.withTransaction {
+            val local = buildSnapshot()
+            if (local != plan.before) return@withTransaction false
+            val merged = SyncMerge.merge(local, plan.patch)
+            if (local != merged) write(merged)
+            true
+        }
+        if (applied) refreshWidget()
+        return applied
+    }
+
     suspend fun applyRemote(remote: Snapshot): SyncSummary {
         val summary = db.withTransaction {
             val local = buildSnapshot()

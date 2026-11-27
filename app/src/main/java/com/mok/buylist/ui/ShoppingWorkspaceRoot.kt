@@ -141,6 +141,12 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
     val status by session.status.collectAsStateWithLifecycle()
     val address by session.catalog.address.collectAsStateWithLifecycle()
     val widgetKey by app.cloudSpaces.widgetKey.collectAsStateWithLifecycle()
+    val sessions by app.cloudSpaces.sessions.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
+    var transferSource by remember { mutableStateOf<CloudSpaceSession?>(null) }
+    var transferPlan by remember { mutableStateOf<com.mok.buylist.cloud.CloudLatePlan?>(null) }
+    var transferBusy by remember { mutableStateOf(false) }
+    var transferMessage by remember { mutableStateOf<String?>(null) }
     var showAddress by remember { mutableStateOf(false) }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) showAddress = true }
     Column(Modifier.fillMaxSize().background(p.background)) {
@@ -156,6 +162,21 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
             }, onClick = { app.cloudSpaces.requestSync(session) })
             status.issue?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
             FreshCutListRow(R.drawable.ic_store, "Магазин Ленты", address.ifBlank { "Адрес не выбран" }, onClick = { showAddress = true })
+            sessions.filter { it.space == session.space && it.epoch < session.epoch && it.historical && it.grant.canWrite && it.grant.userId == session.grant.userId }.forEach { source ->
+                FreshCutListRow(R.drawable.ic_repeat, "Перенести изменения", "Прежняя версия списка · ${source.epoch}", onClick = {
+                    if (!transferBusy) {
+                        transferBusy = true
+                        transferMessage = null
+                        scope.launch {
+                            try { transferPlan = app.cloudSpaces.latePlan(source, session); transferSource = source }
+                            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                            catch (_: Exception) { transferMessage = "Не удалось проверить прежние изменения. Данные сохранены." }
+                            finally { transferBusy = false }
+                        }
+                    }
+                })
+            }
+            transferMessage?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
             FreshCutListRow(R.drawable.ic_list_check, "Список в виджете", if (widgetKey == session.localKey) "Этот список" else "Выбрать этот список",
                 onClick = { app.cloudSpaces.selectWidget(if (widgetKey == session.localKey) null else session) })
             FreshCutListRow(R.drawable.ic_sun, "Оформление", onClick = onOpenTheme)
@@ -163,4 +184,25 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
         }
     }
     if (showAddress) LentaSettings { showAddress = false }
+    val plan = transferPlan
+    val source = transferSource
+    if (plan != null && source != null) AppSheet(
+        onDismissRequest = { if (!transferBusy) { transferPlan = null; transferSource = null } },
+        containerColor = p.sheet, title = { SheetHeader("Перенос изменений") },
+        text = {
+            Text("Изменений без конфликтов: ${plan.changes}. Конфликтующих записей: ${plan.conflicts}. Прежний список останется доступен; конфликтующие записи не перезаписываются.", color = p.textSecondary, fontSize = 14.sp)
+        }, confirmButton = {
+            SheetActionButton(onClick = {
+                transferBusy = true
+                scope.launch {
+                    try {
+                        val ok = app.cloudSpaces.transferLate(source, session, plan)
+                        transferMessage = if (ok) "Изменения перенесены. Конфликты сохранены в прежней версии." else "Список изменился. Повторите проверку."
+                        transferPlan = null; transferSource = null
+                    } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                    catch (_: Exception) { transferMessage = "Перенос не выполнен. Данные сохранены."; transferPlan = null; transferSource = null }
+                    finally { transferBusy = false }
+                }
+            }, enabled = !transferBusy && plan.changes > 0) { Text("Перенести") }
+        })
 }

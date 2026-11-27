@@ -187,6 +187,36 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
         _sessions.value.forEach { if (it.epoch < latest.getValue(it.space)) it.historical = true }
     }
 
+    suspend fun latePlan(source: CloudSpaceSession, target: CloudSpaceSession): CloudLatePlan = withContext(Dispatchers.IO) {
+        require(source.historical && target.writable && source.space == target.space && source.epoch < target.epoch)
+        require(source.grant.canWrite && source.grant.userId == target.grant.userId)
+        val baseline = try {
+            CloudJournalStore(context, epochNamespace = source.epoch).read(source.space).state.snapshot
+        } catch (e: java.io.FileNotFoundException) {
+            // Before the first ever sync the authenticated invitation is the baseline.
+            if (source.invitation.checkpoint.isEmpty()) com.mok.buylist.sync.Snapshot()
+            else CloudEpochCheckpoint.open(source.invitation.checkpoint, source.invitation.signed.manifest,
+                source.invitation.open(CloudDeviceIdentity.fingerprint(), CloudDeviceIdentity.encryptionPair().private))
+        }
+        CloudLateChanges.plan(baseline, source.repository.exportSnapshot(), target.repository.exportSnapshot())
+    }
+
+    suspend fun transferLate(source: CloudSpaceSession, target: CloudSpaceSession, plan: CloudLatePlan): Boolean {
+        require(source.historical && target.writable && source.space == target.space && source.epoch < target.epoch)
+        require(source.grant.canWrite && source.grant.userId == target.grant.userId)
+        val applied = withContext(Dispatchers.IO) {
+            target.mutex.withLock {
+                require(target.writable)
+                target.repository.applyLateChanges(plan)
+            }
+        }
+        if (applied) {
+            requestSync(target)
+            if (widgetKey.value == target.localKey) refreshWidgets()
+        }
+        return applied
+    }
+
     fun requestSync(session: CloudSpaceSession) {
         if (!session.historical) CloudSyncWork.enqueue(context)
     }
