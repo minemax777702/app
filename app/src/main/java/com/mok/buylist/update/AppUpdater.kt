@@ -198,14 +198,14 @@ internal object AppUpdater {
         }
     }
 
-    suspend fun download(context: Context, release: AppRelease, progress: suspend (Int) -> Unit): File =
+    suspend fun download(context: Context, release: AppRelease, progress: suspend (DownloadProgress) -> Unit): File =
         withContext(Dispatchers.IO) {
             cacheMutex.withLock {
                 require(release.version.isNewerThan(installedVersion(context))) { "Установлена такая же или более новая версия." }
                 val dir = cacheDirectory(context)
                 pruneInstalled(context, dir)
                 findCachedLocked(context, dir, release)?.let { cached ->
-                    withContext(Dispatchers.Main.immediate) { progress(100) }
+                    withContext(Dispatchers.Main.immediate) { progress(DownloadProgress(release.size, release.size, verifying = true)) }
                     return@withLock cached
                 }
                 val temp = File.createTempFile("update-", ".part", dir)
@@ -215,7 +215,9 @@ internal object AppUpdater {
                     val connection = openDownload(release.url)
                     val digest = MessageDigest.getInstance("SHA-256")
                     var bytes = 0L
-                    var previous = -1
+                    val meter = DownloadMeter(release.size)
+                    meter.sample(0L, android.os.SystemClock.elapsedRealtime())
+                    withContext(Dispatchers.Main.immediate) { progress(DownloadProgress(0L, release.size)) }
                     try {
                         connection.inputStream.use { input ->
                             temp.outputStream().buffered().use { output ->
@@ -228,16 +230,15 @@ internal object AppUpdater {
                                     check(bytes <= release.size) { "Размер APK не совпадает." }
                                     output.write(buffer, 0, count)
                                     digest.update(buffer, 0, count)
-                                    val percent = (bytes * 100 / release.size).toInt()
-                                    if (percent != previous) {
-                                        previous = percent
-                                        withContext(Dispatchers.Main.immediate) { progress(percent) }
+                                    meter.sample(bytes, android.os.SystemClock.elapsedRealtime())?.let { sample ->
+                                        withContext(Dispatchers.Main.immediate) { progress(sample) }
                                     }
                                 }
                             }
                         }
                     } finally { connection.disconnect() }
                     check(bytes == release.size) { "APK загружен не полностью." }
+                    withContext(Dispatchers.Main.immediate) { progress(DownloadProgress(bytes, release.size, verifying = true)) }
                     val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
                     check(hash == release.sha256) { "Контрольная сумма APK не совпадает." }
                     check(temp.renameTo(apk)) { "Не удалось сохранить APK." }

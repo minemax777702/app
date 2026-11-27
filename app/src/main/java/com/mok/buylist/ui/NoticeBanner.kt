@@ -214,7 +214,6 @@ private fun NoticeBanner(
                         .verticalScroll(rememberScrollState()),
                         color = p.textSecondary, fontSize = 12.sp,
                         lineHeight = 17.sp, fontWeight = FontWeight.Normal)
-                    Text("Нажмите, чтобы свернуть", color = p.textSecondary, fontSize = 11.sp)
                 } else {
                     Text(notice.message, color = p.textSecondary, fontSize = 12.sp,
                         lineHeight = 17.sp, fontWeight = FontWeight.Normal,
@@ -225,10 +224,7 @@ private fun NoticeBanner(
                 }
             }
             if (notice.opensUpdates) {
-                androidx.compose.material3.TextButton(onClick = onAction,
-                    contentPadding = PaddingValues(horizontal = 4.dp)) {
-                    Text("Обновить", color = p.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                }
+                FreshCutToolbarAction(R.drawable.ic_download_update, "Открыть обновления", onAction, primary = true)
             } else if (expanded) {
                 IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
                     Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть уведомление",
