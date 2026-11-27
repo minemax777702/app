@@ -89,11 +89,24 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
         if (state.failed) activity?.notifyUser("Не удалось выполнить поиск в Ленте")
     }
     LaunchedEffect(trimmed, address, saved, barcodeRows, onlineOnly, ready) {
-        if (ready) controller.update(trimmed, address, saved, onlineOnly)
+        if (ready) controller.update(trimmed, address, saved, onlineOnly, fullSearch = sort != ProductSort.DEFAULT)
     }
+    LaunchedEffect(sort, ready) {
+        if (ready) controller.setFullSearch(sort != ProductSort.DEFAULT)
+    }
+    val fullSort = sort != ProductSort.DEFAULT && address.isNotBlank() && trimmed.length >= 2
     Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (trimmed.length >= 2 || hasOtherResults || footer != null) {
-            if (trimmed.length >= 2) ProductSortMenu(sort, { sort = it })
+            if (trimmed.length >= 2) ProductSortMenu(sort, { selected ->
+                sort = selected
+                controller.setFullSearch(selected != ProductSort.DEFAULT)
+                scrollCallback()
+            })
+            if (fullSort && state.loading) {
+                Text("Загружаем все результаты · страниц: ${state.pagesLoaded}", color = p.textSecondary,
+                    fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 8.dp), color = p.accent)
+            }
             // Вспомогательные действия прокручиваются вместе с результатами.
             LazyColumn(
                 Modifier.fillMaxWidth().weight(1f).pointerInput(Unit) {
@@ -120,19 +133,22 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 if (!hasOtherResults && !state.loading && state.started && !state.hasMore && !state.failed && state.local.isEmpty() && state.online.isEmpty())
                     item { Text("Ничего не найдено", color = p.textSecondary, fontSize = 14.sp, modifier = Modifier.padding(12.dp)) }
                 leadingResults()
-                items(resultRows, key = { it.key }) { row ->
+                // In ranked mode avoid jumping rows and showing a provisional winner.
+                if (!fullSort || !state.loading) items(resultRows, key = { it.key }) { row ->
                     val product = row.lenta
                     if (product != null) LentaResult(product, row, onClick = { onAdd(product) })
                     else customContent(row)
                 }
-                if (!onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
+                if (!fullSort && !onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
                     item { Text("Найти в Ленте", Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
                 }
-                if (state.hasMore && sort != ProductSort.DEFAULT) item {
-                    Text("Сортировка по загруженным результатам", color = p.textSecondary, fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp))
+                if (fullSort && !state.loading && !state.complete) item {
+                    Text(if (state.stalled) "Лента возвращает повторяющиеся страницы. Результат неполный."
+                        else if (state.failed) "Не все страницы загружены. Результат неполный."
+                        else "Ожидаем загрузку всех страниц.",
+                        color = p.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
                 }
-                if (state.loading) item {
+                if (state.loading && !fullSort) item {
                     val loadingSize = Modifier.height(56.dp)
                     Box(Modifier.fillMaxWidth().then(loadingSize),
                         contentAlignment = Alignment.Center) {
@@ -140,7 +156,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                     }
                 }
                 if ((state.hasMore || state.failed) && !state.loading) {
-                    item { Text(if (state.failed) "Повторить" else "Показать ещё",
+                    item { Text(if (state.failed) "Повторить" else if (fullSort) "Продолжить загрузку" else "Показать ещё",
                         Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
                 }
                 if (footer != null) item(key = "search-footer") { footer() }

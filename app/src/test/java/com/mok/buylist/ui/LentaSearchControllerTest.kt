@@ -10,6 +10,54 @@ import org.junit.Test
 class LentaSearchControllerTest {
     private fun product(id: Long, name: String) = LentaProduct(id, name, "", "", "1", "card", "", "address", storeId = 7)
 
+    @Test fun fullSearchLoadsAllPagesIncludingCheaperLaterResults() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            when (page) {
+                1 -> listOf(product(1, "Молоко 500 мл").copy(price = "100"))
+                in 2..8 -> listOf(product(page.toLong(), "Печенье с молоком"))
+                9 -> listOf(product(9, "Молоко 1 л").copy(price = "110"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("молоко", "address", emptyList(), false, fullSearch = true)
+        delay(1800)
+        assertEquals((1..10).toList(), pages)
+        assertEquals(true, controller.state.value.complete)
+        val rows = controller.state.value.online.map { ProductSearchRow.lenta(it, com.mok.buylist.data.parsePriceKopecks(it.price)) }
+        assertEquals(listOf("lenta:9", "lenta:1"), sortProductRows(rows, ProductSort.UNIT_ASC).map { it.key })
+    }
+
+    @Test fun selectingFullSortContinuesExistingPagesAndStopsOnRepeatedResponses() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            listOf(product(1, "Молоко"))
+        }, this)
+        controller.update("молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        controller.setFullSearch(true)
+        delay(650)
+        assertEquals((1..6).toList(), pages)
+        assertEquals(true, controller.state.value.stalled)
+        assertFalse(controller.state.value.complete)
+        assertEquals(listOf(1L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun fullSearchUpdatesLocalPricesWithoutDuplicates() = runBlocking {
+        val saved = product(1, "Молоко 1 л").copy(price = "200")
+        val controller = LentaSearchController({ _, _, page, _ ->
+            if (page == 1) listOf(saved.copy(price = "100")) else emptyList()
+        }, this)
+        controller.update("молоко", "address", listOf(saved), false, fullSearch = true)
+        delay(800)
+        assertEquals("100", controller.state.value.local.single().price)
+        assertEquals(emptyList<LentaProduct>(), controller.state.value.online)
+        assertEquals(true, controller.state.value.complete)
+    }
+
     @Test fun irrelevantPagesAreSkippedAndLaterRelevantResultsRemain() = runBlocking {
         val pages = mutableListOf<Int>()
         val controller = LentaSearchController({ _, _, page, _ ->
