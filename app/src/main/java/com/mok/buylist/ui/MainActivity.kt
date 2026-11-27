@@ -14,6 +14,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -38,9 +39,6 @@ class MainActivity : ComponentActivity() {
     private var noticeId = 0L
     private var showUpdates by mutableStateOf(false)
     private var updateCheck: Job? = null
-    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) checkUpdatesOnEntry(force = true)
-    }
 
     internal fun openUpdates() {
         showUpdates = true
@@ -125,6 +123,11 @@ class MainActivity : ComponentActivity() {
         showUpdates = savedInstanceState?.getBoolean("show_updates") == true
         handleUpdateIntent(intent)
         setContent {
+            val notificationPermission = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission(),
+            ) { granted ->
+                if (granted) checkUpdatesOnEntry(force = true)
+            }
             LaunchedEffect(Unit) {
                 if (Build.VERSION.SDK_INT >= 33 && UpdateNotifications.shouldRequestPermission(this@MainActivity)) {
                     UpdateNotifications.markPermissionRequested(this@MainActivity)
