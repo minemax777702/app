@@ -85,8 +85,23 @@ internal fun noticePayload(id: Long, raw: String): NoticePayload {
             NoticeStyle.WARNING -> "Внимание"
         } to raw
     }
-    return NoticePayload(id, title, message.replaceFirstChar { it.uppercase() }, style)
+    return NoticePayload(id, title, formatNoticeMessage(message), style)
 }
+
+/** Дополнительные сведения читаются как отдельные строки, а не цепочка статусов. */
+internal fun formatNoticeMessage(message: String): String =
+    message.split(" · ").map { it.trim() }.filter { it.isNotEmpty() }.joinToString("\n") { line ->
+        val normalized = line.lowercase().replace('ё', 'е')
+        when {
+            normalized == "штрихкод отсутствует" -> "Штрихкод не найден."
+            normalized == "ручная цена сохранена" -> "Ваша цена не изменена."
+            normalized == "цена недоступна" -> "Новая цена недоступна."
+            normalized.startsWith("без штрихкода:") -> "Без штрихкода: " + line.substringAfter(':').trim()
+            normalized.startsWith("без новой цены:") -> "Без новой цены: " + line.substringAfter(':').trim()
+            normalized.startsWith("ошибок:") -> "Ошибок: " + line.substringAfter(':').trim()
+            else -> line.replaceFirstChar { it.uppercase() }
+        }
+    }
 
 /** Регистрируется единожды в общей оболочке панели, включая вложенные панели. */
 @Composable
@@ -165,7 +180,7 @@ private fun NoticeBanner(notice: NoticePayload) {
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(notice.message, color = p.textSecondary, fontSize = 12.sp,
                     lineHeight = 17.sp, fontWeight = FontWeight.Normal,
-                    maxLines = 4, overflow = TextOverflow.Ellipsis)
+                    maxLines = 5, overflow = TextOverflow.Ellipsis)
             }
         }
     }
