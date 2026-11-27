@@ -149,6 +149,15 @@ class SyncMergeTest {
     }
 
     @Test
+    fun peerWithMatchingPrefixButDifferentContentStillReceivesArchive() {
+        val first = archive("00112233445566778899aabbccddeeff")
+        val second = archive("00112233445500000000000000000000")
+        val peer = SyncMerge.helloOf(Snapshot(archives = listOf(first)))
+        assertEquals(listOf(second), SyncMerge.forPeer(
+            Snapshot(archives = listOf(first, second)), peer).archives)
+    }
+
+    @Test
     fun legacyStampWithoutDigestDoesNotSkipArchive() {
         val archived = archive("00112233445566778899aabbccddeeff")
         val legacy = com.mok.buylist.sync.Hello(listOf(com.mok.buylist.sync.ArchiveStamp(SyncMerge.archivePrefix(archived.uid))))
