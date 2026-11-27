@@ -11,6 +11,11 @@
 # JSch algorithm implementations are selected by class name. Keep only implementations
 # used in the pinned P-256/AES-CTR/HMAC configuration of the diagnostic.
 # Keep implementations and inherited crypto methods callable through reflection.
+# KnownHosts constructs HMACSHA1 before loading even a plain-text pinned host key.
+# SHA-1 here is for local known_hosts compatibility, NOT an offered SSH MAC.
+-keep class com.jcraft.jsch.jce.HMACSHA1 { *; }
+-keep class com.jcraft.jsch.jce.SHA1 { *; }
+-keep class com.jcraft.jsch.jce.KeyPairGenECDSA { *; }
 -keep class com.jcraft.jsch.DHEC256 { *; }
 -keep class com.jcraft.jsch.UserAuthNone { *; }
 -keep class com.jcraft.jsch.UserAuthPublicKey { *; }

@@ -61,8 +61,10 @@ internal object CloudSshProbe {
         val host = if (port == 443) "ssh.github.com" else "github.com"
         val knownHost = if (port == 443) "[ssh.github.com]:443" else "github.com"
         val jsch = JSch().apply { setInstanceLogger(trace.logger()) }
+        trace.step("SSH-клиент создан")
         // GitHub official ECDSA key. On a legitimate rotation, fail closed until app update.
         jsch.setKnownHosts(ByteArrayInputStream("$knownHost ${CloudSshWire.ALGORITHM} $HOST_KEY\n".toByteArray(Charsets.US_ASCII)))
+        trace.step("Доверенный ключ сервера загружен")
         val identity = if (pair == null) keys() else Keys(pair.public as ECPublicKey, pair.private)
         trace.step("Открытый ключ загружен")
         val challenge = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }

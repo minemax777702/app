@@ -23,8 +23,14 @@ internal class CloudSshTrace {
 
     fun failure(port: Int, code: String, detail: String, error: Throwable? = null): String {
         val types = generateSequence(error) { it.cause }.take(5).map { it.javaClass.simpleName }.joinToString(" → ")
+        val missing = generateSequence(error) { it.cause }.take(5)
+            .filterIsInstance<ClassNotFoundException>()
+            .mapNotNull { it.message }
+            .mapNotNull { Regex("com\\.jcraft\\.jsch\\.[A-Za-z0-9_$.]+").find(it)?.value }
+            .firstOrNull()
         val progress = report()
         return "SSH $port · $code\n" + (if (progress.isBlank()) "" else "$progress\n") +
-            "✗ $detail" + (if (types.isBlank()) "" else "\nТип ошибки: $types")
+            "✗ $detail" + (if (types.isBlank()) "" else "\nТип ошибки: $types") +
+            (if (missing == null) "" else "\nОтсутствует класс: $missing")
     }
 }

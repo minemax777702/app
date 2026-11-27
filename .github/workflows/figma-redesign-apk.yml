@@ -102,6 +102,10 @@ jobs:
           ./gradlew :app:testDebugUnitTest --stacktrace --build-cache
           ./gradlew :app:assembleRelease --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+      - name: Verify SSH reflection classes in release APK
+        if: github.ref == 'refs/heads/beta'
+        shell: bash
+        run: python3 tools/verify_ssh_apk.py app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/37.0.0/dexdump"
       - name: Upload APK
         uses: actions/upload-artifact@v6
         with:

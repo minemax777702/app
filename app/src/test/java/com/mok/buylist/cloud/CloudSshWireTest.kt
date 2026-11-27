@@ -10,6 +10,17 @@ import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 
 class CloudSshWireTest {
+    @Test fun pinnedHostRepositoryInitializesWithoutNetwork() {
+        val client = com.jcraft.jsch.JSch()
+        val pin = "AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="
+        val host = "[ssh.github.com]:443"
+        client.setKnownHosts(java.io.ByteArrayInputStream(
+            "$host ecdsa-sha2-nistp256 $pin\n".toByteArray(Charsets.US_ASCII)))
+        val repo = client.hostKeyRepository
+        org.junit.Assert.assertEquals(com.jcraft.jsch.HostKeyRepository.OK,
+            repo.check(host, java.util.Base64.getDecoder().decode(pin)))
+    }
+
     @Test fun fingerprintMatchesOpenSshBlob() {
         val blob = byteArrayOf(1, 2, 3)
         val expected = "SHA256:" + java.util.Base64.getEncoder().withoutPadding().encodeToString(
