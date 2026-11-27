@@ -106,7 +106,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
             val needsProfile = profile.id != grant.userId || profile.profile.value?.name != invitation.userName
             if (needsProfile) profile.adopt(grant.userId, invitation.userName)
             val repo = ShoppingRepository(context, database, profile, isolatedWorkspace = true)
-            if (needsProfile) repo.saveProfile(invitation.userName)
+            if (needsProfile && grant.canWrite) repo.saveProfile(invitation.userName)
             _sessions.value = _sessions.value + CloudSpaceSession(invitation, repo, grant, database)
         } catch (e: Exception) { database.close(); throw e }
     }
@@ -117,7 +117,8 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
 
     suspend fun edit(session: CloudSpaceSession, action: suspend (ShoppingRepository) -> Unit) {
         require(session.writable)
-        withContext(Dispatchers.IO) { session.mutex.withLock { action(session.repository) } }
+        // Room writes remain available offline; applyRemote merges in a transaction.
+        withContext(Dispatchers.IO) { action(session.repository) }
         requestSync(session)
     }
 
@@ -149,6 +150,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
             session.status.value = CloudSpaceStatus(lastSuccess = System.currentTimeMillis())
         } catch (e: CancellationException) { throw e }
         catch (e: LinkageError) { session.status.value = previous.copy(syncing = false, issue = "Облачный транспорт несовместим с этой сборкой. Данные сохранены.") }
+        catch (e: AssertionError) { session.status.value = previous.copy(syncing = false, issue = "Ошибка облачного транспорта. Данные сохранены.") }
         catch (e: Exception) {
             session.status.value = previous.copy(syncing = false, issue = "Нет синхронизации. Покупки сохранены на телефоне.")
         } finally {

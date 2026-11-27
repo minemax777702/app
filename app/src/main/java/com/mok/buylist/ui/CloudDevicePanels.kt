@@ -100,7 +100,7 @@ internal fun CloudDeviceRequestPanel(onDone: () -> Unit) {
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSectionTitle("Приглашение")
-        Text("Покажите QR-код администратору. После подтверждения нажмите «Подключиться».", color = p.textSecondary, fontSize = 14.sp)
+        Text("Покажите QR-код администратору. Затем откройте полученное от администратора приглашение.", color = p.textSecondary, fontSize = 14.sp)
         val qr = code?.let { value -> remember(value) { QrEncoder.encode(value) } }
         if (qr != null) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(264.dp).background(Color.White)) {
@@ -126,7 +126,7 @@ internal fun CloudDeviceRequestPanel(onDone: () -> Unit) {
                     color = p.text,
                     fontSize = 15.sp,
                 )
-                Text("Обмен покупками через облако пока недоступен.", color = p.textSecondary, fontSize = 13.sp)
+                Text("Теперь откройте приглашение в личный или общий список.", color = p.textSecondary, fontSize = 13.sp)
                 FreshCutSecondaryButton("Готово", onDone)
             } else {
                 Text("Не удалось подключиться. Проверьте интернет и подтверждение администратора.", color = p.error, fontSize = 15.sp)

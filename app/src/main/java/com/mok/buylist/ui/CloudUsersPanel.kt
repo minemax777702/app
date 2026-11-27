@@ -16,7 +16,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
+internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExportInvite: (ByteArray) -> Unit) {
     val p = LocalPalette.current
     val context = LocalContext.current
     val store = remember(context.applicationContext) { CloudUserRegistryStore(context) }
@@ -38,6 +38,8 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     var chosenUser by remember(admin) { mutableStateOf<String?>(null) }
     var newName by remember(admin) { mutableStateOf("") }
     var confirmed by remember(admin) { mutableStateOf(false) }
+    var inviteDevice by remember(admin) { mutableStateOf<CloudDeviceDraft?>(null) }
+    var inviteSpace by remember(admin) { mutableStateOf<CloudSpace?>(null) }
     var confirmDelete by remember(admin) { mutableStateOf<Pair<Int, String>?>(null) }
 
     suspend fun reload() {
@@ -83,7 +85,7 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
 
     fun activate(id: String, enable: Boolean) = perform({ latest ->
         val row = latest.registry.devices.single { it.fingerprint == id }
-        if (enable) admin.activateDeviceReadOnly(row) else admin.deactivateDevice(row)
+        if (enable) admin.activateDevice(row, latest.registry.canWriteDevice(row.fingerprint)) else admin.deactivateDevice(row)
         latest
     }, if (enable) "Доступ предоставлен" else "Доступ отключён")
 
@@ -116,22 +118,55 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             val existing = latest.registry.devices.singleOrNull { it.fingerprint == request.fingerprint }
             val registered = if (existing != null) {
                 require(existing.userId == id && !existing.revoked) { "Устройство уже принадлежит другому пользователю или отозвано." }
-                latest
+                val next = if (request.encryptionPublicKey.isNotEmpty()) latest.registry.updateDeviceEncryption(request, System.currentTimeMillis()) else latest.registry
+                if (next == latest.registry) latest else store.save(admin, latest, next)
             } else {
                 val next = if (id == null) latest.registry.registerNewUser(label, request, System.currentTimeMillis())
                     else latest.registry.registerDevice(id, request, System.currentTimeMillis())
                 store.save(admin, latest, next)
             }
             val row = registered.registry.devices.single { it.fingerprint == request.fingerprint }
-            admin.activateDeviceReadOnly(row)
+            admin.activateDevice(row, registered.registry.canWriteDevice(row.fingerprint))
             registered
-        }, "Доступ предоставлен. Пользователь может завершить подключение.")
+        }, "Устройство зарегистрировано. Выдайте приглашение в нужный список.")
+    }
+
+    fun issueInvitation(target: CloudDeviceDraft, space: CloudSpace) {
+        if (busy || loaded == null) return
+        inviteDevice = null
+        inviteSpace = null
+        busy = true
+        error = null
+        notice = null
+        scope.launch {
+            try {
+                val latest = store.load(admin)
+                val row = latest.registry.devices.single { it.fingerprint == target.fingerprint && !it.revoked }
+                require(row.encryptionPublicKey.isNotEmpty()) { "Обновите приложение на телефоне и повторно отсканируйте его QR." }
+                val updated = latest.registry.prepareSpace(space)
+                val invitation = CloudInvitation.create(updated, space, row)
+                // Persist keys and membership before allowing any encrypted invitation to leave the admin.
+                val saved = if (updated == latest.registry) latest else store.save(admin, latest, updated)
+                loaded = saved
+                admin.activateDevice(row, saved.registry.canWriteDevice(row.fingerprint))
+                access = access + (row.fingerprint to true)
+                notice = "Приглашение готово"
+                onExportInvite(invitation.encode())
+            } catch (e: CancellationException) { throw e }
+            catch (e: CloudAdminException) { error = e.message }
+            catch (e: IllegalArgumentException) { error = e.message ?: "Не удалось подготовить список." }
+            catch (_: Exception) { error = "Приглашение не выдано. Повторите попытку." }
+            finally { busy = false }
+        }
     }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSecondaryButton("Назад", onBack)
         FreshCutTabs(listOf("Пользователи", "Группы", "Устройства"), section, { section = it })
         if (busy) Text("Загрузка…", color = p.textSecondary, fontSize = 14.sp)
+        loaded?.registry?.adminSigner?.let { signer ->
+            FreshCutDetailLine("Код администратора", CloudDeviceProtocol.fingerprint(signer.publicKey).chunked(8).joinToString(" "))
+        }
         notice?.let { Text(it, color = p.text, fontSize = 14.sp) }
         error?.let { Text(it, color = p.error, fontSize = 13.sp) }
         val registry = loaded?.registry
@@ -222,6 +257,10 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             title = { SheetHeader("Устройство") }, text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(registry?.users?.firstOrNull { it.id == row.userId }?.name.orEmpty(), color = p.text, fontSize = 16.sp)
+                    if (!row.revoked && row.encryptionPublicKey.isNotEmpty()) FreshCutSecondaryButton("Пригласить в список", {
+                        device = null; inviteDevice = row; inviteSpace = null
+                    }, enabled = !busy)
+                    if (!row.revoked && row.encryptionPublicKey.isEmpty()) Text("Для приглашения повторно отсканируйте QR после обновления приложения.", color = p.textSecondary, fontSize = 13.sp)
                     if (!row.revoked && access[row.fingerprint] != true) FreshCutSecondaryButton("Предоставить доступ", {
                         device = null; activate(row.fingerprint, true)
                     }, enabled = !busy)
@@ -264,6 +303,28 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             }, confirmButton = {
                 SheetActionButton(onClick = { register(request); chosenUser = null },
                     enabled = !busy && confirmed && (chosenUser != null || newName.isNotBlank())) { Text("Подключить") }
+            })
+    }
+
+    inviteDevice?.let { target ->
+        val current = registry
+        val choices = if (current == null) emptyList() else
+            listOf(CloudSpace(CloudSpaceKind.PERSONAL, target.userId) to "Личный список") +
+                current.groups.filter { !it.archived && target.userId in it.members }.map {
+                    CloudSpace(CloudSpaceKind.GROUP, it.id) to it.name
+                }
+        AppSheet(onDismissRequest = { inviteDevice = null; inviteSpace = null }, containerColor = p.sheet,
+            title = { SheetHeader("Пригласить в список") }, text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    choices.forEach { (space, title) ->
+                        FreshCutListRow(if (space.kind == CloudSpaceKind.PERSONAL) R.drawable.ic_user_round else R.drawable.ic_group,
+                            title, selected = inviteSpace == space, onClick = { inviteSpace = space })
+                    }
+                    Text("Для первого приглашения зарегистрируйте все устройства участников. После активации изменение состава потребует смены ключей.", color = p.textSecondary, fontSize = 13.sp)
+                    Text("Передайте сохранённый файл владельцу этого телефона и сверяйте код администратора.", color = p.textSecondary, fontSize = 13.sp)
+                }
+            }, confirmButton = {
+                SheetActionButton(onClick = { inviteSpace?.let { issueInvitation(target, it) } }, enabled = !busy && inviteSpace != null) { Text("Создать приглашение") }
             })
     }
 

@@ -47,6 +47,7 @@ internal fun CloudAdminPanel(
     onExportRecovery: (ByteArray) -> Unit = {},
     onClearRecovery: () -> Unit = {},
     onHideAdmin: () -> Unit = {},
+    onExportInvite: (ByteArray) -> Unit = {},
 ) {
     val p = LocalPalette.current
     val activity = LocalActivity.current
@@ -184,7 +185,7 @@ internal fun CloudAdminPanel(
         return
     }
     if (showUsers && session != null && storage?.actionsEnabled == false) {
-        CloudUsersPanel(requireNotNull(session), onBack = { showUsers = false })
+        CloudUsersPanel(requireNotNull(session), onBack = { showUsers = false }, onExportInvite = onExportInvite)
         return
     }
 

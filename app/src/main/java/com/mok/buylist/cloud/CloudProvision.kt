@@ -51,7 +51,7 @@ internal data class CloudAdminSigner(val publicKey: String, val privateKey: Stri
         CloudDeviceProtocol.publicKey(publicKey)
         require(privateKey.length in 1..512)
     }
-    fun private(): PrivateKey = KeyFactory.getInstance("EC").generatePrivate(PKCS8EncodedKeySpec(CloudInviteCrypto.decode(privateKey)))
+    fun signingKey(): PrivateKey = KeyFactory.getInstance("EC").generatePrivate(PKCS8EncodedKeySpec(CloudInviteCrypto.decode(privateKey)))
     companion object {
         fun create(): CloudAdminSigner {
             val pair = KeyPairGenerator.getInstance("EC").apply { initialize(ECGenParameterSpec("secp256r1")) }.generateKeyPair()
@@ -99,7 +99,7 @@ internal fun CloudUserRegistry.prepareSpace(space: CloudSpace): CloudUserRegistr
             "Сначала зарегистрируйте устройства всех участников группы"
         }
     }
-    val manifest = SignedCloudManifest.sign(CloudManifest(space, 1, 1, grants), signer.private())
+    val manifest = SignedCloudManifest.sign(CloudManifest(space, 1, 1, grants), signer.signingKey())
     val raw = ByteArray(32).also { SecureRandom().nextBytes(it) }
     val provision = try { CloudProvision(CloudInviteCrypto.encode(manifest.encode()), CloudInviteCrypto.encode(raw)) }
         finally { raw.fill(0) }
@@ -165,7 +165,7 @@ internal data class CloudInvitation(
             val raw = CloudInviteCrypto.decode(provision.secret)
             val wrapped = try { CloudInviteCrypto.wrap(rsa, raw) } finally { raw.fill(0) }
             val unsigned = CloudInvitation(signer.publicKey, device.fingerprint, user.name, label, provision.signed(), wrapped, byteArrayOf())
-            return unsigned.copy(signature = CloudInviteCrypto.sign(signer.private(), unsigned.body())).also { it.verify(device.fingerprint) }
+            return unsigned.copy(signature = CloudInviteCrypto.sign(signer.signingKey(), unsigned.body())).also { it.verify(device.fingerprint) }
         }
     }
 }

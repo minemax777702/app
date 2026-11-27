@@ -78,6 +78,25 @@ internal class CloudJournalStore(context: Context, private val testRun: UUID? = 
             }
         }
 
+    suspend fun ensureInitialized(space: CloudSpace, manifest: SignedCloudManifest, pinnedAdmin: String): CloudJournalRecord =
+        withContext(Dispatchers.IO) {
+            synchronized(LOCK) {
+                val atomic = file(space)
+                val existing = atomic.baseFile.exists() || File(atomic.baseFile.path + ".bak").exists()
+                val binding = CloudJournalRecord.initialize(space, manifest, pinnedAdmin)
+                if (existing) {
+                    val record = loadLocked(space)
+                    require(record.pinnedAdmin == pinnedAdmin && record.manifestHash == binding.manifestHash &&
+                        record.state.epoch == binding.state.epoch && record.state.manifestRevision == binding.state.manifestRevision)
+                    record
+                } else {
+                    check(!File(atomic.baseFile.path + ".new").exists()) { "Interrupted journal creation" }
+                    saveLocked(binding, true)
+                    binding
+                }
+            }
+        }
+
     suspend fun read(space: CloudSpace): CloudJournalRecord = withContext(Dispatchers.IO) {
         synchronized(LOCK) { loadLocked(space) }
     }
