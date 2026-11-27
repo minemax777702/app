@@ -68,7 +68,7 @@ import kotlinx.coroutines.launch
 fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressSettings: () -> Unit, viewModel: ShoppingViewModel,
     onProductClick: (String) -> Unit) {
     val p = LocalPalette.current
-    val catalog = LocalContext.current.lentaCatalog
+    val catalog = shoppingCatalog()
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val products by catalog.products.collectAsStateWithLifecycle()

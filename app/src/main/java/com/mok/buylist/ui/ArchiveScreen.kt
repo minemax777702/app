@@ -404,7 +404,7 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
     stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit, navigation: @Composable () -> Unit) {
     val p = LocalPalette.current
     val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
-    val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
+    val products by shoppingCatalog().products.collectAsStateWithLifecycle()
     val image = products.firstOrNull { it.id == event?.productId }?.image.orEmpty()
     val price = event?.unitPrice
     val total = price?.let { if (event.weightGrams != null) com.mok.buylist.data.priceForWeight(it, event.weightGrams)

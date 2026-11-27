@@ -49,6 +49,14 @@ class MainActivity : ComponentActivity() {
         private set
     internal val notice: NoticePayload? get() = noticePresentation.current
     private var noticeId = 0L
+    private var noticeWorkspace: String? = null
+
+    internal fun selectNoticeWorkspace(key: String?) {
+        if (noticeWorkspace == key) return
+        noticeWorkspace = key
+        noticePresentation = NoticePresentation()
+        noticeOwner = null
+    }
     private var showUpdates by mutableStateOf(false)
     private var updateCheck: Job? = null
     private var shownUpdateCode: Long? = null
@@ -118,7 +126,7 @@ class MainActivity : ComponentActivity() {
     internal var noticeOwner by mutableStateOf<Any?>(null)
         private set
     internal fun notifyUser(message: String) {
-        ActionJournal.get(applicationContext).notice(message)
+        ActionJournal.get(applicationContext, noticeWorkspace).notice(message)
         noticeOwner = noticeSheets.lastOrNull()
         noticePresentation = noticePresentation.enqueue(noticePayload(++noticeId, message))
     }
@@ -205,7 +213,7 @@ class MainActivity : ComponentActivity() {
             }
             ShoppingTheme(mode) {
                 Box(Modifier.fillMaxSize()) {
-                    ShoppingScreen()
+                    ShoppingWorkspaceRoot()
                     if (showUpdates && !showLaunch) AppUpdateSheet(onClose = { showUpdates = false })
                     val presentation = noticePresentation
                     val current = presentation.current

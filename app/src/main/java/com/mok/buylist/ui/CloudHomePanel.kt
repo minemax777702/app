@@ -64,10 +64,11 @@ internal fun CloudHomePanel(onConnect: () -> Unit, onOpen: (CloudSpaceSession) -
         if (sessions.isEmpty()) Text("Покажите QR-код администратору, затем откройте полученное приглашение.", color = p.textSecondary, fontSize = 14.sp)
         sessions.forEach { session ->
             val status by session.status.collectAsStateWithLifecycle()
+            val historical by session.historicalState.collectAsStateWithLifecycle()
             FreshCutListRow(if (session.space.kind == CloudSpaceKind.PERSONAL) R.drawable.ic_user_round else R.drawable.ic_group,
-                session.invitation.label + (if (session.historical) " · прежняя версия" else ""),
+                session.invitation.label + (if (historical) " · прежняя версия" else ""),
                 when {
-                    session.historical -> "Сохранено для просмотра"
+                    historical -> "Сохранено для просмотра"
                     status.syncing -> "Синхронизация…"
                     status.issue != null -> "Сохранено на телефоне"
                     status.lastSuccess > 0 -> "Обновлено " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(status.lastSuccess))

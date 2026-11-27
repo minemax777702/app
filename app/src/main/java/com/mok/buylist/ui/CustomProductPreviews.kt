@@ -32,14 +32,14 @@ import java.io.File
 /** Local files are independent from purchases; API errors never prevent adding a product. */
 internal object CustomProductPreviews {
     private val revisions = mutableStateMapOf<String, Int>()
-    fun version(id: String): Int = revisions[id] ?: 0
-    private fun file(context: Context, id: String): File {
+    fun version(id: String, workspace: String? = null): Int = revisions["$workspace/$id"] ?: 0
+    private fun file(context: Context, id: String, workspace: String?): File {
         require(id.matches(Regex("[0-9a-fA-F-]{36}")))
-        return File(File(context.filesDir, "custom_previews").apply { mkdirs() }, id + ".jpg")
+        return File(File(context.filesDir, if (workspace == null) "custom_previews" else "custom_previews_$workspace").apply { mkdirs() }, id + ".jpg")
     }
-    fun image(context: Context, id: String): Bitmap? =
-        runCatching { BitmapFactory.decodeFile(file(context, id).path) }.getOrNull()
-    private fun save(context: Context, id: String, bytes: ByteArray): Boolean {
+    fun image(context: Context, id: String, workspace: String? = null): Bitmap? =
+        runCatching { BitmapFactory.decodeFile(file(context, id, workspace).path) }.getOrNull()
+    private fun save(context: Context, id: String, bytes: ByteArray, workspace: String?): Boolean {
         if (bytes.size > 4_000_000) return false
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -48,7 +48,7 @@ internal object CustomProductPreviews {
         while (bounds.outWidth / sample > 1024 || bounds.outHeight / sample > 1024) sample *= 2
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
             BitmapFactory.Options().apply { inSampleSize = sample }) ?: return false
-        val destination = file(context, id)
+        val destination = file(context, id, workspace)
         val tmp = File(destination.parentFile, id + ".tmp")
         val success = runCatching {
             tmp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
@@ -58,7 +58,7 @@ internal object CustomProductPreviews {
         if (!success) tmp.delete()
         return success
     }
-    suspend fun setFromUri(context: Context, id: String, uri: Uri): Boolean = withContext(Dispatchers.IO) {
+    suspend fun setFromUri(context: Context, id: String, uri: Uri, workspace: String? = null): Boolean = withContext(Dispatchers.IO) {
         val bytes = runCatching {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val output = ByteArrayOutputStream()
@@ -72,8 +72,8 @@ internal object CustomProductPreviews {
                 output.toByteArray()
             }
         }.getOrNull() ?: return@withContext false
-        val saved = save(context, id, bytes)
-        if (saved) withContext(Dispatchers.Main) { revisions[id] = version(id) + 1 }
+        val saved = save(context, id, bytes, workspace)
+        if (saved) withContext(Dispatchers.Main) { revisions["$workspace/$id"] = version(id, workspace) + 1 }
         saved
     }
 }
@@ -81,9 +81,10 @@ internal object CustomProductPreviews {
 @Composable
 internal fun CustomProductImage(productId: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val workspace = LocalShoppingWorkspace.current?.localKey
     val p = LocalPalette.current
-    val version = CustomProductPreviews.version(productId)
-    val bitmap = remember(productId, version) { CustomProductPreviews.image(context, productId) }
+    val version = CustomProductPreviews.version(productId, workspace)
+    val bitmap = remember(productId, version, workspace) { CustomProductPreviews.image(context, productId, workspace) }
     Box(modifier.clip(RoundedCornerShape(14.dp)).background(p.field), contentAlignment = Alignment.Center) {
         if (bitmap != null) Image(bitmap.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         else Icon(painterResource(R.drawable.ic_product_placeholder), null, tint = p.iconMuted,
@@ -94,6 +95,7 @@ internal fun CustomProductImage(productId: String, modifier: Modifier = Modifier
 @Composable
 internal fun CustomProductImageActions(productId: String) {
     val context = LocalContext.current
+    val workspace = LocalShoppingWorkspace.current?.localKey
     val p = LocalPalette.current
     val scope = rememberCoroutineScope()
     var loading by remember(productId) { mutableStateOf(false) }
@@ -101,7 +103,7 @@ internal fun CustomProductImageActions(productId: String) {
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             loading = true
-            val ok = CustomProductPreviews.setFromUri(context, productId, uri)
+            val ok = CustomProductPreviews.setFromUri(context, productId, uri, workspace)
             loading = false
             message = if (ok) null else "Не удалось открыть фото"
         }

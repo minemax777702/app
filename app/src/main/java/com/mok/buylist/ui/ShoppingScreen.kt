@@ -127,6 +127,7 @@ import kotlin.math.roundToInt
 fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val context = LocalContext.current
     val themeSettings = context.themeSettings
+    val scopedCatalog = shoppingCatalog()
     val p = LocalPalette.current
     val scope = rememberCoroutineScope()
 
@@ -164,10 +165,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val users by viewModel.users.collectAsStateWithLifecycle()
     val appMode by themeSettings.app.collectAsStateWithLifecycle()
     val widgetMode by themeSettings.widget.collectAsStateWithLifecycle()
-    val lentaProducts by context.lentaCatalog.products.collectAsStateWithLifecycle()
-    val lentaAddress by context.lentaCatalog.address.collectAsStateWithLifecycle()
+    val lentaProducts by scopedCatalog.products.collectAsStateWithLifecycle()
+    val lentaAddress by scopedCatalog.address.collectAsStateWithLifecycle()
     val lentaById = remember(lentaProducts) { lentaProducts.associateBy { it.id } }
-    val lentaBarcodes by context.lentaCatalog.barcodeRows.collectAsStateWithLifecycle()
+    val lentaBarcodes by scopedCatalog.barcodeRows.collectAsStateWithLifecycle()
     val sharedIdentities = remember(lentaProducts, customProducts, lentaBarcodes, customBarcodes) {
         com.mok.buylist.data.sharedCatalogIdentities(
             lentaProducts, customProducts, lentaBarcodes, customBarcodes)
@@ -517,7 +518,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
-        val matches = lentaProducts.filter { context.lentaCatalog.matchesBarcode(it, code) }
+        val matches = lentaProducts.filter { scopedCatalog.matchesBarcode(it, code) }
         val ownMatches = customProducts.filter { product ->
             !product.deleted && (
                 customBarcodes.any { it.productId == product.id && !it.deleted &&
@@ -601,7 +602,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
                     scope.launch {
-                        context.lentaCatalog.save(chosen, code)
+                        scopedCatalog.save(chosen, code)
                         if (com.mok.buylist.sync.isVariableMeasureBarcode(code)) pendingWeight = code to chosen
                         else viewModel.buyScanned(chosen, null) { done ->
                             activity?.notifyUser(if (done) "Покупка отмечена" else "Не удалось отметить покупку")

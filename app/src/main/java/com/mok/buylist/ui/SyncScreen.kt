@@ -89,6 +89,12 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val p = LocalPalette.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val activeWorkspace = LocalShoppingWorkspace.current
+    if (activeWorkspace != null) {
+        CloudWorkspaceProfile(activeWorkspace, addressRequest, onOpenTheme)
+        return
+    }
+    val selectWorkspace = LocalSelectShoppingWorkspace.current
     val controller = remember { SyncController(context.repository, scope) }
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as? MainActivity
@@ -218,7 +224,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "cloud" -> CloudHomePanel(onConnect = { page = "cloud-device" }, onOpen = { selectedCloudSpace = it; page = "cloud-space" })
+                "cloud" -> CloudHomePanel(onConnect = { page = "cloud-device" }, onOpen = { selectWorkspace(it) })
                 "cloud-space" -> selectedCloudSpace?.let { CloudWorkspacePanel(it) }
                 "cloud-admin" -> CloudAdminPanel(
                     onHideAdmin = { setAdminVisible(false); page = "profile" },
