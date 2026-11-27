@@ -56,6 +56,8 @@ import com.mok.buylist.lentaCatalog
 import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.matchesProductName
+import com.mok.buylist.data.matchesProductSearch
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Manrope
 import androidx.compose.runtime.rememberCoroutineScope
@@ -97,7 +99,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var shownCount by rememberSaveable(query, sort) { mutableStateOf(20) }
     val rows = remember(products, query, barcodeRows) {
         val key = nameKeyOf(query)
-        products.filter { key.isEmpty() || nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
+        products.filter { key.isEmpty() || matchesProductSearch(it.name, it.pack, query) ||
             catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) ||
                 com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) } }
             .sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
@@ -109,7 +111,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val ownRows = remember(customProducts, customBarcodeRows, query) {
         val key = nameKeyOf(query)
         customProducts.filter { !it.deleted &&
-            (key.isBlank() || nameKeyOf(it.name).contains(key) || customBarcodeRows.any { row -> !row.deleted && row.productId == it.id && row.code.contains(key) }) }
+            (key.isBlank() || matchesProductName(it.name, query) || customBarcodeRows.any { row -> !row.deleted && row.productId == it.id && row.code.contains(key) }) }
             .sortedBy { nameKeyOf(it.name) }
     }
     val shopPrices = remember(ownRows, rows, stores, storeLinks, knownPurchases, identities, products, address) {

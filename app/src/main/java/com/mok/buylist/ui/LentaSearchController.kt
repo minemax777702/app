@@ -2,6 +2,8 @@ package com.mok.buylist.ui
 
 import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.matchesProductSearch
+import com.mok.buylist.data.isBarcodeSearch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -42,7 +44,7 @@ internal class LentaSearchController(
         seenIds.clear()
         val key = nameKeyOf(this.query)
         val local = if (onlineOnly || key.length < 2) emptyList() else saved.filter {
-            nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
+            matchesProductSearch(it.name, it.pack, this.query) ||
                 barcodeAliases(it.id).any { alias -> alias.contains(key) ||
                     com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) }
         }.sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
@@ -76,7 +78,10 @@ internal class LentaSearchController(
                 nextPage = page + 1
                 if (fresh.isEmpty()) return@repeat
                 seenIds.addAll(fresh.map { it.id })
-                val added = fresh.filter { it.id !in savedIds }
+                val added = fresh.filter { product ->
+                    product.id !in savedIds &&
+                        (isBarcodeSearch(query) || matchesProductSearch(product.name, product.pack, query))
+                }
                 if (added.isNotEmpty()) {
                     state.value = state.value.copy(online = state.value.online + added,
                         loading = false, hasMore = true, failed = false)

@@ -10,6 +10,31 @@ import org.junit.Test
 class LentaSearchControllerTest {
     private fun product(id: Long, name: String) = LentaProduct(id, name, "", "", "1", "card", "", "address", storeId = 7)
 
+    @Test fun irrelevantPagesAreSkippedAndLaterRelevantResultsRemain() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            when (page) {
+                1 -> listOf(product(1, "Печенье со сгущенным молоком"))
+                2 -> listOf(product(2, "Молоко 1 л"), product(3, "Шоколад с молоком"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("Молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals(listOf(1, 2), pages)
+        assertEquals(listOf(2L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun savedIngredientsDoNotPreventOnlineSearch() = runBlocking {
+        val controller = LentaSearchController({ _, _, _, _ -> listOf(product(2, "Молоко")) }, this)
+        controller.update("Молоко", "address", listOf(product(1, "Печенье с молоком")), false)
+        delay(550)
+        assertEquals(emptyList<Long>(), controller.state.value.local.map { it.id })
+        assertEquals(listOf(2L), controller.state.value.online.map { it.id })
+    }
+
     @Test fun savedProductCanBeFoundByConfirmedOldBarcode() = runBlocking {
         val requests = mutableListOf<Int>()
         val controller = LentaSearchController({ _, _, page, _ ->

@@ -117,7 +117,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
             ) {
                 if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
                 if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
-                if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
+                if (!hasOtherResults && !state.loading && state.started && !state.hasMore && !state.failed && state.local.isEmpty() && state.online.isEmpty())
                     item { Text("Ничего не найдено", color = p.textSecondary, fontSize = 14.sp, modifier = Modifier.padding(12.dp)) }
                 leadingResults()
                 items(resultRows, key = { it.key }) { row ->

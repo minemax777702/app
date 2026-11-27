@@ -75,7 +75,7 @@ import com.mok.buylist.lentaCatalog
 import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
-import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.matchesProductName
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Manrope
@@ -212,7 +212,7 @@ fun AddItemSheet(
 
             val matches = remember(customProducts, customBarcodes, text) {
                 if (text.isBlank()) emptyList() else customProducts.filter { !it.deleted &&
-                    (nameKeyOf(it.name).contains(nameKeyOf(text)) ||
+                    (matchesProductName(it.name, text) ||
                         customBarcodes.any { barcode -> !barcode.deleted &&
                             barcode.productId == it.id && barcode.code == text.trim() } ||
                         (it.barcode == text.trim() && customBarcodes.none { barcode ->
