@@ -15,10 +15,10 @@ import kotlinx.coroutines.SupervisorJob
 class ShoppingApp : Application() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     internal val cloud: SupabaseCloud by lazy { SupabaseCloud(this, appScope) }
-    private val localProfile by lazy { UserProfile(this) }
+    internal val localProfile by lazy { UserProfile(this) }
     private val database by lazy { AppDatabase.create(this) }
     internal val localRepository by lazy { ShoppingRepository(this, database, localProfile) }
-    private val localCatalog by lazy { LentaCatalog(this, database, appScope) }
+    internal val localCatalog by lazy { LentaCatalog(this, database, appScope) }
     val userProfile: UserProfile get() = cloud.workspace.value?.profile ?: localProfile
     val repository: ShoppingRepository get() = cloud.workspace.value?.repository ?: localRepository
     val lentaCatalog: LentaCatalog get() = cloud.workspace.value?.catalog ?: localCatalog

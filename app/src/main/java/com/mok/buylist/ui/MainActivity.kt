@@ -90,9 +90,30 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun handleEmailConfirmation(intent: Intent) {
+        val uri = intent.data ?: return
+        if (intent.action != Intent.ACTION_VIEW || uri.scheme != "com.mok.buylist" ||
+            uri.host != "auth-confirm" || !uri.path.isNullOrEmpty()) return
+        val code = uri.getQueryParameter("code")
+        intent.data = null
+        lifecycleScope.launch {
+            if (code.isNullOrBlank()) {
+                notifyUser("Откройте профиль и войдите в аккаунт")
+                return@launch
+            }
+            try {
+                val cloud = (application as com.mok.buylist.ShoppingApp).cloud
+                if (cloud.confirmEmail(code)) notifyUser("Почта подтверждена")
+                else notifyUser("Откройте профиль и войдите в аккаунт")
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) { notifyUser("Откройте профиль и войдите в аккаунт") }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        handleEmailConfirmation(intent)
         handleUpdateIntent(intent)
     }
 
@@ -157,6 +178,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         showUpdates = savedInstanceState?.getBoolean("show_updates") == true
+        handleEmailConfirmation(intent)
         handleUpdateIntent(intent)
         val initialMode = themeSettings.app.value
         val initialDark = when (initialMode) {

@@ -29,7 +29,7 @@ internal fun CloudShoppingRoot() {
     val app=LocalContext.current.applicationContext as ShoppingApp
     val p=LocalPalette.current
     val directory by app.cloud.directory.collectAsStateWithLifecycle()
-    val current by app.cloud.workspace.collectAsStateWithLifecycle()
+    val current = app.cloud.workspace.collectAsStateWithLifecycle().value
     val status by app.cloud.status.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
     var selector by remember{mutableStateOf(false)}
@@ -50,7 +50,14 @@ internal fun CloudShoppingRoot() {
             key(current?.namespace){
                 val owner=remember{object:ViewModelStoreOwner{override val viewModelStore=ViewModelStore()}}
                 DisposableEffect(owner){onDispose{owner.viewModelStore.clear()}}
-                val model:ShoppingViewModel=viewModel(viewModelStoreOwner=owner,factory=androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.getInstance(app))
+                val factory = remember(current) {
+                    object : androidx.lifecycle.ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                            ShoppingViewModel(app, current) as T
+                    }
+                }
+                val model: ShoppingViewModel = viewModel(viewModelStoreOwner = owner, factory = factory)
                 ShoppingScreen(model)
             }
         }

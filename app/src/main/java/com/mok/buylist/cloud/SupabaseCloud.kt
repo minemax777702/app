@@ -14,6 +14,7 @@ import com.mok.buylist.sync.SyncMerge
 import com.mok.buylist.widget.ShoppingWidget
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.auth.FlowType
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
@@ -57,11 +58,19 @@ private fun JsonObject.list() = CloudList(string("id")!!, string("name")!!, stri
 
 /** Auth owns the persisted session. Room is a separate offline cache for each account/list. */
 @OptIn(FlowPreview::class)
-internal class SupabaseCloud(private val context: Context, private val scope: CoroutineScope) {
+internal class SupabaseCloud(private val context: Context, parentScope: CoroutineScope) {
+    private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]) +
+        CoroutineExceptionHandler { _, error -> reportFailure("worker", error) })
     val configured = BuildConfig.SUPABASE_URL.startsWith("https://") && BuildConfig.SUPABASE_KEY.isNotBlank()
     private val client = if (configured) createSupabaseClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_KEY) {
         httpEngine = OkHttp.create()
-        install(Auth)
+        install(Auth) {
+            flowType = FlowType.PKCE
+            scheme = "com.mok.buylist"
+            host = "auth-confirm"
+            // Keep the persisted session stable across Activity/background transitions.
+            enableLifecycleCallbacks = false
+        }
         install(Postgrest)
         install(Realtime)
     } else null
@@ -79,6 +88,19 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
     private val _status = MutableStateFlow<String?>(null)
     val status = _status.asStateFlow()
     private var account: String? = null
+
+    private fun reportFailure(stage: String, error: Throwable) {
+        // Keep exception types and stack frames for diagnosis, but never log request URLs, tokens or data.
+        val frames = generateSequence(error) { it.cause }.take(8).joinToString("\n") { cause ->
+            cause.javaClass.name + "\n" + cause.stackTrace.take(16).joinToString("\n")
+        }
+        android.util.Log.e("BuyListCloud", "$stage: $frames")
+        _status.value = "Офлайн"
+    }
+
+    private suspend fun publishWorkspace(value: CloudWorkspace?) = withContext(Dispatchers.Main.immediate) {
+        _workspace.value = value
+    }
 
     init {
         if (client != null) scope.launch {
@@ -111,8 +133,9 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
                 signedIn.collectLatest { signed ->
                     if (!signed) return@collectLatest
                     while (currentCoroutineContext().isActive) {
-                        val channel = client.channel("buylist-changes")
                         try {
+                            val channel = client.channel("buylist-changes")
+                            try {
                             coroutineScope {
                                 listOf("profiles", "groups", "group_members", "shopping_lists").forEach { tableName ->
                                     val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") { table = tableName }
@@ -122,9 +145,12 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
                                 signal()
                                 awaitCancellation()
                             }
+                            } finally {
+                                withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
+                            }
                         } catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { delay(5000) }
-                        finally { withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } } }
+                        catch (e: Exception) { reportFailure("realtime", e); delay(5000) }
+                        catch (e: LinkageError) { reportFailure("realtime linkage", e); delay(15000) }
                     }
                 }
             }
@@ -143,12 +169,25 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
         signal()
     }
     suspend fun signUp(name: String, email: String, password: String): Boolean {
-        api().auth.signUpWith(Email) {
+        api().auth.signUpWith(Email, redirectUrl = EMAIL_REDIRECT) {
             this.email = email.trim(); this.password = password
             data = buildJsonObject { put("display_name", name.trim().take(50)) }
         }
         return api().auth.currentUserOrNull() != null
     }
+    suspend fun confirmEmail(code: String): Boolean {
+        val auth = api().auth
+        auth.awaitInitialization()
+        if (auth.currentUserOrNull() != null) return true
+        auth.exchangeCodeForSession(code)
+        signal()
+        return auth.currentUserOrNull() != null
+    }
+
+    companion object {
+        const val EMAIL_REDIRECT = "com.mok.buylist://auth-confirm"
+    }
+
     suspend fun signOut() {
         api().auth.signOut()
         mutex.withLock {
@@ -156,8 +195,8 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
             updateWidget()
         }
     }
-    private fun resetWorkspace() {
-        _workspace.value = null
+    private suspend fun resetWorkspace() {
+        publishWorkspace(null)
         caches.values.forEach { closeLater(it) }
         caches.clear()
     }
@@ -202,7 +241,7 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
             val selected = if (id == "local") null else directory.lists.firstOrNull { it.id == id }
                 ?: directory.lists.firstOrNull { it.owner == uid }
             if (selected != null && context.getDatabasePath("cloud-${uid}-${selected.id}.db").exists()) {
-                _workspace.value = open(me, selected, cachedOnly = true)
+                publishWorkspace(open(me, selected, cachedOnly = true))
                 _status.value = "Офлайн"
                 updateWidget()
             }
@@ -234,14 +273,14 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
                 ?: lists.firstOrNull { it.owner == uid }
             val allowed = lists.mapTo(HashSet()) { it.id }
             if (_workspace.value?.listId?.let { it !in allowed } == true) {
-                _workspace.value = null
+                publishWorkspace(null)
                 updateWidget()
             }
             caches.values.filter { it.userId != uid || it.listId !in allowed }.forEach {
                 closeLater(it); caches.remove(it.namespace)
             }
             if (_workspace.value?.listId != selected?.id) {
-                _workspace.value = if (selected == null) null else open(me, selected)
+                publishWorkspace(if (selected == null) null else open(me, selected))
                 updateWidget()
             }
             var ok = true
@@ -250,11 +289,13 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
                     if (cache.profile.profile.value?.name != me.name) cache.repository.saveProfile(me.name)
                     sync(cache)
                 } catch (e: CancellationException) { throw e }
-                catch (_: Exception) { ok = false }
+                catch (e: Exception) { reportFailure("sync", e); ok = false }
+                catch (e: LinkageError) { reportFailure("sync linkage", e); ok = false }
             }
             _status.value = if (ok) null else "Офлайн"
         } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { _status.value = "Офлайн" }
+        catch (e: Exception) { reportFailure("refresh", e) }
+        catch (e: LinkageError) { reportFailure("refresh linkage", e) }
     }
 
     private suspend fun open(me: CloudPerson, list: CloudList, cachedOnly: Boolean = false): CloudWorkspace {
@@ -292,7 +333,7 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
             if (exists && status.value == "Офлайн") open(me, list, cachedOnly = true) else open(me, list)
         }
         check(prefs.edit().putString("selected_${me.id}", listId ?: "local").commit())
-        _workspace.value = next
+        publishWorkspace(next)
         updateWidget()
         signal()
     }

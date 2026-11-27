@@ -81,12 +81,13 @@ internal fun mergeRows(active: List<ShoppingItem>, recent: List<ListRow>): List<
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
+class ShoppingViewModel internal constructor(application: Application, workspace: com.mok.buylist.cloud.CloudWorkspace?) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, (application as com.mok.buylist.ShoppingApp).cloud.workspace.value)
     private val app = application as com.mok.buylist.ShoppingApp
-    private val workspaceNamespace = app.workspaceNamespace
-    private val repository = application.repository
-    private val lenta = application.lentaCatalog
-    private val journal = ActionJournal.get(application)
+    private val workspaceNamespace = workspace?.namespace.orEmpty()
+    private val repository = workspace?.repository ?: app.localRepository
+    internal val lenta = workspace?.catalog ?: app.localCatalog
+    private val journal = ActionJournal.get(application, workspaceNamespace)
     private val actionMutex = kotlinx.coroutines.sync.Mutex()
     internal val actions = journal.entries
     private val plannedPrefs = application.getSharedPreferences("planned_shopping_stores" + workspaceNamespace, android.content.Context.MODE_PRIVATE)
@@ -181,7 +182,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** null — приложение запущено впервые, имя ещё не спросили. */
-    val profile: StateFlow<Profile?> = application.userProfile.profile
+    val profile: StateFlow<Profile?> = (workspace?.profile ?: app.localProfile).profile
 
     /** Все известные пользователи (в том числе те, кого принесла синхронизация): по ним делится статистика. */
     val users: StateFlow<List<AppUser>> = repository.observeUsers()

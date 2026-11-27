@@ -18,3 +18,8 @@ Supabase Auth persists sessions. Each account/list has its own local Room DB; th
 - RLS: two users cannot read or modify each other's private lists; client cannot self-promote; removed/disabled users lose remote access.
 - Both phones: simultaneous add/buy/delete, archive and price/store edits, airplane mode and reconnection, restart with selected list, switch account, verify offline caches and widget.
 - Validate release APK and Auth session refresh. No server credentials in APK.
+
+## Email confirmation
+In Supabase Auth URL Configuration, set the Site URL and add the exact redirect URL `com.mok.buylist://auth-confirm` (no wildcard). Android requests this redirect with PKCE and exchanges the one-time code. Existing confirmed accounts can sign in normally. If the link was opened on another device, sign in with email/password. The dashboard setting is not managed by the available Supabase connector.
+
+Cloud diagnostics: `adb logcat -d -s BuyListCloud AndroidRuntime` (do not share credentials or auth callback URLs).
