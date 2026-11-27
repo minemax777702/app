@@ -81,13 +81,18 @@ internal fun mergeRows(active: List<ShoppingItem>, recent: List<ListRow>): List<
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
-    private val repository = application.repository
-    private val lenta = application.lentaCatalog
-    private val journal = ActionJournal.get(application)
+class ShoppingViewModel internal constructor(
+    application: Application,
+    private val repository: com.mok.buylist.data.ShoppingRepository,
+    private val lenta: com.mok.buylist.data.LentaCatalog,
+    private val workspaceProfile: com.mok.buylist.data.UserProfile,
+    private val workspaceKey: String?,
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, application.repository, application.lentaCatalog, application.userProfile, null)
+    private val journal = ActionJournal.get(application, workspaceKey)
     private val actionMutex = kotlinx.coroutines.sync.Mutex()
     internal val actions = journal.entries
-    private val plannedPrefs = application.getSharedPreferences("planned_shopping_stores", android.content.Context.MODE_PRIVATE)
+    private val plannedPrefs = application.getSharedPreferences(if (workspaceKey == null) "planned_shopping_stores" else "planned_shopping_stores_$workspaceKey", android.content.Context.MODE_PRIVATE)
     internal val plannedStores = MutableStateFlow(plannedPrefs.all.mapNotNull { (id, value) ->
         (value as? String)?.let { id to it }
     }.toMap())
@@ -179,7 +184,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /** null — приложение запущено впервые, имя ещё не спросили. */
-    val profile: StateFlow<Profile?> = application.userProfile.profile
+    val profile: StateFlow<Profile?> = workspaceProfile.profile
 
     /** Все известные пользователи (в том числе те, кого принесла синхронизация): по ним делится статистика. */
     val users: StateFlow<List<AppUser>> = repository.observeUsers()

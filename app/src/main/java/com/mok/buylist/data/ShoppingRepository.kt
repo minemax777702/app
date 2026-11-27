@@ -48,7 +48,9 @@ class ShoppingRepository(
     private val db: AppDatabase,
     private val profile: UserProfile,
     private val isolatedWorkspace: Boolean = false,
+    private val workspaceCatalog: LentaCatalog? = null,
 ) {
+    private val catalog: LentaCatalog get() = workspaceCatalog ?: context.lentaCatalog
     private val dao = db.shoppingDao()
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
@@ -111,7 +113,7 @@ class ShoppingRepository(
         if (storeId == lentaStoreId()) {
             dao.getLentaProducts().map { it.toProduct() }.firstOrNull {
                 (aliases["lenta:${it.id}"] ?: "lenta:${it.id}") == canonical &&
-                    it.address == context.lentaCatalog.address.value && it.address.isNotBlank() && it.channel == "locc"
+                    it.address == catalog.address.value && it.address.isNotBlank() && it.channel == "locc"
             }?.price?.let(::parsePriceKopecks)?.let { return it }
         }
         val receipts = dao.getBought().mapNotNull { decodePurchaseEvent(it.purchaseEvent) } +
@@ -582,7 +584,7 @@ class ShoppingRepository(
         val item = db.withTransaction {
             val now = System.currentTimeMillis()
             ensureLentaStore(now)
-            val address = context.lentaCatalog.address.value
+            val address = catalog.address.value
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
             }
@@ -615,7 +617,6 @@ class ShoppingRepository(
             val item = dao.findById(id) ?: return@withTransaction
             if (item.deleted) return@withTransaction
             val now = System.currentTimeMillis()
-            val catalog = context.lentaCatalog
             val product = dao.getLentaProducts().firstOrNull { it.id == item.productId }?.toProduct()?.takeIf {
                 catalog.address.value.isNotBlank() && it.address == catalog.address.value && it.channel == "locc"
             }
@@ -833,7 +834,7 @@ class ShoppingRepository(
                 savedLenta != null -> addProduct(savedLenta.toProduct(), count)
                 id != null -> {
                     val restored = LentaProduct(id, name, "", "", "", "", "", "", channel = "locc")
-                    context.lentaCatalog.save(restored)
+                    catalog.save(restored)
                     addProduct(restored, count)
                 }
                 else -> {
@@ -878,7 +879,7 @@ class ShoppingRepository(
         val uid = archiveUidOf(lastPurchaseAt, bought.map { it.nameKey })
         // Тот же список мог уже прийти от второго телефона: заводить вторую запись не нужно.
         if (dao.archiveIdByUid(uid) == null) {
-            val address = context.lentaCatalog.address.value
+            val address = catalog.address.value
             val products = dao.getLentaProducts().associateBy { it.id }
             val remaining = if (allowRemaining) dao.getItems() else emptyList()
             val remainingSnapshots = remaining.map { item ->
@@ -950,7 +951,7 @@ class ShoppingRepository(
         val summary = db.withTransaction {
             val local = buildSnapshot()
             val merged = SyncMerge.merge(local, remote)
-            write(merged)
+            if (!isolatedWorkspace || merged != local) write(merged)
             summarize(local, merged)
         }
         // НЕ завершаем поход автоматически во время сетевого обмена.

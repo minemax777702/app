@@ -41,10 +41,10 @@ data class LentaProduct(
     }
 }
 
-class LentaCatalog(context: Context, private val db: AppDatabase, scope: CoroutineScope) {
+class LentaCatalog(context: Context, private val db: AppDatabase, scope: CoroutineScope, prefsName: String = "lenta_catalog") {
     private val dao = db.shoppingDao()
     private val refreshMutex = Mutex()
-    private val prefs = context.getSharedPreferences("lenta_catalog", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
     private val _address = MutableStateFlow(prefs.getString("address", "").orEmpty())
     val address = _address.asStateFlow()
     private val _ready = MutableStateFlow(false)

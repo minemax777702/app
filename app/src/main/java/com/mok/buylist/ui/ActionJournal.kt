@@ -21,8 +21,8 @@ internal data class ListAction(
     val canUndo: Boolean get() = result.isEmpty() && (after != null || (before != null && removedAt != null))
 }
 
-internal class ActionJournal private constructor(context: Context) {
-    private val prefs = context.getSharedPreferences("shopping_action_journal", Context.MODE_PRIVATE)
+internal class ActionJournal private constructor(context: Context, workspaceKey: String?) {
+    private val prefs = context.getSharedPreferences(if (workspaceKey == null) "shopping_action_journal" else "shopping_action_journal_$workspaceKey", Context.MODE_PRIVATE)
     private val state = MutableStateFlow<List<ListAction>>(emptyList())
     val entries: StateFlow<List<ListAction>> = state
 
@@ -105,10 +105,9 @@ internal class ActionJournal private constructor(context: Context) {
         customProductId = o.optString("customProductId"))
 
     companion object {
-        @Volatile private var instance: ActionJournal? = null
-        fun get(context: Context): ActionJournal = instance ?: synchronized(this) {
-            instance ?: ActionJournal(context.applicationContext).also { instance = it }
-        }
+        private val instances = mutableMapOf<String?, ActionJournal>()
+        @Synchronized fun get(context: Context, workspaceKey: String? = null): ActionJournal =
+            instances.getOrPut(workspaceKey) { ActionJournal(context.applicationContext, workspaceKey) }
     }
 }
 

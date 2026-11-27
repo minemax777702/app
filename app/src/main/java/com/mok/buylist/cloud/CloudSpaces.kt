@@ -21,9 +21,15 @@ internal class CloudSpaceSession(
     val repository: ShoppingRepository,
     val grant: CloudGrant,
     val database: AppDatabase,
+    val profile: UserProfile,
+    val catalog: com.mok.buylist.data.LentaCatalog,
 ) {
+    val localKey: String get() = space.key.replace(':', '-') + (if (epoch == 1L) "" else "-epoch-$epoch")
     val space get() = invitation.space
-    @Volatile var historical = false
+    val historicalState = MutableStateFlow(false)
+    var historical: Boolean
+        get() = historicalState.value
+        set(value) { historicalState.value = value }
     val epoch get() = invitation.signed.manifest.epoch
     val writable get() = grant.canWrite && !historical
     val status = MutableStateFlow(CloudSpaceStatus())
@@ -113,14 +119,15 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
             val profile = UserProfile(context, "cloud-profile-$name")
             val needsProfile = profile.id != grant.userId || profile.profile.value?.name != invitation.userName
             if (needsProfile) profile.adopt(grant.userId, invitation.userName)
-            val repo = ShoppingRepository(context, database, profile, isolatedWorkspace = true)
+            val catalog = com.mok.buylist.data.LentaCatalog(context, database, scope, "cloud-lenta-$name")
+            val repo = ShoppingRepository(context, database, profile, isolatedWorkspace = true, workspaceCatalog = catalog)
             if (needsProfile && grant.canWrite) repo.saveProfile(invitation.userName)
             if (invitation.checkpoint.isNotEmpty()) {
                 val checkpoint = CloudEpochCheckpoint.open(invitation.checkpoint, invitation.signed.manifest,
                     invitation.open(id, CloudDeviceIdentity.encryptionPair().private))
                 repo.applyRemote(checkpoint)
             }
-            val session = CloudSpaceSession(invitation, repo, grant, database)
+            val session = CloudSpaceSession(invitation, repo, grant, database, profile, catalog)
             session.historical = epoch < prefs.getLong("minimum_epoch_" + invitation.space.key, 1L)
             _sessions.value = _sessions.value + session
             markHistorical()
