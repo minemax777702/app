@@ -119,7 +119,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 directory.groups.filter { adminOnly || directory.participates(it) }.forEach { group ->
                     val memberCount = directory.members.count{it.group==group.id && it.user!=group.owner}+1
                     val subtitle = if(adminOnly) "Участников: $memberCount" else "Списков: ${directory.lists.count{it.group==group.id}} · Участников: $memberCount"
-                    FreshCutListRow(R.drawable.ic_group,group.name,subtitle,
+                    FreshCutListRow(R.drawable.ic_group,group.name,subtitle,showChevron=false,
                         onClick={ editingGroup=group;addingMembers=false;message=null;groupSheet=true })
                 }
                 FreshCutSecondaryButton("Создать группу",{editingGroup=null;addingMembers=false;message=null;groupSheet=true},enabled=!busy)
@@ -189,7 +189,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                         }
                         if(visible.isEmpty()) Text("Пользователи не найдены",color=p.textSecondary,fontSize=13.sp)
                     } else Text("Нет пользователей для добавления",color=p.textSecondary,fontSize=14.sp)
-                    if(me.admin) FreshCutListRow(R.drawable.ic_plus,"Создать пользователя",
+                    if(me.admin) FreshCutListRow(R.drawable.ic_user_plus,"Создать пользователя",
                         showChevron=false,onClick={
                             createUserGroup=row.id;groupSheet=false;createUser=true;message=null
                         })
@@ -201,7 +201,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     if(row!=null) {
                         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                             FreshCutSectionTitle("Участники · ${members.size}",Modifier.weight(1f))
-                            if(manage) FreshCutToolbarAction(R.drawable.ic_plus,"Добавить участников",
+                            if(manage) FreshCutToolbarAction(R.drawable.ic_user_plus,"Добавить участников",
                                 {addingMembers=true;message=null},primary=true,enabled=!busy)
                         }
                         Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -210,7 +210,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                 FreshCutListRow(R.drawable.ic_user_round,user.name,
                                     if(owner) "Владелец" else if(!user.active) "Доступ отключён" else "",
                                     showChevron=false,
-                                    trailing=if(manage && !owner) {{ FreshCutToolbarAction(R.drawable.ic_close,
+                                    trailing=if(manage && !owner) {{ FreshCutToolbarAction(R.drawable.ic_user_minus,
                                         "Исключить из группы",{perform{cloud.member(row.id,user.id,false)}},enabled=!busy) }} else null)
                             }
                         }
@@ -258,7 +258,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
                 SheetTextField(personName,{personName=it.take(50)},"Имя")
                 FreshCutListRow(R.drawable.ic_user_round,"Пользователь",selected=!admin,showChevron=false,onClick={admin=false})
-                FreshCutListRow(R.drawable.ic_user_round,"Администратор",selected=admin,showChevron=false,onClick={admin=true})
+                FreshCutListRow(R.drawable.ic_shield,"Администратор",selected=admin,showChevron=false,onClick={admin=true})
                 FreshCutSecondaryButton(if(active)"Отключить доступ" else "Восстановить доступ",{active=!active})
                 if(row.active) {
                     FreshCutSectionTitle("Группы")

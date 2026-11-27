@@ -181,10 +181,10 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     }, onOpenTheme)
                     ProfileMenuRow(R.drawable.ic_store, "Магазин Ленты",
                         if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
-                    ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
+                    ProfileMenuRow(R.drawable.ic_download_update, "Обновления приложения",
                         "Версия ${installedVersion.name}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
-                    if (isAdmin) ProfileMenuRow(R.drawable.ic_settings, "Администрирование", "", { page = "admin" })
+                    if (isAdmin) ProfileMenuRow(R.drawable.ic_shield, "Администрирование", "", { page = "admin" })
                     if (!signedIn) ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }
             }
@@ -195,11 +195,11 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
         title = { SheetHeader("Резервная копия") }, minBodyHeight = 296.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ProfileMenuRow(R.drawable.ic_archive, "Сохранить в файл", "Экспорт данных", {
+                ProfileMenuRow(R.drawable.ic_download_update, "Сохранить в файл", "Экспорт данных", {
                     showBackup = false
                     saveBackup.launch("spisok-pokupok-${LocalDate.now()}.buylist")
                 })
-                ProfileMenuRow(R.drawable.ic_repeat, "Восстановить из файла", "Импорт данных", {
+                ProfileMenuRow(R.drawable.ic_upload_file, "Восстановить из файла", "Импорт данных", {
                     showBackup = false
                     openBackup.launch(arrayOf("*/*"))
                 })

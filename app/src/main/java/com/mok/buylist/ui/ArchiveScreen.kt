@@ -91,6 +91,7 @@ fun ArchiveScreen(
     initiallyExpandedId: Long? = null,
     viewModel: ShoppingViewModel,
     navigation: @Composable () -> Unit = {},
+    listContext: String = "",
     listPicker: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
@@ -118,13 +119,15 @@ fun ArchiveScreen(
     }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title), tripCountLabel(archive.distinctBy { it.uid }.size)) {
+        val count = tripCountLabel(archive.distinctBy { it.uid }.size)
+        FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title),
+            listOf(listContext, count).filter { it.isNotBlank() }.joinToString(" · ")) {
+            if (initiallyExpandedId == null) listPicker()
             if (initiallyExpandedId != null) HeaderButton(R.drawable.ic_back, "Назад", onBack)
             if (archive.isNotEmpty() && onOpenStats != null) {
                 HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
             }
         }
-        if (initiallyExpandedId == null) listPicker()
         if (archive.isEmpty()) {
             EmptyArchive(Modifier.weight(1f))
         } else {

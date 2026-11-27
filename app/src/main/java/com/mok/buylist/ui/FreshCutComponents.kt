@@ -74,10 +74,12 @@ internal fun FreshCutRootHeader(
 ) {
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.Top) {
+        verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, color = p.textSecondary, fontSize = 13.sp, lineHeight = 18.sp)
+            Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp, lineHeight = 18.sp,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         trailing()
     }

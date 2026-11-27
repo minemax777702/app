@@ -125,7 +125,8 @@ import kotlin.math.roundToInt
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestination: String = "LIST",
-    onDestinationChange: (String) -> Unit = {}, listPicker: @Composable () -> Unit = {}) {
+    onDestinationChange: (String) -> Unit = {}, listName: String = "Личный список",
+    groupName: String? = null, listContext: String = listName, listPicker: @Composable () -> Unit = {}) {
     val context = LocalContext.current
     val themeSettings = context.themeSettings
     val p = LocalPalette.current
@@ -239,6 +240,9 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
             Header(
                 progress = progress,
                 totals = totals,
+                listName = listName,
+                groupName = groupName,
+                listPicker = listPicker,
                 themeEnabled = !showSettings && !showArchive && !showStats && profile != null && !renaming,
                 // Быстрое переключение меняет и приложение, и виджет; раздельный выбор — в настройках темы.
                 onToggleTheme = {
@@ -252,7 +256,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 onFinish = viewModel::finishTrip,
 
             )
-            listPicker()
             // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
             Crossfade(
                 targetState = visibleRows?.isEmpty(),
@@ -346,6 +349,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 users = users,
                 meId = profile?.id.orEmpty(),
                 viewModel = viewModel,
+                listContext = listContext,
                 listPicker = listPicker,
             )
         }
@@ -365,6 +369,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 archive = archive,
                 bought = bought,
                 users = users,
+                listContext = listContext,
                 listPicker = listPicker,
             )
         }
@@ -378,6 +383,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 meId = profile?.id.orEmpty(),
                 onBack = { showStats = false },
                 viewModel = viewModel,
+                listContext = listContext,
                 listPicker = listPicker,
             )
         }
@@ -735,6 +741,9 @@ private fun Header(
     onNotifications: () -> Unit,
     canFinish: Boolean,
     onFinish: () -> Unit,
+    listName: String,
+    groupName: String?,
+    listPicker: @Composable () -> Unit,
 ) {
     val p = LocalPalette.current
     var expanded by remember { mutableStateOf(false) }
@@ -744,7 +753,13 @@ private fun Header(
     )
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Покупки", Modifier.weight(1f), color = p.text, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (!groupName.isNullOrBlank()) Text(groupName, color=p.textSecondary, fontSize=12.sp,
+                    lineHeight=16.sp, maxLines=1, overflow=TextOverflow.Ellipsis)
+                Text(listName, color=p.text, fontSize=24.sp, lineHeight=28.sp, fontWeight=FontWeight.SemiBold,
+                    maxLines=2, overflow=TextOverflow.Ellipsis)
+            }
+            listPicker()
             FreshCutToolbarAction(R.drawable.ic_bell, "Уведомления", onNotifications)
             Box {
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)

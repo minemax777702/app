@@ -1,19 +1,13 @@
 package com.mok.buylist.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModelStore
@@ -45,31 +39,19 @@ internal fun CloudShoppingRoot() {
     var busy by remember { mutableStateOf(false) }
     var destination by rememberSaveable { mutableStateOf("LIST") }
 
+    val selectedList = directory.lists.firstOrNull { it.id == current?.listId }
+    val listName = selectedList?.name ?: com.mok.buylist.cloud.SupabaseCloud.PERSONAL_LIST_NAME
+    val groupName = directory.groups.firstOrNull { it.id == selectedList?.group }?.name
+    val listContext = listOfNotNull(groupName, listName).joinToString(" · ")
     val picker: @Composable () -> Unit = {
-        val canChoose = directory.me != null && directory.lists.size > 1
-        val title = directory.lists.firstOrNull { it.id == current?.listId }?.name
-            ?: com.mok.buylist.cloud.SupabaseCloud.PERSONAL_LIST_NAME
-        if (canChoose) {
-            Row(Modifier.fillMaxWidth().padding(start=20.dp,end=20.dp,bottom=8.dp)
-                .clip(RoundedCornerShape(16.dp)).background(p.card).clickable { selector=true }
-                .padding(horizontal=14.dp,vertical=11.dp),
-                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                Icon(painterResource(R.drawable.ic_list_check),null,tint=p.text,modifier=Modifier.size(22.dp))
-                Text(title,
-                    Modifier.weight(1f),color=p.text,fontWeight=FontWeight.SemiBold,fontSize=15.sp)
-                if (signedIn && (cloudStatus != null || pendingCount > 0)) Icon(painterResource(R.drawable.ic_sync),
-                    "Изменения ожидают синхронизации",tint=p.textSecondary,modifier=Modifier.size(16.dp))
-                Icon(painterResource(R.drawable.ic_chevron_down),"Выбрать список",tint=p.textSecondary,modifier=Modifier.size(20.dp))
-            }
-        } else {
-            // One personal list: show the same name online and offline, without a dead dropdown.
-            Row(Modifier.fillMaxWidth().padding(start=20.dp,end=20.dp,bottom=8.dp),
-                verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                Icon(painterResource(R.drawable.ic_list_check),null,tint=p.textSecondary,modifier=Modifier.size(18.dp))
-                Text(title,color=p.textSecondary,fontWeight=FontWeight.Medium,fontSize=13.sp)
-                if (signedIn && (cloudStatus != null || pendingCount > 0)) Icon(painterResource(R.drawable.ic_sync),
-                    "Изменения ожидают синхронизации",tint=p.textSecondary,modifier=Modifier.size(16.dp))
-            }
+        if (signedIn && (cloudStatus != null || pendingCount > 0)) {
+            Icon(painterResource(R.drawable.ic_sync), "Синхронизация ожидает подключения",
+                tint=p.textSecondary,modifier=Modifier.size(16.dp))
+        }
+        if (directory.me != null && directory.lists.size > 1) {
+            FreshCutToolbarAction(R.drawable.ic_list_switch, "Переключить список", {
+                error=false;selector=true
+            }, enabled=!busy)
         }
     }
 
@@ -84,7 +66,8 @@ internal fun CloudShoppingRoot() {
             }
         }
         val model: ShoppingViewModel = viewModel(viewModelStoreOwner=owner,factory=factory)
-        ShoppingScreen(model, initialDestination=destination, onDestinationChange={ destination=it }, listPicker=picker)
+        ShoppingScreen(model, initialDestination=destination, onDestinationChange={ destination=it },
+            listName=listName, groupName=groupName, listContext=listContext, listPicker=picker)
     }
     if (welcome && !signedIn) AppSheet(onDismissRequest={finishWelcome()},containerColor=p.sheet,
         title={SheetHeader("Список покупок")},text={SupabasePanel(authOnly=true)},
