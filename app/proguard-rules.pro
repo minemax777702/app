@@ -8,24 +8,9 @@
 # Нажатие на товар в виджете запускает наш ActionCallback по имени класса.
 -keep class * extends androidx.glance.appwidget.action.ActionCallback { <init>(); }
 
-# JSch algorithm implementations are selected by class name. Keep only implementations
-# used in the pinned P-256/AES-CTR/HMAC configuration of the diagnostic.
-# Keep implementations and inherited crypto methods callable through reflection.
-# KnownHosts constructs HMACSHA1 before loading even a plain-text pinned host key.
-# SHA-1 here is for local known_hosts compatibility, NOT an offered SSH MAC.
--keep class com.jcraft.jsch.jce.HMACSHA1 { *; }
--keep class com.jcraft.jsch.jce.SHA1 { *; }
--keep class com.jcraft.jsch.jce.KeyPairGenECDSA { *; }
--keep class com.jcraft.jsch.DHEC256 { *; }
--keep class com.jcraft.jsch.UserAuthNone { *; }
--keep class com.jcraft.jsch.UserAuthPublicKey { *; }
--keep class com.jcraft.jsch.jce.ECDHN { *; }
--keep class com.jcraft.jsch.jce.SHA256 { *; }
--keep class com.jcraft.jsch.jce.SignatureECDSA256 { *; }
--keep class com.jcraft.jsch.jce.HMACSHA256 { *; }
--keep class com.jcraft.jsch.jce.AES128CTR { *; }
--keep class com.jcraft.jsch.jce.Random { *; }
--keep class com.jcraft.jsch.jce.MD5 { *; }
+# JSch selects implementations, crypto providers and authentication handlers by class name.
+# Preserve this library in release APKs; keep R8 enabled for the rest of the app.
+-keep class com.jcraft.jsch.** { *; }
 # Optional JSch agents/providers are not used on Android. No global missing-class suppression.
 -dontwarn com.sun.jna.**
 -dontwarn org.newsclub.net.unix.**

@@ -22,6 +22,10 @@ internal object CloudSshProbe {
     private const val ALIAS = "buylist.cloud.ssh.test.v1"
     private const val HOST_KEY = "AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg="
     private const val TIMEOUT = 12_000
+    // Only modern algorithms; optional implementations are probed by JSch before negotiation.
+    private const val KEX = "ecdh-sha2-nistp256,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group14-sha256"
+    private const val CIPHERS = "aes128-ctr,aes256-ctr"
+    private const val MACS = "hmac-sha2-256,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-512-etm@openssh.com"
 
     private data class Keys(val public: ECPublicKey, val private: PrivateKey)
 
@@ -53,8 +57,18 @@ internal object CloudSshProbe {
         override fun clear() = Unit
     }
 
-    internal fun openSession(port: Int, pair: java.security.KeyPair? = null): com.jcraft.jsch.Session =
-        connect(port, pair, CloudSshTrace())
+    internal fun openSession(port: Int, pair: java.security.KeyPair? = null): com.jcraft.jsch.Session {
+        val trace = CloudSshTrace()
+        return try {
+            connect(port, pair, trace)
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: CloudAdminException) { throw e }
+        catch (e: Exception) {
+            throw CloudAdminException(trace.failure(port, "SSH-01", "Не удалось подготовить SSH-подключение.", e))
+        } catch (e: LinkageError) {
+            throw CloudAdminException(trace.failure(port, "SSH-04", "SSH-клиент несовместим с этой сборкой приложения.", e))
+        }
+    }
 
     private fun connect(port: Int, pair: java.security.KeyPair?, trace: CloudSshTrace): com.jcraft.jsch.Session {
         require(port == 22 || port == 443)
@@ -83,39 +97,43 @@ internal object CloudSshProbe {
         try {
             session.setConfig("StrictHostKeyChecking", "yes")
             session.setConfig("server_host_key", CloudSshWire.ALGORITHM)
-            session.setConfig("kex", "ecdh-sha2-nistp256")
-            // Probe only algorithms actually negotiated; avoid optional desktop algorithms.
-            session.setConfig("CheckCiphers", "aes128-ctr")
-            session.setConfig("CheckKexes", "ecdh-sha2-nistp256")
+            session.setConfig("kex", KEX)
+            session.setConfig("CheckCiphers", CIPHERS)
+            session.setConfig("CheckKexes", KEX)
             session.setConfig("CheckSignatures", CloudSshWire.ALGORITHM)
             session.setConfig("PreferredAuthentications", "publickey")
             session.setConfig("PubkeyAcceptedAlgorithms", CloudSshWire.ALGORITHM)
-            session.setConfig("cipher.c2s", "aes128-ctr")
-            session.setConfig("cipher.s2c", "aes128-ctr")
-            session.setConfig("mac.c2s", "hmac-sha2-256")
-            session.setConfig("mac.s2c", "hmac-sha2-256")
+            session.setConfig("cipher.c2s", CIPHERS)
+            session.setConfig("cipher.s2c", CIPHERS)
+            session.setConfig("mac.c2s", MACS)
+            session.setConfig("mac.s2c", MACS)
             session.setConfig("compression.c2s", "none")
             session.setConfig("compression.s2c", "none")
             session.setTimeout(TIMEOUT)
             try {
                 session.connect(TIMEOUT)
             } catch (e: com.jcraft.jsch.JSchException) {
-                val detail = e.message.orEmpty()
-                val causes = generateSequence<Throwable>(e) { it.cause }.take(5).toList()
+                val causes = generateSequence<Throwable>(e) { it.cause }.take(16).toList()
+                val detail = causes.joinToString(" ") { it.message.orEmpty() }
                 val (code, reason) = when {
                     causes.any { it is java.net.UnknownHostException } -> "SSH-02" to "Не удалось разрешить DNS-имя сервера."
                     causes.any { it is java.net.ConnectException || it is java.net.NoRouteToHostException } -> "SSH-03" to "TCP-порт недоступен."
                     detail.contains("Auth fail", true) || detail.contains("Auth cancel", true) -> "SSH-06" to "Авторизация ключа не прошла. Сверьте отпечаток в Deploy keys app-cloud."
-                    detail.contains("HostKey", true) || detail.contains("host key", true) -> "SSH-05" to "Ключ сервера не подтверждён. Проверка не отключена."
-                    detail.contains("negotiation", true) || causes.any { it is java.security.GeneralSecurityException } -> "SSH-04" to "Не удалось согласовать или выполнить криптографические параметры SSH."
+                    causes.any { it is com.jcraft.jsch.JSchHostKeyException } || detail.contains("HostKey", true) || detail.contains("host key", true) -> "SSH-05" to "Ключ сервера не подтверждён. Проверка не отключена."
+                    causes.any { it is ClassNotFoundException || it is LinkageError } -> "SSH-04" to "SSH-клиент несовместим с этой сборкой приложения."
+                    causes.any { it is com.jcraft.jsch.JSchAlgoNegoFailException } || detail.contains("negotiation", true) || detail.contains("available kexes", true) || causes.any { it is java.security.GeneralSecurityException } -> "SSH-04" to "Не удалось согласовать криптографические параметры SSH."
                     detail.contains("timeout", true) || causes.any { it is java.net.SocketTimeoutException } -> "SSH-03" to "Истекло время ожидания; последний успешный этап указан выше."
-                    else -> "SSH-04" to "Не удалось завершить установление SSH-сеанса."
+                    causes.any { it is java.io.EOFException || it is java.net.SocketException } -> "SSH-03" to "Соединение с GitHub было прервано. Повторите попытку."
+                    else -> "SSH-04" to "Не удалось установить защищённое соединение с GitHub."
                 }
                 throw CloudAdminException(trace.failure(port, code, reason, e))
             }
             trace.step("Авторизация SSH подтверждена")
             return session
         } catch (e: Exception) {
+            session.disconnect()
+            throw e
+        } catch (e: LinkageError) {
             session.disconnect()
             throw e
         }

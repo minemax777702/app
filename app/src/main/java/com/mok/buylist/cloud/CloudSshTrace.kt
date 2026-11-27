@@ -22,15 +22,28 @@ internal class CloudSshTrace {
     }
 
     fun failure(port: Int, code: String, detail: String, error: Throwable? = null): String {
-        val types = generateSequence(error) { it.cause }.take(5).map { it.javaClass.simpleName }.joinToString(" → ")
-        val missing = generateSequence(error) { it.cause }.take(5)
-            .filterIsInstance<ClassNotFoundException>()
-            .mapNotNull { it.message }
-            .mapNotNull { Regex("com\\.jcraft\\.jsch\\.[A-Za-z0-9_$.]+").find(it)?.value }
-            .firstOrNull()
-        val progress = report()
-        return "SSH $port · $code\n" + (if (progress.isBlank()) "" else "$progress\n") +
-            "✗ $detail" + (if (types.isBlank()) "" else "\nТип ошибки: $types") +
-            (if (missing == null) "" else "\nОтсутствует класс: $missing")
+        // Local Logcat only: preserve exception classes and stack frames, but not
+        // exception messages from the network, credentials, or raw SSH packets.
+        val diagnostic = buildString {
+            append("SSH ").append(port).append(" · ").append(code).append(": ").append(detail)
+            val progress = report()
+            if (progress.isNotBlank()) append('\n').append(progress)
+            if (error != null) {
+                val visited = java.util.Collections.newSetFromMap(java.util.IdentityHashMap<Throwable, Boolean>())
+                var current: Throwable? = error
+                while (current != null) {
+                    val cause = current
+                    if (!visited.add(cause)) break
+                    append("\nCause: ").append(cause.javaClass.name)
+                    if (cause is com.jcraft.jsch.JSchAlgoNegoFailException) {
+                        append(" (algorithm negotiation failed)")
+                    }
+                    cause.stackTrace.forEach { append("\n  at ").append(it) }
+                    current = cause.cause
+                }
+            }
+        }
+        android.util.Log.e("BuyListSSH", diagnostic)
+        return "$detail ($code)"
     }
 }
