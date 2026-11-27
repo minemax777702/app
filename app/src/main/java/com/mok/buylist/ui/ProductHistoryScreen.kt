@@ -123,7 +123,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     viewModel: ShoppingViewModel, onBack: () -> Unit, navigation: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
-    val catalogContext = LocalContext.current
     val catalog = LocalContext.current.lentaCatalog
     val products by catalog.products.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
@@ -500,14 +499,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             },
         )
     }
-    LaunchedEffect(ownProduct?.id, barcodes.firstOrNull()) {
-        val own = ownProduct
-        if (own != null) CustomProductPreviews.fetch(
-            context = catalogContext,
-            id = own.id,
-            barcode = barcodes.firstOrNull() ?: own.barcode,
-        )
-    }
     val title = product?.name ?: ownProduct?.name ?: rows.firstOrNull()?.name ?: "Товар не найден"
     val back: () -> Unit = { if (detailTab != 0) detailTab = 0 else onBack() }
     BackHandler(onBack = back)
@@ -619,7 +610,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                 TextButton(onClick = { editingBarcode = null; barcodeInput = ""; barcodeError = null; barcodeEditorOpen = true }) {
                                     Text("Добавить штрихкод", color = p.text)
                                 }
-                                if (ownProduct != null) CustomProductImageActions(ownProduct.id, barcodes.firstOrNull() ?: ownProduct.barcode)
+                                if (ownProduct != null) CustomProductImageActions(ownProduct.id)
                             }
                         }
                     }

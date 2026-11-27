@@ -428,6 +428,17 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
             ?.let { undoAction(it.id) }
     }
 
+    internal fun clearNotifications(group: NotificationGroup?) {
+        viewModelScope.launch { actionMutex.withLock {
+            val snapshot = actions.value
+            // Проверяем фактическое состояние БД, а не потенциально устаревший UI StateFlow.
+            val protectedIds = undoableRecentActions(snapshot).filter { action ->
+                repository.canUndoListAction(action.before, action.after, action.removedAt)
+            }.mapTo(HashSet()) { it.id }
+            journal.clear(notificationIdsToClear(snapshot, group, protectedIds))
+        } }
+    }
+
     internal fun undoAction(id: String) {
         viewModelScope.launch { actionMutex.withLock {
             val action = undoableRecentActions(actions.value).firstOrNull { it.id == id } ?: return@withLock

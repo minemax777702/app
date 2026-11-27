@@ -23,14 +23,18 @@ internal data class ListAction(
 
 internal class ActionJournal private constructor(context: Context) {
     private val prefs = context.getSharedPreferences("shopping_action_journal", Context.MODE_PRIVATE)
-    private val state = MutableStateFlow(read().filterNot { it.title == "Действие отменено" })
+    private val state = MutableStateFlow<List<ListAction>>(emptyList())
     val entries: StateFlow<List<ListAction>> = state
 
+    init { save(read()) }
+
+    @Synchronized
     fun record(title: String, detail: String = "", before: ShoppingItem? = null,
         after: ShoppingItem? = null, removedAt: Long? = null) {
         save(listOf(ListAction(title = title, detail = detail, before = before, after = after, removedAt = removedAt)) + state.value)
     }
 
+    @Synchronized
     fun notice(message: String) {
         if (message == "Действие отменено") return
         val latest = state.value.firstOrNull()
@@ -39,6 +43,7 @@ internal class ActionJournal private constructor(context: Context) {
         record(message)
     }
 
+    @Synchronized
     fun completeUndo(id: String, success: Boolean, restored: ShoppingItem? = null) {
         val rows = state.value
         val current = rows.firstOrNull { it.id == id } ?: return
@@ -59,8 +64,13 @@ internal class ActionJournal private constructor(context: Context) {
         save(updated)
     }
 
+    @Synchronized
+    fun clear(ids: Set<String>) {
+        if (ids.isNotEmpty()) save(state.value.filterNot { it.id in ids })
+    }
+
     private fun save(rows: List<ListAction>) {
-        val kept = rows.take(200)
+        val kept = rotateNotifications(rows)
         val array = JSONArray()
         kept.forEach { a ->
             array.put(JSONObject().put("id", a.id).put("at", a.at).put("title", a.title)
@@ -108,9 +118,9 @@ internal fun undoableRecentActions(rows: List<ListAction>): List<ListAction> =
         .take(3).filter { it.canUndo }
 
 internal enum class NotificationGroup(val title: String) {
+    ACTIONS("Действия с товарами"),
     COMPLETED("Завершённые списки"),
     PRICES("Обновления цен"),
-    ACTIONS("Действия с товарами"),
     OTHER("Другие уведомления"),
 }
 
@@ -125,3 +135,32 @@ internal fun ListAction.group(): NotificationGroup {
         else -> NotificationGroup.OTHER
     }
 }
+
+internal const val NOTIFICATION_GROUP_LIMIT = 100
+
+/** Сохраняем последние записи каждой группы и не вытесняем кандидатов на отмену уведомлениями. */
+internal fun rotateNotifications(rows: List<ListAction>): List<ListAction> {
+    val visible = rows.filterNot { it.title == "Действие отменено" }
+    // Сохраняем также занятые слоты отмены, чтобы ротация не открывала старые операции.
+    val undoSlots = visible.filter { it.after != null || (it.before != null && it.removedAt != null) }
+        .take(3).mapTo(HashSet()) { it.id }
+    val reserved = visible.filter { it.id in undoSlots }.groupingBy { it.group() }.eachCount()
+    val counts = mutableMapOf<NotificationGroup, Int>()
+    return visible.filter { action ->
+        if (action.id in undoSlots) true else {
+            val group = action.group()
+            val count = counts[group] ?: 0
+            if (count >= NOTIFICATION_GROUP_LIMIT - (reserved[group] ?: 0)) false
+            else { counts[group] = count + 1; true }
+        }
+    }
+}
+
+internal fun notificationIdsToClear(
+    rows: List<ListAction>,
+    group: NotificationGroup?,
+    protectedIds: Set<String>,
+): Set<String> = rows.asSequence()
+    .filter { group == null || it.group() == group }
+    .filterNot { it.id in protectedIds }
+    .map { it.id }.toSet()

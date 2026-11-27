@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import com.mok.buylist.barcodeSourceSettings
 import com.mok.buylist.themeSettings
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -99,9 +98,11 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val scrollState = rememberScrollState()
     var page by rememberSaveable { mutableStateOf("profile") }
     var showBackup by rememberSaveable { mutableStateOf(false) }
-    val sources by context.barcodeSourceSettings.enabled.collectAsStateWithLifecycle()
     val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
-    LaunchedEffect(page) { onActiveChange(page != "profile"); scrollState.scrollTo(0) }
+    LaunchedEffect(page) {
+        if (page == "sources") page = "profile"
+        onActiveChange(page != "profile"); scrollState.scrollTo(0)
+    }
     BackHandler(enabled = page != "profile") { page = "profile" }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) scrollState.scrollTo(0) }
     LaunchedEffect(state.notice) {
@@ -140,7 +141,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
         when (page) {
-            "sources" -> SubScreenHeader("Источники поиска", { page = "profile" })
             "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
@@ -148,7 +148,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "sources" -> BarcodeSourceSettingsSection()
                 "nearby" -> {
                     NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
                 }
@@ -174,8 +173,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     }, onOpenTheme)
                     ProfileMenuRow(R.drawable.ic_store, "Магазин Ленты",
                         if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
-                    ProfileMenuRow(R.drawable.ic_scan_barcode, "Источники штрихкодов",
-                        "${sources.size} из ${BarcodeSource.entries.size} включено", { page = "sources" })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })

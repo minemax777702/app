@@ -29,6 +29,7 @@ internal fun NotificationsScreen(
     availableUndoIds: Set<String>,
     onBack: () -> Unit,
     onUndo: (String) -> Unit,
+    onClear: (NotificationGroup?) -> Unit,
 ) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
@@ -45,7 +46,11 @@ internal fun NotificationsScreen(
     var otherLimit by rememberSaveable { mutableIntStateOf(3) }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader("Уведомления", onBack)
+        SubScreenHeader("Уведомления", onBack) {
+            if (grouped.isNotEmpty()) TextButton(onClick = { onClear(null) }) {
+                Text("Очистить", color = p.text)
+            }
+        }
         if (visible.isEmpty()) Column(Modifier.weight(1f).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(painterResource(R.drawable.ic_bell), null, Modifier.size(40.dp), tint = p.textSecondary)
@@ -79,6 +84,9 @@ internal fun NotificationsScreen(
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(group.title, Modifier.weight(1f), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                         Text(entries.size.toString(), color = p.textSecondary, fontSize = 12.sp)
+                        TextButton(onClick = { onClear(group) }) {
+                            Text("Очистить", color = p.textSecondary, fontSize = 12.sp)
+                        }
                     }
                 }
                 items(entries.take(limit), key = { it.id }) { action ->

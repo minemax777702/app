@@ -124,11 +124,8 @@ internal fun ItemDetailsSheet(
                 }
                 if (expanded) {
                     barcodeList.drop(1).forEach { code -> SheetInfoLine("", code) }
-                    if (own != null) CustomProductImageActions(own.id, codes.firstOrNull().orEmpty())
+                    if (own != null) CustomProductImageActions(own.id)
                 }
-            }
-            if (own != null) LaunchedEffect(own.id, codes.firstOrNull()) {
-                CustomProductPreviews.fetch(context, own.id, codes.firstOrNull().orEmpty())
             }
             if (shopPrices.isNotEmpty()) {
                 Text("Магазины и цены", color = p.text,
