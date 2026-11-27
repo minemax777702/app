@@ -31,6 +31,7 @@ import com.mok.buylist.cloud.CloudSpaceKind
 import com.mok.buylist.data.LentaCatalog
 import com.mok.buylist.lentaCatalog
 import com.mok.buylist.ui.theme.LocalPalette
+import kotlinx.coroutines.launch
 
 internal val LocalShoppingWorkspace = staticCompositionLocalOf<CloudSpaceSession?> { null }
 internal val LocalSelectShoppingWorkspace = staticCompositionLocalOf<(CloudSpaceSession?) -> Unit> { {} }
