@@ -43,18 +43,37 @@ internal data class CloudGroupDraft(
     }
 }
 
+/** A verified public-key registration draft, without transport access. */
+internal data class CloudDeviceDraft(
+    val userId: String,
+    val publicKey: String,
+    val registeredAt: Long,
+    val revoked: Boolean = false,
+) {
+    init {
+        require(UUID.fromString(userId).toString() == userId)
+        CloudDeviceProtocol.publicKey(publicKey)
+        require(registeredAt > 0)
+    }
+    val fingerprint: String get() = CloudDeviceProtocol.fingerprint(publicKey)
+}
+
 internal data class CloudUserRegistry(
     val revision: Long = 0,
     val users: List<CloudUserDraft> = emptyList(),
     val groups: List<CloudGroupDraft> = emptyList(),
+    val devices: List<CloudDeviceDraft> = emptyList(),
 ) {
     init {
         require(revision >= 0)
         require(users.size <= MAX_USERS && users.map { it.id }.distinct().size == users.size)
-        require(revision > 0 || (users.isEmpty() && groups.isEmpty()))
+        require(revision > 0 || (users.isEmpty() && groups.isEmpty() && devices.isEmpty()))
         require(groups.size <= MAX_GROUPS && groups.map { it.id }.distinct().size == groups.size)
         require(groups.sumOf { it.members.size } <= MAX_MEMBERSHIPS) { "Достигнут предел числа участников групп" }
         val byId = users.associateBy { it.id }
+        require(devices.size <= MAX_DEVICES && devices.map { it.fingerprint }.distinct().size == devices.size)
+        require(devices.all { it.userId in byId })
+        require(devices.all { it.revoked || !byId.getValue(it.userId).archived }) { "Сначала отзовите устройства пользователя" }
         require(groups.all { group -> group.members.keys.all { it in byId } }) { "Неизвестный участник группы" }
         require(groups.all { group -> group.archived || group.members.keys.all { byId.getValue(it).archived.not() } }) {
             "Сначала исключите пользователя из активных групп или архивируйте эти группы"
@@ -89,7 +108,22 @@ internal data class CloudUserRegistry(
             groups = groups.map { if (it.id == id) it.copy(archived = archived) else it })
     }
 
+    fun registerDevice(userId: String, request: CloudDeviceRequest, now: Long): CloudUserRegistry {
+        CloudDeviceProtocol.requireFresh(request, now)
+        require(users.any { it.id == userId && !it.archived }) { "Пользователь недоступен" }
+        require(devices.none { it.fingerprint == request.fingerprint }) { "Устройство уже зарегистрировано или отозвано" }
+        return copy(revision = Math.addExact(revision, 1),
+            devices = devices + CloudDeviceDraft(userId, request.publicKey, now))
+    }
+
+    fun revokeDevice(fingerprint: String): CloudUserRegistry {
+        require(devices.any { it.fingerprint == fingerprint && !it.revoked })
+        return copy(revision = Math.addExact(revision, 1),
+            devices = devices.map { if (it.fingerprint == fingerprint) it.copy(revoked = true) else it })
+    }
+
     companion object {
+        const val MAX_DEVICES = 40
         const val MAX_USERS = 100
         const val MAX_GROUPS = 20
         const val MAX_MEMBERSHIPS = 1000
@@ -100,12 +134,13 @@ internal data class CloudUserRegistry(
 internal object CloudRegistryCodec {
     private const val MAGIC_V1 = 0x42554331
     private const val MAGIC_V2 = 0x42554332
+    private const val MAGIC_V3 = 0x42554333
     const val MAX_BYTES = 65_536
 
     fun encode(registry: CloudUserRegistry): ByteArray {
         val out = ByteArrayOutputStream()
         DataOutputStream(out).use { data ->
-            data.writeInt(MAGIC_V2)
+            data.writeInt(MAGIC_V3)
             data.writeLong(registry.revision)
             data.writeInt(registry.users.size)
             registry.users.forEach {
@@ -124,6 +159,13 @@ internal object CloudRegistryCodec {
                     data.writeByte(role.wire)
                 }
             }
+            data.writeInt(registry.devices.size)
+            registry.devices.forEach {
+                data.writeUTF(it.userId)
+                data.writeUTF(it.publicKey)
+                data.writeLong(it.registeredAt)
+                data.writeBoolean(it.revoked)
+            }
         }
         return out.toByteArray().also { require(it.size <= MAX_BYTES) }
     }
@@ -132,7 +174,7 @@ internal object CloudRegistryCodec {
         require(bytes.size in 16..MAX_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { data ->
             val magic = data.readInt()
-            require(magic == MAGIC_V1 || magic == MAGIC_V2)
+            require(magic == MAGIC_V1 || magic == MAGIC_V2 || magic == MAGIC_V3)
             val revision = data.readLong()
             val count = data.readInt()
             require(count in 0..CloudUserRegistry.MAX_USERS)
@@ -158,8 +200,13 @@ internal object CloudRegistryCodec {
                     CloudGroupDraft(id, name, members, archived)
                 }
             }
+            val devices = if (magic != MAGIC_V3) emptyList() else {
+                val countDevices = data.readInt()
+                require(countDevices in 0..CloudUserRegistry.MAX_DEVICES)
+                List(countDevices) { CloudDeviceDraft(data.readUTF(), data.readUTF(), data.readLong(), data.readBoolean()) }
+            }
             require(data.read() == -1)
-            CloudUserRegistry(revision, users, groups)
+            CloudUserRegistry(revision, users, groups, devices)
         }
     }
 }

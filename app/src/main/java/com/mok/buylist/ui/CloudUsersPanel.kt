@@ -19,6 +19,7 @@ import com.mok.buylist.R
 import com.mok.buylist.cloud.CloudAdminException
 import com.mok.buylist.cloud.CloudUserDraft
 import com.mok.buylist.cloud.CloudGroupDraft
+import com.mok.buylist.cloud.CloudDeviceRequest
 import com.mok.buylist.cloud.CloudUserRegistry
 import com.mok.buylist.cloud.CloudUserRegistryStore
 import com.mok.buylist.cloud.GitHubCloudAdmin
@@ -41,6 +42,10 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     var name by remember(admin) { mutableStateOf("") }
     var showArchived by remember(admin) { mutableStateOf(false) }
     var section by remember(admin) { mutableStateOf(0) }
+    var scanningDevice by remember(admin) { mutableStateOf(false) }
+    var deviceRequest by remember(admin) { mutableStateOf<CloudDeviceRequest?>(null) }
+    var deviceUser by remember(admin) { mutableStateOf<String?>(null) }
+    var confirmedFingerprint by remember(admin) { mutableStateOf(false) }
     var groupEditing by remember(admin) { mutableStateOf(false) }
     var selectedGroup by remember(admin) { mutableStateOf<CloudGroupDraft?>(null) }
 
@@ -78,7 +83,7 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSecondaryButton("К настройкам облака", onBack)
         FreshCutSectionTitle("Пользователи и группы")
-        FreshCutTabs(listOf("Пользователи", "Группы"), section, { section = it; showArchived = false })
+        FreshCutTabs(listOf("Пользователи", "Группы", "Устройства"), section, { section = it; showArchived = false })
         Text("Предварительный реестр. Записи пока не предоставляют доступ и не подключают устройства. Имена шифруются. До появления восстановления используйте только тестовые имена. При удалении приложения ключ может быть потерян. Реестр доступен только на создавшем его устройстве.", color = p.textSecondary, fontSize = 14.sp)
         val current = loaded
         if (busy) Text("Загрузка…", color = p.textSecondary, fontSize = 14.sp)
@@ -125,7 +130,53 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
                 })
             }
         }
+        if (current != null && section == 2) {
+            val devices = current.registry.devices
+            FreshCutSecondaryButton("Сканировать QR устройства", {
+                scanningDevice = true
+            }, enabled = !busy && current.registry.users.any { !it.archived } && devices.size < CloudUserRegistry.MAX_DEVICES)
+            Text("Регистрация открытого ключа не выдаёт доступ к GitHub.", color = p.textSecondary, fontSize = 14.sp)
+            devices.forEach { device ->
+                val owner = current.registry.users.firstOrNull { it.id == device.userId }?.name.orEmpty()
+                FreshCutListRow(R.drawable.ic_scan_barcode, owner,
+                    if (device.revoked) "Отозвано" else "Ожидает активации", showChevron = false)
+                Text(device.fingerprint.chunked(8).joinToString(" "), color = p.textSecondary, fontSize = 12.sp)
+                if (!device.revoked) FreshCutSecondaryButton("Отозвать регистрацию", {
+                    change { it.registry.revokeDevice(device.fingerprint) }
+                }, enabled = !busy)
+            }
+        }
         FreshCutSecondaryButton("Обновить список", { scope.launch { reload() } }, enabled = !busy)
+    }
+
+    if (scanningDevice) CloudDeviceScanSheet(onRequest = {
+        scanningDevice = false
+        deviceRequest = it
+        deviceUser = null
+        confirmedFingerprint = false
+    }, onDismiss = { scanningDevice = false })
+    val pendingDevice = deviceRequest
+    if (pendingDevice != null && loaded != null) {
+        AppSheet(onDismissRequest = { deviceRequest = null }, containerColor = p.sheet,
+            title = { SheetHeader("Регистрация устройства") }, text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(pendingDevice.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 14.sp)
+                    FreshCutSecondaryButton(if (confirmedFingerprint) "Отпечаток совпадает ✓" else "Подтвердить совпадение отпечатка", {
+                        confirmedFingerprint = !confirmedFingerprint
+                    })
+                    FreshCutSectionTitle("Пользователь")
+                    loaded?.registry?.users?.filterNot { it.archived }?.forEach { user ->
+                        FreshCutListRow(R.drawable.ic_user_round, user.name, selected = deviceUser == user.id,
+                            value = if (deviceUser == user.id) "Выбран" else null, onClick = { deviceUser = user.id })
+                    }
+                }
+            }, confirmButton = {
+                SheetActionButton(onClick = {
+                    val user = deviceUser ?: return@SheetActionButton
+                    deviceRequest = null
+                    change { it.registry.registerDevice(user, pendingDevice, System.currentTimeMillis()) }
+                }, enabled = !busy && confirmedFingerprint && deviceUser != null) { Text("Зарегистрировать") }
+            })
     }
 
     if (groupEditing && loaded != null) {
