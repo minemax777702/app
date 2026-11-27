@@ -50,7 +50,9 @@ internal data class CloudDirectory(
 ) {
     fun manages(group: CloudGroup) = me?.let { it.id == group.owner || it.admin } == true
     fun participates(group: CloudGroup) = me?.let { person -> group.owner == person.id || members.any { it.group == group.id && it.user == person.id } } == true
-    fun manages(list: CloudList) = me != null && (list.owner == me.id || groups.any { it.id == list.group && participates(it) })
+    fun manages(list: CloudList) = me?.let { person ->
+        person.active && (list.owner == person.id || groups.any { it.id == list.group && it.owner == person.id })
+    } == true
 }
 internal data class CloudWorkspace(val namespace: String, val userId: String, val listId: String,
     val db: AppDatabase, val profile: UserProfile, val repository: ShoppingRepository, val catalog: LentaCatalog,
