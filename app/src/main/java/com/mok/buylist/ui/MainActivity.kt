@@ -61,14 +61,17 @@ class MainActivity : ComponentActivity() {
         handleUpdateIntent(intent)
     }
 
-    override fun onStart() {
-        super.onStart()
+    override fun onResume() {
+        super.onResume()
         checkUpdatesOnEntry()
     }
 
     internal fun checkUpdatesOnEntry(force: Boolean = false) {
         if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
-        if (updateCheck?.isActive == true) return
+        if (updateCheck?.isActive == true) {
+            if (!force) return
+            updateCheck?.cancel()
+        }
         updateCheck = lifecycleScope.launch {
             try {
                 UpdateNotifications.check(applicationContext, force)

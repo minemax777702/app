@@ -116,12 +116,24 @@ internal object AppUpdater {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun pruneInstalled(context: Context, dir: File) {
         val installed = installedVersion(context).code
         dir.listFiles()?.forEach { file ->
             val code = cachedUpdateVersionCode(file.name)
-            if (code != null && code <= installed) file.delete()
-            else if (file.name.endsWith(".part")) file.delete()
+            when {
+                file.name.endsWith(".part") -> file.delete()
+                code != null && code <= installed -> file.delete()
+                code == null && file.name.startsWith("update-") && file.extension == "apk" -> {
+                    // Legacy cache names carry no version. Read the APK metadata locally,
+                    // including when the network is unavailable after a successful update.
+                    val info = runCatching {
+                        context.packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+                    }.getOrNull()
+                    if (info == null || info.packageName != context.packageName ||
+                        info.longVersionCode <= installed) file.delete()
+                }
+            }
         }
     }
 
