@@ -1,0 +1,87 @@
+name: Cloud integration tests
+
+on:
+  push:
+    branches: [beta]
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '.github/workflows/cloud-integration-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloud-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integration:
+    if: github.ref == 'refs/heads/beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-read-only: true
+      - name: Install SDK and emulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          sdkmanager="$(command -v sdkmanager || true)"
+          if [ -z "$sdkmanager" ]; then
+            sdkmanager="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          fi
+          test -x "$sdkmanager"
+          "$sdkmanager" --sdk_root="$sdk_root" --install "platform-tools" "emulator" "platforms;android-37.0" "build-tools;37.0.0" "system-images;android-35;google_apis;x86_64"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+          test -e /dev/kvm
+          sudo chmod a+rw /dev/kvm
+          echo no | "$(dirname "$sdkmanager")/avdmanager" create avd --force --name buylist-cloud-ci --package "system-images;android-35;google_apis;x86_64"
+      - name: Run cloud and existing Room integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+          emulator -avd buylist-cloud-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on > "$RUNNER_TEMP/cloud-emulator.log" 2>&1 &
+          emulator_pid=$!
+          trap 'adb emu kill || true; kill "$emulator_pid" 2>/dev/null || true' EXIT
+          timeout 300 adb wait-for-device
+          booted=false
+          for i in $(seq 1 150); do
+            if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then
+              booted=true
+              break
+            fi
+            sleep 2
+          done
+          test "$booted" = true
+          adb shell input keyevent 82
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          chmod +x ./gradlew
+          ./gradlew :app:connectedDebugAndroidTest --stacktrace --build-cache -Pandroid.testInstrumentationRunnerArguments.class=com.mok.buylist.cloud.CloudIntegrationProbeTest,com.mok.buylist.SyncRepositoryTest
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: cloud-integration-report
+          path: |
+            app/build/reports/androidTests/connected/
+            app/build/outputs/androidTest-results/connected/
+            ${{ runner.temp }}/cloud-emulator.log
+          if-no-files-found: warn
+          retention-days: 14

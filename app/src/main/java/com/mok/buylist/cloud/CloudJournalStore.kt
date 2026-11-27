@@ -7,6 +7,7 @@ import android.util.AtomicFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 import java.security.KeyStore
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -16,15 +17,18 @@ import javax.crypto.SecretKey
  * Process-local lock covers reading, verification, merge and AtomicFile commit.
  * No automatic initialization after corruption or missing key.
  */
-internal class CloudJournalStore(context: Context) {
-    private val directory = File(context.applicationContext.noBackupFilesDir, "cloud-journals-v1")
+internal class CloudJournalStore(context: Context, private val testRun: UUID? = null) {
+    private val directory = File(context.applicationContext.noBackupFilesDir,
+        if (testRun == null) "cloud-journals-v1" else "cloud-journal-tests/$testRun")
+    private fun alias(space: CloudSpace): String =
+        if (testRun == null) "buylist.cloud.journal.v1." + space.key else "buylist.cloud.journal.test.$testRun." + space.key
     private fun file(space: CloudSpace): AtomicFile {
         check(directory.isDirectory || directory.mkdirs())
         return AtomicFile(File(directory, space.key.replace(':', '-') + ".bin"))
     }
 
     private fun key(space: CloudSpace, create: Boolean): SecretKey {
-        val alias = "buylist.cloud.journal.v1." + space.key
+        val alias = alias(space)
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(alias, null) as? SecretKey)?.let { return it }
         check(create) { "Workspace key unavailable" }
@@ -87,6 +91,17 @@ internal class CloudJournalStore(context: Context) {
                 next
             }
         }
+
+    /** The diagnostic can delete only its own random test namespace, never a real workspace. */
+    suspend fun cleanTest(space: CloudSpace) = withContext(Dispatchers.IO) {
+        check(testRun != null)
+        synchronized(LOCK) {
+            val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+            store.deleteEntry(alias(space))
+            file(space).delete()
+            directory.delete()
+        }
+    }
 
     private companion object { val LOCK = Any() }
 }
