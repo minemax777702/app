@@ -79,6 +79,9 @@ interface ShoppingDao {
     @Query("SELECT * FROM lenta_products")
     suspend fun getLentaProducts(): List<StoredLentaProduct>
 
+    @Query("SELECT * FROM lenta_products WHERE id = :id LIMIT 1")
+    suspend fun findLentaProduct(id: Long): StoredLentaProduct?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertLentaProduct(product: StoredLentaProduct)
 

@@ -70,7 +70,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
     suspend fun addBarcode(id: Long, raw: String): String? = db.withTransaction {
         val code = raw.trim()
         if (!validProductBarcode(code)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A, EAN-13 или GTIN-14)"
-        if (dao.getLentaProducts().none { it.id == id }) return@withTransaction "Товар удалён"
+        if (dao.findLentaProduct(id) == null) return@withTransaction "Товар удалён"
         val records = dao.getProductBarcodes()
         if (records.any { it.productId != id && !it.deleted &&
                 com.mok.buylist.sync.barcodeMatches(it.code, code) }) {
@@ -117,7 +117,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
     suspend fun save(product: LentaProduct, scannedBarcode: String? = null) {
         if (product.id <= 0 || product.name.isBlank()) return
         // Поисковая выдача не всегда содержит EAN. Запрашиваем карточку только при отсутствии известных кодов.
-        val stored = dao.getLentaProducts().firstOrNull { it.id == product.id }
+        val stored = dao.findLentaProduct(product.id)
         val known = catalogBarcode(product.ean) != null || catalogBarcode(scannedBarcode) != null ||
             catalogBarcode(stored?.ean) != null || dao.getProductBarcodes().any { it.productId == product.id && !it.deleted }
         val enriched = if (!known && product.address.isNotBlank() && product.address == address.value) {
@@ -130,7 +130,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
             } catch (_: Exception) { product }
         } else product
         db.withTransaction {
-            val previous = dao.getLentaProducts().firstOrNull { it.id == product.id }
+            val previous = dao.findLentaProduct(product.id)
             val old = previous?.toProduct()
             previous?.let { com.mok.buylist.sync.MutationClock.observe(it.updatedAt) }
             val saved = enriched.copy(ean = catalogBarcode(enriched.ean) ?: catalogBarcode(old?.ean).orEmpty(), stock = null)
@@ -145,7 +145,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
 
     suspend fun removeById(id: Long) {
         db.withTransaction {
-            dao.getLentaProducts().firstOrNull { it.id == id }?.let { com.mok.buylist.sync.MutationClock.observe(it.updatedAt) }
+            dao.findLentaProduct(id)?.let { com.mok.buylist.sync.MutationClock.observe(it.updatedAt) }
             dao.deleteLentaProduct(id)
             dao.deleteProductBarcodes(id)
             dao.upsertTombstone(Tombstone(TombKind.PRODUCT.code, id.toString(), com.mok.buylist.sync.MutationClock.next()))
@@ -175,15 +175,14 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
         val identities = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() },
             dao.getCustomProducts(), dao.getProductBarcodes(), dao.getCustomProductBarcodes())
         val key = "lenta:$id"
-        return dao.getStoreProducts().any { !it.deleted && it.storeId == lentaStoreId() &&
-            it.priceKopecks != null && (identities[it.productKey] ?: it.productKey) == (identities[key] ?: key) }
+        return dao.getPricedStoreProducts(lentaStoreId()).any { (identities[it.productKey] ?: it.productKey) == (identities[key] ?: key) }
     }
 
     /** Обновляет карточку независимо от доступности цены; ручная цена хранится отдельно. */
     internal suspend fun refreshProduct(id: Long): ProductRefreshResult = refreshMutex.withLock {
         val currentAddress = address.value
         require(currentAddress.isNotBlank()) { "Укажите адрес магазина" }
-        val product = dao.getLentaProducts().firstOrNull { it.id == id }?.toProduct()
+        val product = dao.findLentaProduct(id)?.toProduct()
             ?: error("Товар не найден в базе")
         val fresh = details(product.copy(address = currentAddress, storeId = 0))
         require(fresh.id == id && fresh.address == currentAddress && fresh.channel == "locc") {
@@ -191,7 +190,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
         }
         db.withTransaction {
             check(address.value == currentAddress) { "Адрес магазина изменился" }
-            val existing = dao.getLentaProducts().firstOrNull { it.id == id }?.toProduct()
+            val existing = dao.findLentaProduct(id)?.toProduct()
                 ?: error("Товар удалён из базы")
             val manual = hasManualPrice(id)
             val priceAvailable = parsePriceKopecks(fresh.price) != null
@@ -266,9 +265,17 @@ internal fun readMcpResponse(
         return payload.takeIf(isReply)
     }
     while (true) {
-        val line = reader.readLine() ?: break
-        charsRead += line.length + 1
-        require(charsRead <= maxBytes) { "Ответ MCP слишком большой" }
+        val buffer = StringBuilder()
+        var eof = false
+        while (true) {
+            val ch = reader.read()
+            if (ch == -1) { eof = true; break }
+            require(++charsRead <= maxBytes) { "Ответ MCP слишком большой" }
+            if (ch == 10) break
+            buffer.append(ch.toChar())
+        }
+        if (buffer.isEmpty() && eof) break
+        val line = buffer.toString().removeSuffix("\r")
         when {
             line.isBlank() -> completeEvent()?.let { return it }
             line.startsWith("data:") -> {
