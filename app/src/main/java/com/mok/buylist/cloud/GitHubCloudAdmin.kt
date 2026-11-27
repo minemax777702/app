@@ -74,21 +74,40 @@ internal class GitHubCloudAdmin(private val token: String) {
         }
         requireSuccess(response)
         val file = JSONObject(response.body)
-        if (file.optString("type") != "file" || file.optString("encoding") != "base64")
-            throw CloudAdminException("Неизвестный формат реестра.")
+        if (file.optString("type") != "file")
+            throw CloudAdminException("REG-05A: Путь реестра не является файлом. Запись запрещена.")
         val sha = file.optString("sha")
-        if (!sha.matches(Regex("[0-9a-f]{40}"))) throw CloudAdminException("Не удалось проверить версию реестра.")
-        val bytes = try { Base64.decode(file.getString("content"), Base64.DEFAULT) }
-        catch (_: Exception) { throw CloudAdminException("REG-05: Не удалось декодировать файл GitHub. Запись запрещена.") }
-        if (bytes.size > CloudRegistryCodec.MAX_BYTES + 29) throw CloudAdminException("Реестр слишком большой.")
-        try {
-            if (file.optLong("size", -1) != bytes.size.toLong())
-                throw CloudRegistryReadException(CloudRegistryFailure.FILE_HASH)
-            CloudRegistryBlob.verify(bytes, sha)
-        } catch (e: CloudRegistryReadException) {
-            throw CloudAdminException("${e.failure.code}: ${e.failure.explanation} Запись запрещена.")
-        }
-        RegistryFile(bytes, sha)
+        if (!sha.matches(Regex("[0-9a-f]{40}"))) throw CloudAdminException("REG-05A: Некорректный SHA реестра. Запись запрещена.")
+        val declaredSize = file.optLong("size", -1)
+        if (declaredSize > CloudRegistryCodec.MAX_BYTES + 29) throw CloudAdminException("Реестр слишком большой.")
+
+        // Size is advisory; a matching Git object ID verifies the exact byte sequence.
+        // If the inline Contents response cannot be verified, obtain the SAME object by SHA.
+        val inline = if (file.optString("encoding") == "base64") {
+            runCatching { CloudRegistryBlob.decodeBase64(file.getString("content")) }.getOrNull()
+        } else null
+        if (inline != null && CloudRegistryBlob.matches(inline, sha))
+            return@withContext RegistryFile(inline, sha)
+
+        val blobPath = "$repoPath/git/blobs/$sha"
+        val raw = request("GET", blobPath, maxResponseBytes = 262_144, accept = "application/vnd.github.raw+json")
+        if (raw.status == 200 && CloudRegistryBlob.matches(raw.bytes, sha))
+            return@withContext RegistryFile(raw.bytes, sha)
+
+        // Some clients/proxies do not honor the raw media type. Try the JSON blob form.
+        val blob = request("GET", blobPath)
+        val decoded = if (blob.status == 200) runCatching {
+            val json = JSONObject(blob.body)
+            require(json.optString("sha") == sha && json.optString("encoding") == "base64")
+            CloudRegistryBlob.decodeBase64(json.getString("content"))
+        }.getOrNull() else null
+        if (decoded != null && CloudRegistryBlob.matches(decoded, sha))
+            return@withContext RegistryFile(decoded, sha)
+
+        val details = "SHA=${sha.take(12)}; размер GitHub=$declaredSize; Contents=${inline?.size ?: -1}; " +
+            "Blob raw HTTP=${raw.status}, байт=${raw.bytes.size}; Blob JSON HTTP=${blob.status}, байт=${decoded?.size ?: -1}"
+        val code = if (inline == null) "REG-05B" else "REG-05C"
+        throw CloudAdminException("$code: Не удалось получить файл с подтверждённым SHA. $details. Запись запрещена.")
     }
 
     internal suspend fun writeUserRegistry(bytes: ByteArray, expectedSha: String?): String = withContext(Dispatchers.IO) {
@@ -252,7 +271,9 @@ internal class GitHubCloudAdmin(private val token: String) {
         return CloudStorage(exists = true, actionsEnabled = enabled, sizeKiB = repo.optLong("size"))
     }
 
-    private data class Response(val status: Int, val body: String)
+    private data class Response(val status: Int, val bytes: ByteArray) {
+        val body: String get() = bytes.toString(Charsets.UTF_8)
+    }
 
     private fun requireSuccess(response: Response) {
         if (response.status in 200..299) return
@@ -267,7 +288,13 @@ internal class GitHubCloudAdmin(private val token: String) {
         throw CloudAdminException(message)
     }
 
-    private fun request(method: String, path: String, body: JSONObject? = null, maxResponseBytes: Int = 262_144): Response {
+    private fun request(
+        method: String,
+        path: String,
+        body: JSONObject? = null,
+        maxResponseBytes: Int = 262_144,
+        accept: String = "application/vnd.github+json",
+    ): Response {
         val connection = URL("https://api.github.com$path").openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
@@ -275,7 +302,7 @@ internal class GitHubCloudAdmin(private val token: String) {
             connection.connectTimeout = 10_000
             connection.readTimeout = 15_000
             connection.useCaches = false
-            connection.setRequestProperty("Accept", "application/vnd.github+json")
+            connection.setRequestProperty("Accept", accept)
             connection.setRequestProperty("Authorization", "Bearer $token")
             connection.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
             connection.setRequestProperty("User-Agent", "ShoppingList-Cloud")
@@ -288,7 +315,7 @@ internal class GitHubCloudAdmin(private val token: String) {
             }
             val status = connection.responseCode
             // Error bodies may contain sensitive details; do not surface them.
-            if (status !in 200..299 || status == 204) return Response(status, "")
+            if (status !in 200..299 || status == 204) return Response(status, ByteArray(0))
             val response = connection.inputStream.use { input ->
                 val output = ByteArrayOutputStream()
                 val buffer = ByteArray(4096)
@@ -298,7 +325,7 @@ internal class GitHubCloudAdmin(private val token: String) {
                     if (output.size() + count > maxResponseBytes) throw CloudAdminException("Слишком большой ответ GitHub.")
                     output.write(buffer, 0, count)
                 }
-                output.toString("UTF-8")
+                output.toByteArray()
             }
             return Response(status, response)
         } finally {

@@ -227,12 +227,27 @@ internal class CloudRegistryReadException(val failure: CloudRegistryFailure, cau
 
 /** Verify the Git blob ID against the exact returned bytes (not an authenticity signature). */
 internal object CloudRegistryBlob {
-    fun verify(bytes: ByteArray, sha: String) {
+    fun sha(bytes: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-1")
         digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.US_ASCII))
-        val computed = digest.digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
-        if (computed != sha) throw CloudRegistryReadException(CloudRegistryFailure.FILE_HASH)
+        return digest.digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
     }
+
+    fun verify(bytes: ByteArray, sha: String) {
+        if (sha(bytes) != sha) throw CloudRegistryReadException(CloudRegistryFailure.FILE_HASH)
+    }
+
+    /** GitHub wraps Base64 at line boundaries. Reject all other unexpected characters. */
+    fun decodeBase64(content: String): ByteArray {
+        require(content.length <= (CloudRegistryCodec.MAX_BYTES + 29) * 2)
+        val normalized = content.filterNot { it == '\n' || it == '\r' || it == ' ' || it == '\t' }
+        return java.util.Base64.getDecoder().decode(normalized).also {
+            require(it.size in 29..CloudRegistryCodec.MAX_BYTES + 29)
+        }
+    }
+
+    fun matches(bytes: ByteArray, sha: String): Boolean =
+        bytes.size in 29..CloudRegistryCodec.MAX_BYTES + 29 && sha(bytes) == sha
 }
 
 /** Authenticated encryption bound to the repository and this draft format. */

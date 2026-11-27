@@ -102,6 +102,19 @@ class CloudUserRegistryTest {
         assertEquals(CloudRegistryFailure.FILE_HASH, (error as CloudRegistryReadException).failure)
     }
 
+    @Test fun wrappedBase64PreservesBinaryRegistry() {
+        val registry = CloudUserRegistry().add("Тест")
+        val bytes = CloudRegistryCrypto.encrypt(key, registry)
+        val encoded = java.util.Base64.getEncoder().encodeToString(bytes).chunked(20).joinToString("\r\n")
+        val decoded = CloudRegistryBlob.decodeBase64(encoded)
+        assertArrayEquals(bytes, decoded)
+        val sha = CloudRegistryBlob.sha(bytes)
+        assertTrue(CloudRegistryBlob.matches(decoded, sha))
+        assertFalse(CloudRegistryBlob.matches(decoded.clone().also { it[0] = 0 }, sha))
+        assertTrue(runCatching { CloudRegistryBlob.decodeBase64(encoded + "!") }.isFailure)
+        assertEquals(registry, CloudRegistryCrypto.decrypt(key, decoded))
+    }
+
     @Test fun malformedRecordsAreRejected() {
         val registry = CloudUserRegistry().add("Анна")
         assertTrue(runCatching { registry.add(" ") }.isFailure)
