@@ -33,6 +33,46 @@ internal data class PricedLine(val quantity: Int, val bought: Boolean, val unitP
 internal data class PartialAmount(val kopecks: Long, val known: Int, val unknown: Int)
 internal data class ShoppingTotals(val total: PartialAmount, val remaining: PartialAmount)
 
+/**
+ * Unit price for a planned list item. Confirmed receipt prices are handled
+ * separately; here we use the cheapest known store offer, then the personal
+ * estimate when no offer is available.
+ *
+ * Aliases must come from sharedCatalogIdentities so linked Lenta/custom items
+ * use the same price without merging ambiguous barcodes.
+ */
+internal fun plannedUnitPrice(
+    item: ShoppingItem,
+    products: List<LentaProduct>,
+    address: String,
+    customProducts: List<CustomProduct>,
+    storeProducts: List<StoreProduct>,
+    aliases: Map<String, String> = emptyMap(),
+): Long? {
+    val key = when {
+        item.customProductId.isNotBlank() -> customKey(item.customProductId)
+        item.productId > 0 -> "lenta:${item.productId}"
+        else -> return null
+    }
+    val identity = aliases[key] ?: key
+    val storeOffer = storeProducts.asSequence()
+        .filter { !it.deleted && it.priceKopecks != null && it.priceKopecks >= 0 }
+        .filter { (aliases[it.productKey] ?: it.productKey) == identity }
+        .mapNotNull { it.priceKopecks }
+        .minOrNull()
+    val catalogOffer = products.asSequence()
+        .filter { (aliases["lenta:${it.id}"] ?: "lenta:${it.id}") == identity &&
+            address.isNotBlank() && it.address == address && it.channel == "locc" }
+        .mapNotNull { parsePriceKopecks(it.price) }
+        .minOrNull()
+    val offers = listOfNotNull(storeOffer, catalogOffer)
+    if (offers.isNotEmpty()) return offers.minOrNull()
+    return customProducts.asSequence()
+        .filter { !it.deleted && (aliases[customKey(it.id)] ?: customKey(it.id)) == identity }
+        .mapNotNull { it.estimatedPriceKopecks?.takeIf { price -> price >= 0 } }
+        .minOrNull()
+}
+
 /** Переходный снимок до появления идентификатора товара в строке списка на этапе 07. */
 internal data class PurchaseEvent(
     val id: String, val productId: Long?, val name: String, val unitPrice: Long?,

@@ -225,6 +225,30 @@ class SyncRepositoryTest {
     }
 
     @Test
+    fun repeatingLegacyArchiveRestoresOwnProductAndQuantity() = runBlocking {
+        val result = a.repeatItems(listOf("Свой корм"), listOf(3), listOf(""))
+        assertEquals(1, result.added)
+        assertEquals(0, result.skipped)
+        val restored = a.getItems().single()
+        assertEquals("Свой корм", restored.name)
+        assertEquals(3, restored.quantity)
+        assertTrue(restored.customProductId.isNotBlank())
+        val repeated = a.repeatItems(listOf("Свой корм"), listOf(3), listOf(""))
+        assertEquals(0, repeated.added)
+        assertEquals(1, repeated.skipped)
+    }
+
+    @Test
+    fun restoringBackupAdoptsIdentityAfterSuccessfulMerge() = runBlocking {
+        a.addFixture("Хлеб")
+        val backup = com.mok.buylist.sync.BackupContents(
+            profileB.id, "Борис", b.exportSnapshot())
+        a.restoreBackup(backup, asMe = true)
+        assertEquals(profileB.id, profileA.id)
+        assertEquals(listOf("Хлеб"), a.getItems().map { it.name })
+    }
+
+    @Test
     fun dataCreatedBeforeRegistrationBelongsToTheNewUser() = runBlocking {
         context.getSharedPreferences("test-profile-c", Context.MODE_PRIVATE).edit().clear().commit()
         val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).build()

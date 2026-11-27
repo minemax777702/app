@@ -40,23 +40,38 @@ internal class LentaSearchController(
     private val seenIds = HashSet<Long>()
     private var fullSearch = false
     private var onlineOnly = false
+    private var initialized = false
 
     fun update(query: String, address: String, saved: List<LentaProduct>, onlineOnly: Boolean, fullSearch: Boolean = false) {
-        job?.cancel()
-        this.query = query.trim()
+        val trimmed = query.trim()
+        val newSavedIds = saved.mapTo(HashSet()) { it.id }
+        val reset = !initialized || this.query != trimmed ||
+            this.address != address || this.onlineOnly != onlineOnly || this.fullSearch != fullSearch
+        initialized = true
+        if (reset) job?.cancel()
+        this.query = trimmed
         this.onlineOnly = onlineOnly
         this.fullSearch = fullSearch
         this.address = address
-        savedIds = saved.mapTo(HashSet()) { it.id }
-        nextPage = 1
-        storeId = 0
-        seenIds.clear()
-        val key = nameKeyOf(this.query)
+        savedIds = newSavedIds
+        val key = nameKeyOf(trimmed)
         val local = if (onlineOnly || key.length < 2) emptyList() else saved.filter {
             matchesProductSearch(it.name, it.pack, this.query) ||
                 barcodeAliases(it.id).any { alias -> alias.contains(key) ||
                     com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) }
         }.sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
+        if (!reset) {
+            // Saved products and barcode aliases may change while paging.
+            // Do not discard the current server cursor or cancel an in-flight request.
+            state.value = state.value.copy(
+                local = local,
+                online = state.value.online.filterNot { it.id in newSavedIds },
+            )
+            return
+        }
+        nextPage = 1
+        storeId = 0
+        seenIds.clear()
         state.value = LentaSearchState(local = local)
         if (key.length >= 2 && address.isNotBlank() && (fullSearch || onlineOnly || local.isEmpty())) {
             job = scope.launch { delay(500); fetch() }

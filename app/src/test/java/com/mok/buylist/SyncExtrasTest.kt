@@ -124,7 +124,7 @@ class SyncExtrasTest {
         assertEquals(ListBuyers.Unknown, listBuyers(unknown))
     }
 
-    // --- Схлопывание двойных покупок ---
+    // --- Независимые покупки разных пользователей не схлопываются ---
 
     private fun archive(uid: String, iso: String, names: List<String>, buyers: List<String>) = SyncArchive(
         uid = uid,
@@ -136,25 +136,24 @@ class SyncExtrasTest {
     )
 
     @Test
-    fun sameProductByDifferentPeopleOnTheSameDayIsCollapsedToTheEarliest() {
+    fun sameProductByDifferentPeopleOnTheSameDayIsPreserved() {
         val a = archive("a", "2026-10-09T10:00:00Z", listOf("Молоко", "Хлеб"), listOf("ann", "ann"))
         val b = archive("b", "2026-10-09T18:30:00Z", listOf("молоко", "Сыр"), listOf("bob", "bob"))
         val merged = SyncMerge.merge(Snapshot(archives = listOf(a)), Snapshot(archives = listOf(b)))
         val onA = merged.archives.first { it.uid == "a" }
         val onB = merged.archives.first { it.uid == "b" }
         assertEquals(listOf("Молоко", "Хлеб"), onA.names)
-        // У позднего списка молоко убрано вместе с покупателем.
-        assertEquals(listOf("Сыр"), onB.names)
-        assertEquals(listOf("bob"), onB.buyers)
+        assertEquals(listOf("молоко", "Сыр"), onB.names)
+        assertEquals(listOf("bob", "bob"), onB.buyers)
     }
 
     @Test
-    fun listThatBecomesEmptyDisappearsAndResultDoesNotDependOnOrder() {
+    fun independentPurchasesRemainAndResultDoesNotDependOnOrder() {
         val a = archive("a", "2026-10-09T10:00:00Z", listOf("Молоко"), listOf("ann"))
         val b = archive("b", "2026-10-09T18:00:00Z", listOf("Молоко"), listOf("bob"))
         val ab = SyncMerge.merge(Snapshot(archives = listOf(a)), Snapshot(archives = listOf(b)))
         val ba = SyncMerge.merge(Snapshot(archives = listOf(b)), Snapshot(archives = listOf(a)))
-        assertEquals(listOf("a"), ab.archives.map { it.uid })
+        assertEquals(listOf("a", "b"), ab.archives.map { it.uid })
         assertEquals(ab, ba)
         // Повторный обмен с исходным списком второго телефона ничего не возвращает.
         assertEquals(ab, SyncMerge.merge(ab, Snapshot(archives = listOf(b))))
@@ -164,14 +163,14 @@ class SyncExtrasTest {
     fun otherDaySamePersonOrUnknownBuyerIsKept() {
         val monday = archive("m", "2026-10-05T10:00:00Z", listOf("Молоко"), listOf("ann"))
         val tuesday = archive("t", "2026-10-06T10:00:00Z", listOf("Молоко"), listOf("bob"))
-        assertEquals(2, SyncMerge.collapseDoubleBuys(listOf(monday, tuesday)).size)
+        assertEquals(2, SyncMerge.merge(Snapshot(archives = listOf(monday, tuesday)), Snapshot()).archives.size)
 
         val ann1 = archive("a1", "2026-10-09T10:00:00Z", listOf("Молоко"), listOf("ann"))
         val ann2 = archive("a2", "2026-10-09T18:30:00Z", listOf("Молоко"), listOf("ann"))
-        assertEquals(2, SyncMerge.collapseDoubleBuys(listOf(ann1, ann2)).size)
+        assertEquals(2, SyncMerge.merge(Snapshot(archives = listOf(ann1, ann2)), Snapshot()).archives.size)
 
         val unknown = archive("u", "2026-10-09T10:00:00Z", listOf("Молоко"), listOf(""))
         val known = archive("k", "2026-10-09T11:00:00Z", listOf("Молоко"), listOf("bob"))
-        assertEquals(2, SyncMerge.collapseDoubleBuys(listOf(unknown, known)).size)
+        assertEquals(2, SyncMerge.merge(Snapshot(archives = listOf(unknown, known)), Snapshot()).archives.size)
     }
 }

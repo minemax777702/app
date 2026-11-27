@@ -151,10 +151,57 @@ class LentaSearchControllerTest {
         delay(50)
         controller.searchOnline()
         delay(50)
-        assertEquals(listOf(1, 2, 3, 4, 5, 6), requests)
+        assertEquals((1..6).toList(), requests)
         assertEquals(listOf(1L), controller.state.value.online.map { it.id })
         assertFalse(controller.state.value.failed)
         assertEquals(true, controller.state.value.hasMore)
+    }
+
+    @Test fun newProductOnSixthPageAppearsAfterResuming() = runBlocking {
+        val requests = mutableListOf<Int>()
+        val saved = (1L..5L).map { product(it, "Молоко") }
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            when (page) {
+                in 1..5 -> listOf(product(page.toLong(), "Молоко"))
+                6 -> listOf(product(6, "Молоко новое"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("молоко", "address", saved, false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..5).toList(), requests)
+        assertEquals(emptyList<Long>(), controller.state.value.online.map { it.id })
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..6).toList(), requests)
+        assertEquals(listOf(6L), controller.state.value.online.map { it.id })
+        assertFalse(controller.state.value.loading)
+    }
+
+    @Test fun scanLimitCanBeResumedWithoutRepeatingEarlierPages() = runBlocking {
+        val requests = mutableListOf<Int>()
+        val saved = (1L..12L).map { product(it, "Молоко") }
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            if (page <= 12) listOf(product(page.toLong(), "Молоко"))
+            else if (page == 13) listOf(product(13, "Молоко новое"))
+            else emptyList()
+        }, this)
+        controller.update("молоко", "address", saved, false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..5).toList(), requests)
+        assertEquals(emptyList<Long>(), controller.state.value.online.map { it.id })
+        assertEquals(true, controller.state.value.hasMore)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..10).toList(), requests)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..13).toList(), requests)
+        assertEquals(listOf(13L), controller.state.value.online.map { it.id })
     }
 
     @Test fun savedAndRepeatedPagesAreSkippedUntilNewProduct() = runBlocking {
@@ -197,6 +244,46 @@ class LentaSearchControllerTest {
         delay(50)
         assertFalse(controller.state.value.hasMore)
         assertEquals(listOf(1, 2, 3), requests)
+    }
+
+    @Test fun updatingSavedProductsKeepsPaginationAndExistingOnlineResults() = runBlocking {
+        val requests = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            when (page) {
+                1 -> listOf(product(1, "Молоко"))
+                2 -> listOf(product(2, "Молоко"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals(listOf(1L), controller.state.value.online.map { it.id })
+        controller.update("молоко", "address", listOf(product(1, "Молоко")), false)
+        assertEquals(emptyList<Long>(), controller.state.value.online.map { it.id })
+        controller.searchOnline()
+        delay(50)
+        assertEquals(listOf(1, 2), requests)
+        assertEquals(listOf(2L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun changingBarcodeAliasesDoesNotRestartSearch() = runBlocking {
+        val requests = mutableListOf<Int>()
+        var aliases = setOf<String>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            requests += page
+            listOf(product(page.toLong(), "Молоко"))
+        }, this) { aliases }
+        controller.update("4601234567893", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        aliases = setOf("4601234567893")
+        controller.update("4601234567893", "address", listOf(product(99, "Кофе")), false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals(listOf(1, 2), requests)
+        assertEquals(listOf(99L), controller.state.value.local.map { it.id })
     }
 
     @Test fun missingLocalMatchStartsSearchAndOldRequestIsCancelled() = runBlocking {

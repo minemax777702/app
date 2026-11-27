@@ -89,10 +89,8 @@ object SyncMerge {
             .values
             .map { group -> mergeArchiveVersions(group) }
         val joinedArchives = joinOverlappingTrips(archiveCandidates)
-        // В пределах одного дня одинаковый продукт, купленный двумя разными
-        // известными пользователями, учитывается один раз — в первом списке.
-        // Покупки одного пользователя (даже повторные) не схлопываются.
-        val archives = collapseDoubleBuys(joinedArchives).sortedBy { it.uid }
+        // Сохраняем независимые покупки; дубли событий объединяются по ID.
+        val archives = joinedArchives.sortedBy { it.uid }
         for ((id, t) in archiveTombs) keptTombs += SyncTomb(TombKind.ARCHIVE, id.second, t)
         // Архивы, слитые в один поход, получают устойчивые надгробия для
         // неканонических UID: иначе старый телефон вернёт дубли обратно.
@@ -217,20 +215,24 @@ object SyncMerge {
                 val event = archive.purchaseEvents.getOrElse(index) { "" }
                 val buyer = archive.buyers.getOrElse(index) { "" }
                 val purchaseId = decodePurchaseEvent(event)?.id?.takeIf { it.isNotEmpty() }
-                val legacyKey = "${nameKeyOf(name)}:$buyer"
+                // No stable ID exists for older purchases. Do not discard a
+                // different quantity or a second known buyer as a "duplicate".
+                val quantity = archive.quantities.getOrElse(index) { 1 }
+                val legacyKey = "${nameKeyOf(name)}:$buyer:$quantity"
                 val ordinal = occurrences.getOrDefault(legacyKey, 0)
                 occurrences[legacyKey] = ordinal + 1
                 val key = if (purchaseId != null) "purchase:$purchaseId"
                     else {
-                        // When an older copy has lost the buyer, it represents the
-                        // same legacy purchase as the corresponding known-buyer row.
-                        // Keep separate keys for purchases with distinct known buyers.
                         val exact = "legacy:$legacyKey:$ordinal"
-                        val anonymous = "legacy:${nameKeyOf(name)}::$ordinal"
+                        val anonymous = "legacy:${nameKeyOf(name)}::$quantity:$ordinal"
                         if (buyer.isBlank()) {
-                            events.keys.firstOrNull { it.startsWith("legacy:${nameKeyOf(name)}:") &&
-                                it.endsWith(":$ordinal") } ?: anonymous
-                        } else if (anonymous in events) anonymous else exact
+                            events.keys.firstOrNull { key ->
+                                key.startsWith("legacy:${nameKeyOf(name)}:") &&
+                                    key.endsWith(":$quantity:$ordinal")
+                            } ?: anonymous
+                        } else if (events[anonymous]?.buyer.isNullOrBlank()) {
+                            if (anonymous in events) anonymous else exact
+                        } else exact
                     }
                 val candidate = Entry(name, buyer, archive.quantities.getOrElse(index) { 1 }, event)
                 val old = events[key]
@@ -332,63 +334,19 @@ object SyncMerge {
         return result.values.sortedBy { it.key }
     }
 
-    /**
-     * Один продукт за один UTC-день, отмеченный купленным двумя РАЗНЫМИ
-     * известными людьми, считается одной покупкой: остаётся запись того,
-     * чей архивный список завершился первым. Равные времена упорядочиваем
-     * по uid и позиции, чтобы порядок получения сообщений не менял результат.
-     *
-     * Один и тот же покупатель вправе купить товар несколько раз — такие
-     * события сохраняются. Неизвестный автор также не даёт оснований удалять
-     * запись. Цена и автор сохраняемой покупки не переписываются.
-     */
-    internal fun collapseDoubleBuys(archives: List<SyncArchive>): List<SyncArchive> {
-        if (archives.size < 2) return archives
-        data class First(val uid: String, val buyer: String)
-        val first = HashMap<Pair<Long, String>, First>()
-        val dropped = HashMap<String, MutableSet<Int>>()
-        val ordered = archives.sortedWith(compareBy<SyncArchive> { it.completedAt }.thenBy { it.uid })
-        for (archive in ordered) {
-            val day = Math.floorDiv(archive.completedAt, DAY_MILLIS)
-            archive.names.forEachIndexed { index, name ->
-                val buyer = archive.buyers.getOrElse(index) { "" }
-                // Нельзя объявлять неизвестного покупателя дублем.
-                if (buyer.isEmpty()) return@forEachIndexed
-                val id = decodePurchaseEvent(archive.purchaseEvents.getOrElse(index) { "" })
-                    ?.productId?.takeIf { it > 0 }
-                val productKey = id?.let { "lenta:$it" } ?: nameKeyOf(name)
-                val key = day to productKey
-                val earliest = first[key]
-                when {
-                    earliest == null -> first[key] = First(archive.uid, buyer)
-                    earliest.buyer != buyer -> dropped.getOrPut(archive.uid) { HashSet() }.add(index)
-                    // Запись того же пользователя не удаляем и не меняем владельца первенства.
-                }
-            }
-        }
-        if (dropped.isEmpty()) return archives
-        return archives.mapNotNull { archive ->
-            val duplicates = dropped[archive.uid] ?: return@mapNotNull archive
-            val kept = archive.names.indices.filterNot { it in duplicates }
-            if (kept.isEmpty()) return@mapNotNull null
-            archive.copy(
-                names = kept.map { archive.names[it] },
-                buyers = kept.map { archive.buyers.getOrElse(it) { "" } },
-                quantities = kept.map { archive.quantities.getOrElse(it) { 1 } },
-                purchaseEvents = kept.map { archive.purchaseEvents.getOrElse(it) { "" } },
-            )
-        }
-    }
-
-    private const val DAY_MILLIS = 86_400_000L
+    /** Отпечаток полного содержимого архива, включая покупателей, количества и события. */
+    private fun archiveDigest(archive: SyncArchive): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(SyncCodec.encode(Snapshot(archives = listOf(archive))))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
 
     /** Отпечатки записей архива в [s]: по ним видно, что у телефона уже есть. */
-    fun helloOf(s: Snapshot): Hello = Hello(s.archives.map { ArchiveStamp(archivePrefix(it.uid)) })
+    fun helloOf(s: Snapshot): Hello = Hello(s.archives.map { ArchiveStamp(archivePrefix(it.uid), archiveDigest(it)) })
 
     /** Не пересылаем архивы, которые уже есть у получателя. */
     fun forPeer(s: Snapshot, peer: Hello): Snapshot {
-        val known = peer.archives.mapTo(HashSet()) { it.prefix }
-        return s.copy(archives = s.archives.filter { archivePrefix(it.uid) !in known })
+        val known = peer.archives.filter { it.digest.isNotEmpty() }.mapTo(HashSet()) { it.prefix to it.digest }
+        return s.copy(archives = s.archives.filter { (archivePrefix(it.uid) to archiveDigest(it)) !in known })
     }
 
     fun archivePrefix(uid: String): Long =

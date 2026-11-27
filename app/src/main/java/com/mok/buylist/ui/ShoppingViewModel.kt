@@ -18,7 +18,6 @@ import com.mok.buylist.data.PricedLine
 import com.mok.buylist.data.ShoppingTotals
 import com.mok.buylist.data.calculateShoppingTotals
 import com.mok.buylist.data.decodePurchaseEvent
-import com.mok.buylist.data.parsePriceKopecks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -498,10 +497,12 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     /** Возвращает в текущий список выбранные товары из архивного; те, что уже в списке, пропускаются. */
-    fun repeatArchived(names: List<String>, quantities: List<Int>, events: List<String>, onDone: () -> Unit) {
+    fun repeatArchived(
+        names: List<String>, quantities: List<Int>, events: List<String>,
+        onDone: (com.mok.buylist.data.RepeatItemsResult) -> Unit,
+    ) {
         viewModelScope.launch {
-            repository.repeatItems(names, quantities, events)
-            onDone()
+            onDone(repository.repeatItems(names, quantities, events))
         }
     }
 }

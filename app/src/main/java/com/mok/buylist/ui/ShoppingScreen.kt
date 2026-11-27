@@ -330,7 +330,15 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 archive = archive,
                 onBack = { showArchive = false },
                 onOpenStats = { navigate(FreshCutDestination.STATS) },
-                onRepeat = { names, quantities, events -> viewModel.repeatArchived(names, quantities, events) { showArchive = false } },
+                onRepeat = { names, quantities, events ->
+                    viewModel.repeatArchived(names, quantities, events) { result ->
+                        showArchive = false
+                        activity?.notifyUser(
+                            if (result.skipped == 0) "Добавлено товаров: ${result.added}"
+                            else "Добавлено: ${result.added}, пропущено: ${result.skipped}"
+                        )
+                    }
+                },
                 onDelete = viewModel::deleteArchived,
                 users = users,
                 meId = profile?.id.orEmpty(),

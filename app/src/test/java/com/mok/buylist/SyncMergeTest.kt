@@ -121,6 +121,41 @@ class SyncMergeTest {
     }
 
     @Test
+    fun peerReceivesChangedArchiveEvenWithSameUid() {
+        val uid = "00112233445566778899aabbccddeeff"
+        val old = archive(uid)
+        val updated = old.copy(names = listOf("Молоко", "Яйца"), buyers = listOf("a", "b"))
+        val peer = SyncMerge.helloOf(Snapshot(archives = listOf(old)))
+        val delta = SyncMerge.forPeer(Snapshot(archives = listOf(updated)), peer)
+        assertEquals(listOf(updated), delta.archives)
+        assertEquals(setOf("Молоко", "Яйца"),
+            SyncMerge.merge(Snapshot(archives = listOf(old)), delta).archives.single().names.toSet())
+    }
+
+    @Test
+    fun peerReceivesChangedPricesQuantitiesBuyersAndRemainders() {
+        val original = archive("00112233445566778899aabbccddeeff")
+        val variants = listOf(
+            original.copy(quantities = listOf(3)),
+            original.copy(buyers = listOf("b")),
+            original.copy(purchaseEvents = listOf("updated-event")),
+            original.copy(remainingEvents = "v1|updated-remaining"),
+        )
+        val hello = SyncMerge.helloOf(Snapshot(archives = listOf(original)))
+        for (variant in variants) {
+            assertEquals(listOf(variant), SyncMerge.forPeer(Snapshot(archives = listOf(variant)), hello).archives)
+        }
+        assertTrue(SyncMerge.forPeer(Snapshot(archives = listOf(original)), hello).archives.isEmpty())
+    }
+
+    @Test
+    fun legacyStampWithoutDigestDoesNotSkipArchive() {
+        val archived = archive("00112233445566778899aabbccddeeff")
+        val legacy = com.mok.buylist.sync.Hello(listOf(com.mok.buylist.sync.ArchiveStamp(SyncMerge.archivePrefix(archived.uid))))
+        assertEquals(listOf(archived), SyncMerge.forPeer(Snapshot(archives = listOf(archived)), legacy).archives)
+    }
+
+    @Test
     fun mergeIsCommutativeAssociativeAndIdempotentOnRandomStates() {
         val random = Random(42)
         val names = listOf("Молоко", "Хлеб", "Сыр", "Яйца", "Чай", "Кофе")
@@ -183,7 +218,7 @@ class SyncMergeTest {
     }
 
     @Test
-    fun sameDaySameProductDifferentBuyersKeepsFirstAndOtherProducts() {
+    fun sameDaySameProductDifferentBuyersPreservesBothPurchases() {
         val day = 1_700_006_400_000L // UTC-day boundary
         val first = SyncArchive("archive-one", day + 10_000,
             listOf("Молоко", "Яйца"), listOf("person-a", "person-a"), 0, 1,
@@ -193,9 +228,9 @@ class SyncMergeTest {
             listOf(1, 1), listOf("", ""))
         val merged = SyncMerge.merge(Snapshot(archives = listOf(first)), Snapshot(archives = listOf(second)))
         assertEquals(2, merged.archives.size)
-        assertEquals(3, merged.archives.sumOf { it.names.size })
+        assertEquals(4, merged.archives.sumOf { it.names.size })
         assertEquals(listOf("Молоко", "Яйца"), merged.archives.first { it.uid == first.uid }.names)
-        assertEquals(listOf("Раскраска"), merged.archives.first { it.uid == second.uid }.names)
+        assertEquals(listOf("Молоко", "Раскраска"), merged.archives.first { it.uid == second.uid }.names)
         assertEquals(listOf("person-a", "person-a"), merged.archives.first { it.uid == first.uid }.buyers)
         assertEquals(merged, SyncMerge.merge(merged, Snapshot(archives = listOf(second))))
     }
@@ -281,6 +316,28 @@ class SyncMergeTest {
         val merged = SyncMerge.merge(Snapshot(archives = listOf(a)), Snapshot(archives = listOf(b)))
         assertEquals(setOf("first-remaining", "second-remaining"),
             merged.archives.single().remainingEvents.removePrefix("v1|").split('\n').toSet())
+    }
+
+    @Test
+    fun legacyVersionsWithDifferentQuantitiesPreserveBothRows() {
+        val old = SyncArchive("shared", 100, listOf("Молоко"), listOf("u"), 0, 1,
+            quantities = listOf(1))
+        val newer = old.copy(quantities = listOf(3))
+        val result = SyncMerge.merge(Snapshot(archives = listOf(old)),
+            Snapshot(archives = listOf(newer)))
+        assertEquals(listOf(1, 3), result.archives.single().quantities.sorted())
+        assertEquals(result, SyncMerge.merge(result, Snapshot(archives = listOf(old))))
+    }
+
+    @Test
+    fun anonymousLegacyVersionCannotCollapseTwoKnownBuyers() {
+        val anonymous = SyncArchive("shared", 100, listOf("Молоко"), listOf(""), 0, 1)
+        val buyerA = anonymous.copy(buyers = listOf("a"))
+        val buyerB = anonymous.copy(buyers = listOf("b"))
+        val result = SyncMerge.merge(Snapshot(archives = listOf(anonymous, buyerA)),
+            Snapshot(archives = listOf(buyerB)))
+        assertEquals(2, result.archives.single().names.size)
+        assertEquals(setOf("a", "b"), result.archives.single().buyers.toSet())
     }
 
     @Test
