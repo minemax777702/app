@@ -13,16 +13,17 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.ui.theme.LocalPalette
+import com.mok.buylist.R
+import androidx.compose.ui.Alignment
 import com.mok.buylist.update.AppRelease
 import com.mok.buylist.update.AppUpdater
 import com.mok.buylist.update.UpdateChannel
@@ -48,6 +49,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf<File?>(null) }
     var historyOpen by remember { mutableStateOf(false) }
+    var changelogOpen by remember(channel) { mutableStateOf(false) }
     var historyPage by remember(channel) { mutableIntStateOf(1) }
     var history by remember(channel) { mutableStateOf(emptyList<com.mok.buylist.update.ReleaseNotes>()) }
     var historyMore by remember(channel) { mutableStateOf(true) }
@@ -116,7 +118,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 throw e
             } catch (e: Exception) {
                 ready = null
-                error = e.message ?: "Не удалось открыть установщик."
+                error = "Не удалось открыть установщик."
             } finally {
                 installing = false
             }
@@ -154,133 +156,148 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            error = e.message ?: "Не удалось проверить обновления."
+            error = "Не удалось проверить обновления."
         } finally {
             checking = false
         }
     }
     val update = release?.takeIf { it.version.isNewerThan(installed) }
+    val busy = checking || downloading || installing
+    val notes = release?.takeIf { it.version.code >= installed.code }
+    fun updateApp() {
+        if (busy) return
+        val file = ready
+        if (file != null) {
+            error = null
+            requestInstall(file)
+        } else if (update != null) {
+            downloading = true
+            error = null
+            progress = 0
+            scope.launch {
+                try {
+                    val apk = AppUpdater.download(context, update) { progress = it }
+                    ready = apk
+                    requestInstall(apk)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    error = "Не удалось загрузить обновление."
+                } finally {
+                    downloading = false
+                }
+            }
+        }
+    }
+
     AppSheet(
         onDismissRequest = onClose, containerColor = p.sheet,
         title = { SheetHeader("Обновления") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Установлена версия ${installed.name}", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                Text("Сборка ${installed.code}", color = p.textSecondary, fontSize = 13.sp)
-                FreshCutSectionTitle("Канал обновлений")
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text("Текущая версия", color = p.textSecondary, fontSize = 12.sp)
+                        Text(installed.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                    }
+                    FreshCutToolbarAction(R.drawable.ic_bell,
+                        if (notificationsEnabled && notificationsAllowed) "Отключить уведомления" else "Включить уведомления",
+                        {
+                            if (notificationsEnabled && !notificationsAllowed) {
+                                notificationSettings.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                            } else changeNotifications(!notificationsEnabled)
+                        }, primary = notificationsEnabled && notificationsAllowed)
+                    FreshCutToolbarAction(R.drawable.ic_history,
+                        if (historyOpen) "Скрыть историю версий" else "История версий", {
+                            historyOpen = !historyOpen
+                            if (historyOpen) {
+                                changelogOpen = false
+                                if (history.isEmpty()) loadHistory()
+                            }
+                        }, primary = historyOpen)
+                }
                 FreshCutSegments(UpdateChannel.entries.map { it.label }, channel.ordinal, { index ->
-                    if (!downloading && !checking && !installing) {
+                    if (!busy && channel.ordinal != index) {
                         historyOpen = false
                         channel = UpdateChannel.entries[index]
                         AppUpdater.selectChannel(context, channel)
                     }
                 })
-                Text(if (channel == UpdateChannel.BETA) "Новые функции и тестовые сборки."
-                    else "Только стабильные релизы.", color = p.textSecondary, fontSize = 13.sp)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Уведомления об обновлениях", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        Text(if (!notificationsAllowed && notificationsEnabled) "Разрешите уведомления в Android."
-                            else "Проверяем новые версии при входе.", color = p.textSecondary, fontSize = 12.sp)
-                    }
-                    Switch(checked = notificationsEnabled && notificationsAllowed,
-                        onCheckedChange = ::changeNotifications,
-                        colors = SwitchDefaults.colors(checkedTrackColor = p.actionFill, checkedThumbColor = p.actionInk))
-                }
-                if (notificationsEnabled && !notificationsAllowed) {
-                    androidx.compose.material3.TextButton(onClick = {
-                        notificationSettings.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
-                    }) { Text("Настройки уведомлений Android", color = p.text) }
-                }
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(16.dp),
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    when {
-                        downloading -> {
-                            Text("Загрузка обновления", color = p.text, fontWeight = FontWeight.SemiBold)
-                            LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth(), color = p.accent)
-                            Text("$progress%", color = p.textSecondary, fontSize = 13.sp)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            val status = when {
+                                downloading -> "Загрузка · $progress%"
+                                installing -> "Подготовка установки…"
+                                checking -> "Проверка…"
+                                ready != null -> "Готово к установке"
+                                update != null -> "Доступно обновление"
+                                error != null -> "Проверка не удалась"
+                                release == null -> "Нет обновлений в канале"
+                                release!!.version.code < installed.code -> "В канале более старая версия"
+                                else -> "Последняя версия установлена"
+                            }
+                            Text(status, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                            if (update != null || ready != null) {
+                                Text(release?.version?.name.orEmpty(), color = p.textSecondary, fontSize = 13.sp)
+                            }
                         }
-                        checking -> {
-                            Text("Проверяем GitHub…", color = p.text)
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
+                        if (notes != null) FreshCutToolbarAction(R.drawable.ic_info,
+                            if (changelogOpen) "Скрыть изменения" else "Что нового", {
+                                changelogOpen = !changelogOpen
+                                if (changelogOpen) historyOpen = false
+                            }, primary = changelogOpen)
+                        FreshCutToolbarAction(R.drawable.ic_sync, "Проверить обновления",
+                            { checking = true; attempt++ }, enabled = !busy)
+                        if (update != null || ready != null) {
+                            FreshCutToolbarAction(
+                                if (ready != null) R.drawable.ic_package else R.drawable.ic_download_update,
+                                if (ready != null) "Установить обновление" else "Скачать и установить обновление",
+                                ::updateApp, primary = true, enabled = !busy)
                         }
-                        installing -> {
-                            Text("Проверяем APK…", color = p.text)
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
-                        }
-                        ready != null -> {
-                            Text("Обновление загружено", color = p.text, fontWeight = FontWeight.SemiBold)
-                            Text(release?.version?.name.orEmpty(), color = p.textSecondary, fontSize = 13.sp)
-                            Text("APK сохранён в кэше. Повторная загрузка не нужна.", color = p.textSecondary, fontSize = 13.sp)
-                        }
-                        update != null -> {
-                            Text("Доступна версия ${update.version.name}", color = p.text, fontWeight = FontWeight.SemiBold)
-                            Text("Сборка ${update.version.code} · ${(update.size + 1_048_575) / 1_048_576} МБ", color = p.textSecondary, fontSize = 13.sp)
-                        }
-                        error == null && release == null -> Text("В этом канале пока нет опубликованных сборок.", color = p.textSecondary)
-                        error == null && release!!.version.code < installed.code -> Text("В этом канале более старая сборка. Понижение версии недоступно.", color = p.textSecondary)
-                        error == null -> Text("Установлена актуальная версия.", color = p.text)
                     }
+                    if (downloading) LinearProgressIndicator(progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth(), color = p.accent)
+                    else if (checking || installing) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
                     error?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
-                release?.takeIf { it.version.code >= installed.code }?.let { current ->
-                    FreshCutSectionTitle(if (current.version.code > installed.code) "Что нового" else "Изменения в этой версии")
-                    ReleaseChangelog(current.changelog)
+                if (notificationsEnabled && !notificationsAllowed)
+                    Text("Уведомления отключены в Android", color = p.textSecondary, fontSize = 12.sp)
+                if (changelogOpen && notes != null) {
+                    FreshCutSectionTitle("Что нового")
+                    ReleaseChangelog(notes.changelog)
                 }
-                FreshCutSecondaryButton(if (historyOpen) "Скрыть историю версий" else "История версий", {
-                    historyOpen = !historyOpen
-                    if (historyOpen && history.isEmpty()) loadHistory()
-                })
                 if (historyOpen) {
+                    FreshCutSectionTitle("История версий")
                     history.forEach { entry ->
-                        FreshCutListRow(com.mok.buylist.R.drawable.ic_history, entry.version.name,
+                        FreshCutListRow(R.drawable.ic_history, entry.version.name,
                             entry.publishedAt.take(10) + if (entry.version.code == installed.code) " · Установлена" else "",
+                            showChevron = false,
+                            trailing = {
+                                androidx.compose.material3.Icon(
+                                    androidx.compose.ui.res.painterResource(R.drawable.ic_chevron_down),
+                                    if (expandedHistory == entry.version.code) "Свернуть" else "Развернуть",
+                                    Modifier.size(20.dp).then(if (expandedHistory == entry.version.code)
+                                        Modifier.rotate(180f) else Modifier), tint = p.textSecondary)
+                            },
                             onClick = { expandedHistory = if (expandedHistory == entry.version.code) null else entry.version.code })
                         if (expandedHistory == entry.version.code) ReleaseChangelog(entry.changelog)
                     }
                     historyError?.let { Text(it, color = p.error, fontSize = 13.sp) }
                     if (historyLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
-                    else if (historyMore) FreshCutSecondaryButton(if (historyError != null) "Повторить" else "Показать ещё", { loadHistory() })
-                    else if (history.isEmpty()) Text("История пока пуста.", color = p.textSecondary, fontSize = 13.sp)
-                }
-            }
-        },
-        confirmButton = {
-            SheetActionButton(enabled = !checking && !downloading && !installing, onClick = {
-                val file = ready
-                when {
-                    file != null -> { error = null; requestInstall(file) }
-                    update != null -> {
-                        downloading = true
-                        error = null
-                        progress = 0
-                        scope.launch {
-                            try {
-                                val apk = AppUpdater.download(context, update) { progress = it }
-                                ready = apk
-                                requestInstall(apk)
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                error = e.message ?: "Не удалось загрузить обновление."
-                            } finally { downloading = false }
-                        }
+                    else if (historyMore) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                        FreshCutToolbarAction(if (historyError != null) R.drawable.ic_sync else R.drawable.ic_chevron_down,
+                            if (historyError != null) "Повторить" else "Показать ещё", { loadHistory() })
                     }
-                    else -> { checking = true; attempt++ }
+                    else if (history.isEmpty()) Text("История пока пуста", color = p.textSecondary, fontSize = 13.sp)
                 }
-            }) {
-                Text(when {
-                    downloading -> "Загрузка…"
-                    installing -> "Проверка APK…"
-                    checking -> "Проверка…"
-                    ready != null -> "Установить"
-                    update != null -> "Обновить"
-                    else -> "Проверить обновления"
-                }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         },
+        confirmButton = {},
     )
 }
 
