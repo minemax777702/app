@@ -193,7 +193,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
         if (page == "cloud" && signedIn && me != null) {
             var signingOut by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             Box(Modifier.fillMaxWidth().padding(horizontal=20.dp, vertical=12.dp)) {
-                SheetDeleteButton("Выйти из аккаунта", {
+                SheetActionButton(onClick = {
                     if (!signingOut) {
                         signingOut=true
                         scope.launch {
@@ -203,7 +203,11 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                             } finally { signingOut=false }
                         }
                     }
-                }, enabled=!signingOut, icon=R.drawable.ic_log_out)
+                }, enabled = !signingOut) {
+                    Icon(painterResource(R.drawable.ic_log_out), null, Modifier.size(18.dp))
+                    Spacer(Modifier.size(8.dp))
+                    Text(if (signingOut) "Выход…" else "Выйти из аккаунта")
+                }
             }
         }
     }

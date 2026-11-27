@@ -130,7 +130,6 @@ internal fun AppSheet(
             .heightIn(min = minBodyHeight).padding(horizontal = 20.dp)
             .padding(top = if (required) 24.dp else 0.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.SpaceBetween) {
-            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1f)) {
@@ -141,7 +140,8 @@ internal fun AppSheet(
                 }
                 if (!required) SheetCloseButton(onDismissRequest)
             }
-            text()
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
+                text()
             }
             Column(Modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 confirmButton()
