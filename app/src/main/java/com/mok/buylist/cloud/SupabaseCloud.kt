@@ -514,9 +514,15 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             val remote = if (encoded.isBlank()) Snapshot() else SyncCodec.decode(Base64.decode(encoded, Base64.NO_WRAP))
             val local = cache.repository.exportSnapshot()
             val merged = SyncMerge.merge(local, remote)
-            if (merged != SyncMerge.merge(local, local)) cache.repository.applyRemote(remote)
-            if (merged == SyncMerge.merge(remote, remote)) return
-            val data = Base64.encodeToString(SyncCodec.encode(merged), Base64.NO_WRAP)
+            if (merged != SyncMerge.merge(local, local)) {
+                check(authenticated(cache.userId) && cache.job.isActive)
+                cache.repository.applyRemote(remote)
+            }
+            // Applying remote changes is transactional, but local edits may have
+            // arrived since the first export. Publish the latest durable snapshot.
+            val outgoing = SyncMerge.merge(cache.repository.exportSnapshot(), remote)
+            if (outgoing == SyncMerge.merge(remote, remote)) return
+            val data = Base64.encodeToString(SyncCodec.encode(outgoing), Base64.NO_WRAP)
             require(data.length <= 8388608)
             check(authenticated(cache.userId) && cache.job.isActive)
             val saved = api().from("list_states").update(body = buildJsonObject {
