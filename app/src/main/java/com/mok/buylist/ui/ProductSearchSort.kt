@@ -2,6 +2,7 @@ package com.mok.buylist.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -93,7 +94,8 @@ internal data class ProductSearchRow(
     }
 }
 
-/** Stable ordering: unknown prices last in both directions; never compare kg directly to liters. */
+/** Unit-price ranking uses the user's approximation 1 kg ≈ 1 l.
+ * Actual unit labels stay unchanged; unknown prices are always last. */
 internal fun sortProductRows(rows: List<ProductSearchRow>, sort: ProductSort): List<ProductSearchRow> =
     when (sort) {
         ProductSort.DEFAULT -> rows
@@ -105,7 +107,6 @@ internal fun sortProductRows(rows: List<ProductSearchRow>, sort: ProductSort): L
         )
         ProductSort.UNIT_ASC, ProductSort.UNIT_DESC -> rows.sortedWith(
             compareBy<ProductSearchRow> { it.normalized == null }
-                .thenBy { it.normalized?.unit?.ordinal ?: Int.MAX_VALUE }
                 .thenComparator { a, b ->
                     if (sort == ProductSort.UNIT_ASC) compareValues(a.normalized?.kopecks, b.normalized?.kopecks)
                     else compareValues(b.normalized?.kopecks, a.normalized?.kopecks)
@@ -127,7 +128,14 @@ internal fun ProductSortMenu(sort: ProductSort, onSort: (ProductSort) -> Unit, m
         }
         AppDropdownMenu(expanded, { expanded = false }) {
             ProductSort.entries.forEach { option ->
-                AppDropdownMenuItem(text = { Text(option.label, color = p.text) },
+                AppDropdownMenuItem(text = {
+                    Column {
+                        Text(option.label, color = p.text)
+                        if (option == ProductSort.UNIT_ASC || option == ProductSort.UNIT_DESC) {
+                            Text("Сравнение: 1 л ≈ 1 кг", color = p.textSecondary, fontSize = 11.sp)
+                        }
+                    }
+                },
                     onClick = { expanded = false; onSort(option) })
             }
         }

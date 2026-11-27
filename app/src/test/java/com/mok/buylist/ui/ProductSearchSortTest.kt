@@ -2,7 +2,6 @@ package com.mok.buylist.ui
 
 import org.junit.Assert.*
 import org.junit.Test
-import java.math.BigDecimal
 
 class ProductSearchSortTest {
     @Test fun normalizedPriceMakesLargerPackComparable() {
@@ -24,13 +23,22 @@ class ProductSearchSortTest {
         assertEquals(MeasureUnit.VOLUME, productMeasure("1 шт.", "Молоко 500 мл")?.unit)
     }
 
-    @Test fun sortingKeepsUnknownPricesLastAndSeparatesDimensions() {
+    @Test fun sortingKeepsUnknownPricesLastAndComparesMassWithVolume() {
         fun row(key: String, price: Long?, amount: String) =
             ProductSearchRow(key, price, unitPrice(price, parsePackMeasure(amount)))
         val rows = listOf(row("half", 10000, "500 мл"), row("unknown", null, "1 л"),
-            row("full", 11000, "1 л"), row("mass", 5000, "1 кг"))
-        assertEquals(listOf("mass", "half", "full", "unknown"), sortProductRows(rows, ProductSort.PRICE_ASC).map { it.key })
-        assertEquals(listOf("full", "half", "mass", "unknown"), sortProductRows(rows, ProductSort.PRICE_DESC).map { it.key })
-        assertEquals(listOf("mass", "full", "half", "unknown"), sortProductRows(rows, ProductSort.UNIT_ASC).map { it.key })
+            row("full", 11000, "1 л"), row("mass", 12600, "900 г"))
+        assertEquals(listOf("half", "full", "mass", "unknown"), sortProductRows(rows, ProductSort.PRICE_ASC).map { it.key })
+        assertEquals(listOf("mass", "full", "half", "unknown"), sortProductRows(rows, ProductSort.PRICE_DESC).map { it.key })
+        assertEquals(listOf("full", "mass", "half", "unknown"), sortProductRows(rows, ProductSort.UNIT_ASC).map { it.key })
+        assertEquals(listOf("half", "mass", "full", "unknown"), sortProductRows(rows, ProductSort.UNIT_DESC).map { it.key })
+    }
+
+    @Test fun equalMassAndVolumeUseSameRankingWithoutChangingLabels() {
+        val mass = unitPrice(10000, parsePackMeasure("1 кг"))!!
+        val volume = unitPrice(10000, parsePackMeasure("1 л"))!!
+        assertEquals(0, mass.kopecks.compareTo(volume.kopecks))
+        assertEquals("100,00 ₽/кг", mass.label())
+        assertEquals("100,00 ₽/л", volume.label())
     }
 }
