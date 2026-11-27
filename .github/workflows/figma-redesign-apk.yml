@@ -107,6 +107,7 @@ jobs:
           ./gradlew :app:assembleRelease --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Upload R8 mapping
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v6
         with:
           name: fresh-cut-r8-mapping

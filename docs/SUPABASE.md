@@ -23,3 +23,6 @@ Supabase Auth persists sessions. Each account/list has its own local Room DB; th
 In Supabase Auth URL Configuration, set the Site URL and add the exact redirect URL `com.mok.buylist://auth-confirm` (no wildcard). Android requests this redirect with PKCE and exchanges the one-time code. Existing confirmed accounts can sign in normally. If the link was opened on another device, sign in with email/password. The dashboard setting is not managed by the available Supabase connector.
 
 Cloud diagnostics: `adb logcat -d -s BuyListCloud AndroidRuntime` (do not share credentials or auth callback URLs).
+
+## Release compatibility
+PostgREST responses are decoded directly as JSON arrays; CRUD sends concrete JSON rather than reflective generic serialization. Kotlin runtime resources are retained. Beta builds are signed but not minified; stable retains optimization. Realtime errors do not block REST access.

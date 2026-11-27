@@ -20,6 +20,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.result.PostgrestResult
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
@@ -49,6 +50,11 @@ internal data class CloudDirectory(
 internal data class CloudWorkspace(val namespace: String, val userId: String, val listId: String,
     val db: AppDatabase, val profile: UserProfile, val repository: ShoppingRepository, val catalog: LentaCatalog,
     val job: Job)
+
+// PostgREST returns a JSON array even for one row. Avoid generic KType/reflection
+// resolution in the mobile release: all values already have a concrete JSON type.
+private fun PostgrestResult.rows(): List<JsonObject> =
+    Json.parseToJsonElement(data).jsonArray.map { it.jsonObject }
 
 private fun JsonObject.string(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 private fun JsonObject.flag(key: String) = this[key]?.jsonPrimitive?.booleanOrNull == true
@@ -95,7 +101,9 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             cause.javaClass.name + "\n" + cause.stackTrace.take(16).joinToString("\n")
         }
         android.util.Log.e("BuyListCloud", "$stage: $frames")
-        _status.value = "Офлайн"
+        if (stage.startsWith("realtime")) return // REST remains usable without WebSocket.
+        _status.value = if (generateSequence(error) { it.cause }.take(8).any { it is java.io.IOException })
+            "Нет соединения" else "Не удалось загрузить облако"
     }
 
     private suspend fun publishWorkspace(value: CloudWorkspace?) = withContext(Dispatchers.Main.immediate) {
@@ -249,7 +257,11 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         catch (_: Exception) { _directory.value = CloudDirectory() }
     }
 
-    private suspend fun rows(table: String) = api().from(table).select().decodeList<JsonObject>()
+    private suspend fun rows(table: String): List<JsonObject> {
+        try { return api().from(table).select().rows() }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { throw IllegalStateException("Directory table: $table", e) }
+    }
     suspend fun refresh() = mutex.withLock {
         val uid = account ?: return@withLock
         try {
@@ -260,6 +272,9 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                 updateWidget()
                 return@withLock
             }
+            val person = profiles.first { it.string("id") == uid }.person()
+            // Keep account controls available even when a subsequent directory request fails.
+            _directory.value = _directory.value.copy(me = person, people = profiles.map { it.person() }.sortedBy { it.name })
             val groups = rows("groups")
             val listRows = rows("shopping_lists")
             val members = rows("group_members")
@@ -330,7 +345,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         val next = if (listId == null) null else {
             val list = _directory.value.lists.single { it.id == listId }
             val exists = context.getDatabasePath("cloud-${me.id}-${list.id}.db").exists()
-            if (exists && status.value == "Офлайн") open(me, list, cachedOnly = true) else open(me, list)
+            if (exists && status.value != null) open(me, list, cachedOnly = true) else open(me, list)
         }
         check(prefs.edit().putString("selected_${me.id}", listId ?: "local").commit())
         publishWorkspace(next)
@@ -343,7 +358,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
 
     private suspend fun sync(cache: CloudWorkspace) {
         repeat(4) {
-            val row = api().from("list_states").select { filter { eq("list_id",cache.listId) } }.decodeSingle<JsonObject>()
+            val row = api().from("list_states").select { filter { eq("list_id",cache.listId) } }.rows().single()
             val revision = row.getValue("revision").jsonPrimitive.long
             val encoded = row.string("payload").orEmpty()
             val remote = if (encoded.isBlank()) Snapshot() else SyncCodec.decode(Base64.decode(encoded, Base64.NO_WRAP))
@@ -353,16 +368,16 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             if (merged == SyncMerge.merge(remote, remote)) return
             val data = Base64.encodeToString(SyncCodec.encode(merged), Base64.NO_WRAP)
             require(data.length <= 8388608)
-            val saved = api().from("list_states").update(buildJsonObject {
+            val saved = api().from("list_states").update(body = buildJsonObject {
                 put("revision", revision+1); put("payload", data)
-            }) { select(); filter { eq("list_id", cache.listId); eq("revision", revision) } }.decodeList<JsonObject>()
+            }) { select(); filter { eq("list_id", cache.listId); eq("revision", revision) } }.rows()
             if (saved.size == 1) return
         }
         error("Concurrent update")
     }
 
     private suspend fun update(table: String, id: String, values: JsonObject) {
-        check(api().from(table).update(values) { select(); filter { eq("id", id) } }.decodeList<JsonObject>().size == 1)
+        check(api().from(table).update(body = values) { select(); filter { eq("id", id) } }.rows().size == 1)
         signal()
     }
     suspend fun renameSelf(name: String) {
@@ -375,26 +390,26 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     }
     suspend fun saveGroup(id: String?, name: String) {
         val values = buildJsonObject { put("name",name.trim().take(100)) }
-        if (id == null) api().from("groups").insert(values) else update("groups",id,values)
+        if (id == null) api().from("groups").insert(body = JsonArray(listOf(values))) else update("groups",id,values)
         refresh()
     }
     suspend fun removeGroup(id: String) {
         update("groups",id,buildJsonObject { put("archived",true) }); refresh()
     }
     suspend fun member(group: String, person: String, active: Boolean) {
-        val existing = api().from("group_members").select { filter { eq("group_id",group); eq("user_id",person) } }.decodeList<JsonObject>()
+        val existing = api().from("group_members").select { filter { eq("group_id",group); eq("user_id",person) } }.rows()
         if (existing.isEmpty()) {
-            api().from("group_members").insert(buildJsonObject { put("group_id",group); put("user_id",person); put("active",active) })
-        } else check(api().from("group_members").update(buildJsonObject { put("active",active) }) {
+            api().from("group_members").insert(body = JsonArray(listOf(buildJsonObject { put("group_id",group); put("user_id",person); put("active",active) })))
+        } else check(api().from("group_members").update(body = buildJsonObject { put("active",active) }) {
             select(); filter { eq("group_id",group); eq("user_id",person) }
-        }.decodeList<JsonObject>().size == 1)
+        }.rows().size == 1)
         refresh()
     }
     suspend fun saveList(id: String?, name: String, group: String?) {
-        if (id == null) api().from("shopping_lists").insert(buildJsonObject {
+        if (id == null) api().from("shopping_lists").insert(body = JsonArray(listOf(buildJsonObject {
             put("name",name.trim().take(100))
             if (group == null) put("owner_id",requireNotNull(directory.value.me).id) else put("group_id",group)
-        }) else update("shopping_lists",id,buildJsonObject { put("name",name.trim().take(100)) })
+        }))) else update("shopping_lists",id,buildJsonObject { put("name",name.trim().take(100)) })
         refresh()
     }
     suspend fun removeList(id: String) {

@@ -60,7 +60,7 @@ android {
             // Без packageScope: с ним R8 переименовывал классы Kotlin так, что приложение падало при запуске
             // (IllegalAccessError: kotlin.collections.h ... inaccessible).
             optimization {
-                enable = true
+                enable = !appVersionName.get().contains("-beta.")
                 keepRules {
                     files.add(project.file("proguard-rules.pro"))
                 }
@@ -84,8 +84,6 @@ android {
                 "/META-INF/**/LICENSE*",
                 "/META-INF/AL2.0",
                 "/META-INF/LGPL2.1",
-                "/kotlin/**",
-                "/kotlin-tooling-metadata.json",
                 "/DebugProbesKt.bin",
             )
         }
@@ -117,7 +115,7 @@ dependencies {
 
     implementation(libs.androidx.glance.appwidget)
 
-    // Синхронизация по QR: камера (CameraX) читает кадры, ZXing кодирует и распознаёт QR.
+    // CameraX и ZXing используются для сканирования штрихкодов товаров.
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

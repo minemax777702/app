@@ -81,13 +81,17 @@ internal fun SupabasePanel() {
     val me = directory.me
     if (me == null) {
         Text(status ?: "Загрузка…", color=p.textSecondary,fontSize=14.sp)
+        FreshCutSecondaryButton("Повторить", { perform { cloud.refresh() } }, enabled = !busy)
         FreshCutSecondaryButton("Выйти",{ perform { cloud.signOut() } },enabled=!busy)
         return
     }
     Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
         FreshCutListRow(R.drawable.ic_user_round, me.name, if(me.admin) "Администратор" else "Пользователь",
             onClick={ if(!busy) editName=true })
-        status?.let { Text(it,color=p.textSecondary,fontSize=13.sp) }
+        status?.let {
+            Text(it,color=p.textSecondary,fontSize=13.sp)
+            FreshCutSecondaryButton("Повторить", { perform { cloud.refresh() } }, enabled = !busy)
+        }
         FreshCutTabs(listOf("Списки","Группы","Пользователи"),tab,{ tab=it })
         when(tab) {
             0 -> {
