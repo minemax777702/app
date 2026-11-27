@@ -183,7 +183,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                         if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
                     ProfileMenuRow(R.drawable.ic_download_update, "Обновления приложения",
                         "Версия ${installedVersion.name}", { activity?.openUpdates() })
-                    FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
+                    if (isAdmin || !signedIn) FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
                     if (isAdmin) ProfileMenuRow(R.drawable.ic_shield, "Администрирование", "", { page = "admin" })
                     if (!signedIn) ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }
