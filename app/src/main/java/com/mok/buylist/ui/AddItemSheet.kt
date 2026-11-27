@@ -153,7 +153,6 @@ fun AddItemSheet(
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            NoticeInSheet()
             SheetHeader(stringResource(R.string.add_title))
 
 

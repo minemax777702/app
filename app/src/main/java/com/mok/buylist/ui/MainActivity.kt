@@ -11,27 +11,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateListOf
-import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mok.buylist.nearbySync
@@ -89,45 +72,20 @@ class MainActivity : ComponentActivity() {
                 Box(Modifier.fillMaxSize()) {
                     ShoppingScreen()
                     val current = notice
+                    val accessibility = LocalAccessibilityManager.current
                     if (current != null) {
                         LaunchedEffect(current.first) {
-                            delay(3000)
+                            val duration = noticeStyle(current.second).durationMillis
+                            delay(accessibility?.calculateRecommendedTimeoutMillis(
+                                originalTimeoutMillis = duration,
+                                containsIcons = true,
+                                containsText = true,
+                            ) ?: duration)
                             if (notice?.first == current.first) notice = null
                         }
-                        if (noticeOwner == null) NoticeOverlay(current.second)
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-internal fun NoticeInSheet() {
-    val activity = LocalActivity.current as? MainActivity
-    val owner = remember { Any() }
-    DisposableEffect(activity, owner) {
-        activity?.registerNoticeSheet(owner)
-        onDispose { activity?.unregisterNoticeSheet(owner) }
-    }
-    val current = activity?.notice
-    if (current != null && activity.noticeOwner === owner) {
-        NoticeOverlay(current.second)
-    }
-}
-
-@Composable
-private fun NoticeOverlay(message: String) {
-    val density = LocalDensity.current
-    val top = WindowInsets.statusBars.getTop(density) + with(density) { 12.dp.roundToPx() }
-    val position = remember(top) {
-        object : PopupPositionProvider {
-            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection,
-                popupContentSize: IntSize): IntOffset = IntOffset((windowSize.width - popupContentSize.width) / 2, top)
-        }
-    }
-    Popup(popupPositionProvider = position, properties = PopupProperties(focusable = false, clippingEnabled = false)) {
-        Snackbar(Modifier.widthIn(max = 560.dp).padding(horizontal = 16.dp)
-            .semantics { liveRegion = LiveRegionMode.Polite }) { Text(message) }
     }
 }

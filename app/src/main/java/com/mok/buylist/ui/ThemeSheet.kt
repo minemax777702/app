@@ -65,7 +65,6 @@ fun ThemeSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
         ) {
-            NoticeInSheet()
             SheetHeader("Оформление")
             androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
             ThemeSegments(appMode, onAppMode)

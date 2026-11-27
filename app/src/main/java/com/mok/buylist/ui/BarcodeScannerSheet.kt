@@ -57,7 +57,6 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
         Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
             .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            NoticeInSheet()
             SheetHeader("Сканировать штрихкод")
             if (manual) {
                 SheetTextField(manualCode, { manualCode = it.filter(Char::isDigit).take(32) },

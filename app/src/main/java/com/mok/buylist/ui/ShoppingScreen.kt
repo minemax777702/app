@@ -360,6 +360,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         }
             }
         }
+        NoticeInMainScreen()
         FreshCutNavigation(destination, ::navigate,
             Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp))
     }
@@ -576,7 +577,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         AppModalSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
             dragHandle = { SheetDragHandle { scanLookup = null } }) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(horizontal = 20.dp)) {
-                NoticeInSheet()
                 SheetHeader("Выберите товар")
                 ProductSearch(lookupQuery, { lookupQuery = it })
                 LentaSuggestions(lookupQuery, Modifier.weight(1f), onSettings = {

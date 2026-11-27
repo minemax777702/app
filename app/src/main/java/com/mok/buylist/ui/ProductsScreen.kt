@@ -247,7 +247,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         AppModalSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,
             dragHandle = { SearchSheetDragHandle { adding = false } }, sheetGesturesEnabled = false) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).imePadding().padding(horizontal = 20.dp)) {
-                NoticeInSheet()
                 SheetHeader("Добавить продукт")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ProductSearch(onlineQuery, { onlineQuery = it; scannedOnlineCode = null }, Modifier.weight(1f))

@@ -117,7 +117,6 @@ internal fun AppSheet(
             .padding(top = if (required) 24.dp else 0.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.SpaceBetween) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            NoticeInSheet()
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1f)) {
@@ -161,7 +160,10 @@ internal fun AppModalSheet(
         scrimColor = Color.Black.copy(alpha = 0.40f),
         content = {
             val scope = this
-            CompositionLocalProvider(LocalSheetClose provides onDismissRequest) { scope.content() }
+            CompositionLocalProvider(LocalSheetClose provides onDismissRequest) {
+                NoticeInSheet()
+                scope.content()
+            }
         },
     )
 }

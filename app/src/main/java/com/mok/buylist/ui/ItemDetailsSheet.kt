@@ -100,7 +100,6 @@ internal fun ItemDetailsSheet(
                 .navigationBarsPadding().padding(horizontal = 20.dp).padding(bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            NoticeInSheet()
             SheetHeader("Информация о товаре")
             Column(Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp)).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
