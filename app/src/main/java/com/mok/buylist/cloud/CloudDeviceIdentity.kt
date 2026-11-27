@@ -5,13 +5,14 @@ import android.security.keystore.KeyProperties
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.PrivateKey
+import java.security.KeyPair
 import java.security.spec.ECGenParameterSpec
 
-/** Device identity only; it is NOT yet a GitHub deploy key or an access credential. */
+/** Device identity. Its public key may be explicitly authorized by the administrator. */
 internal object CloudDeviceIdentity {
     private const val ALIAS = "buylist.cloud.device.signing.v1"
 
-    @Synchronized fun request(now: Long = System.currentTimeMillis()): String {
+    @Synchronized fun keyPair(): KeyPair {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (!store.containsAlias(ALIAS)) {
             KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore").apply {
@@ -23,6 +24,10 @@ internal object CloudDeviceIdentity {
         }
         val public = store.getCertificate(ALIAS).publicKey
         val private = store.getKey(ALIAS, null) as PrivateKey
-        return CloudDeviceProtocol.create(public, private, now)
+        return KeyPair(public, private)
+    }
+    fun request(now: Long = System.currentTimeMillis()): String {
+        val keys = keyPair()
+        return CloudDeviceProtocol.create(keys.public, keys.private, now)
     }
 }

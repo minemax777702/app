@@ -39,6 +39,9 @@ internal fun CloudDeviceRequestPanel() {
     var code by remember { mutableStateOf<String?>(null) }
     var request by remember { mutableStateOf<CloudDeviceRequest?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var accessMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(refresh) {
         code = null
         request = null
@@ -69,6 +72,19 @@ internal fun CloudDeviceRequestPanel() {
         request?.let { Text(it.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp) }
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
         FreshCutSecondaryButton("Обновить QR-код", { refresh++ })
+        FreshCutSecondaryButton(if (checking) "Проверяем…" else "Проверить подключение", {
+            checking = true
+            scope.launch {
+                try {
+                    com.mok.buylist.cloud.CloudSshProbe.check(443, registeredDevice = true)
+                    accessMessage = "SSH-доступ подтверждён. Для обмена покупками ещё нужен ключ рабочего пространства."
+                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                catch (e: com.mok.buylist.cloud.CloudAdminException) { accessMessage = e.message }
+                catch (_: Exception) { accessMessage = "Подключение не подтверждено. Проверьте сеть и разрешение администратора." }
+                finally { checking = false }
+            }
+        }, enabled = !checking)
+        accessMessage?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
 
     }
 }

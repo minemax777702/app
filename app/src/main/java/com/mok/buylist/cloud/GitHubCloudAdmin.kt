@@ -157,6 +157,56 @@ internal class GitHubCloudAdmin(private val token: String) {
         bytes
     }
 
+    private fun deviceTitle(device: CloudDeviceDraft) = "buylist-device-${device.fingerprint}"
+    private fun deviceSshKey(device: CloudDeviceDraft): String = CloudSshWire.openSsh(
+        CloudDeviceProtocol.publicKey(device.publicKey) as java.security.interfaces.ECPublicKey
+    ).split(' ').take(2).joinToString(" ")
+
+    private fun findDeviceKey(device: CloudDeviceDraft): JSONObject? {
+        val response = request("GET", "$repoPath/keys?per_page=100", maxResponseBytes = 1_048_576)
+        requireSuccess(response)
+        val keys = org.json.JSONArray(response.body)
+        require(keys.length() < 100) { "Too many deploy keys to verify safely" }
+        val matching = (0 until keys.length()).map { keys.getJSONObject(it) }.filter {
+            it.optString("title") == deviceTitle(device) ||
+                it.optString("key").split(' ').take(2).joinToString(" ") == deviceSshKey(device)
+        }
+        require(matching.size <= 1) { "Conflicting device keys" }
+        return matching.singleOrNull()?.also {
+            require(it.optString("title") == deviceTitle(device) &&
+                it.optString("key").split(' ').take(2).joinToString(" ") == deviceSshKey(device)) {
+                "Existing key is not managed by this application"
+            }
+        }
+    }
+
+    suspend fun deviceAccess(device: CloudDeviceDraft): Boolean = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        findDeviceKey(device) != null
+    }
+
+    suspend fun activateDeviceReadOnly(device: CloudDeviceDraft) = withContext(Dispatchers.IO) {
+        require(!device.revoked)
+        requireRegistryStorage()
+        val existing = findDeviceKey(device)
+        if (existing == null) {
+            val payload = JSONObject().put("title", deviceTitle(device))
+                .put("key", deviceSshKey(device)).put("read_only", true)
+            requireSuccess(request("POST", "$repoPath/keys", payload))
+        }
+        val verified = findDeviceKey(device) ?: throw CloudAdminException("Ключ не подтверждён GitHub.")
+        if (!verified.optBoolean("read_only")) throw CloudAdminException("Ключ имеет право записи; отключите его вручную.")
+    }
+
+    suspend fun deactivateDevice(device: CloudDeviceDraft) = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        val existing = findDeviceKey(device) ?: return@withContext
+        val id = existing.getLong("id")
+        require(id > 0)
+        requireSuccess(request("DELETE", "$repoPath/keys/$id"))
+        if (findDeviceKey(device) != null) throw CloudAdminException("GitHub не подтвердил отзыв ключа.")
+    }
+
     private fun verifyOwner() {
         val reply = request("GET", "/user")
         requireSuccess(reply)

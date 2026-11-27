@@ -117,6 +117,7 @@ dependencies {
     implementation(libs.play.services.nearby)
     // Pure Java SSH transport diagnostic; no native agent or export of Keystore keys.
     implementation("com.github.mwiede:jsch:2.28.8")
+    implementation("org.eclipse.jgit:org.eclipse.jgit:6.10.1.202505221210-r")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -51,14 +51,14 @@ internal object CloudSshProbe {
         override fun clear() = Unit
     }
 
-    suspend fun check(port: Int): String = withContext(Dispatchers.IO) {
+    internal fun openSession(port: Int, pair: java.security.KeyPair? = null): com.jcraft.jsch.Session {
         require(port == 22 || port == 443)
         val host = if (port == 443) "ssh.github.com" else "github.com"
         val knownHost = if (port == 443) "[ssh.github.com]:443" else "github.com"
         val jsch = JSch()
         // GitHub official ECDSA key. On a legitimate rotation, fail closed until app update.
         jsch.setKnownHosts(ByteArrayInputStream("$knownHost ${CloudSshWire.ALGORITHM} $HOST_KEY\n".toByteArray(Charsets.US_ASCII)))
-        jsch.addIdentity(KeyIdentity(keys()), null)
+        jsch.addIdentity(KeyIdentity(if (pair == null) keys() else Keys(pair.public as ECPublicKey, pair.private)), null)
         val session = jsch.getSession("git", host, port)
         try {
             session.setConfig("StrictHostKeyChecking", "yes")
@@ -86,6 +86,16 @@ internal object CloudSshProbe {
                 }
                 throw CloudAdminException(reason)
             }
+            return session
+        } catch (e: Exception) {
+            session.disconnect()
+            throw e
+        }
+    }
+
+    suspend fun check(port: Int, registeredDevice: Boolean = false): String = withContext(Dispatchers.IO) {
+        val session = openSession(port, if (registeredDevice) CloudDeviceIdentity.keyPair() else null)
+        try {
             val channel = session.openChannel("exec") as ChannelExec
             try {
                 channel.setCommand("git-upload-pack 'minemax777702/app-cloud.git'")

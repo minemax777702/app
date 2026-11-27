@@ -27,3 +27,9 @@
 -dontwarn org.apache.logging.log4j.**
 -dontwarn org.slf4j.**
 -dontwarn java.lang.foreign.**
+
+# JGit uses service descriptors and optional non-Android platform integrations.
+-keep class org.eclipse.jgit.internal.storage.file.FileRepository { *; }
+-dontwarn java.lang.management.**
+-dontwarn javax.management.**
+-dontwarn org.ietf.jgss.**

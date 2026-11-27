@@ -46,6 +46,7 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     var deviceRequest by remember(admin) { mutableStateOf<CloudDeviceRequest?>(null) }
     var deviceUser by remember(admin) { mutableStateOf<String?>(null) }
     var confirmedFingerprint by remember(admin) { mutableStateOf(false) }
+    var accessStatus by remember(admin) { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var groupEditing by remember(admin) { mutableStateOf(false) }
     var selectedGroup by remember(admin) { mutableStateOf<CloudGroupDraft?>(null) }
 
@@ -76,6 +77,25 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             catch (e: CancellationException) { throw e }
             catch (e: CloudAdminException) { loaded = null; error = e.message }
             catch (_: Exception) { loaded = null; error = "Запись не подтверждена. Обновите реестр перед повторной попыткой." }
+            finally { busy = false }
+        }
+    }
+
+    fun access(device: com.mok.buylist.cloud.CloudDeviceDraft, enable: Boolean) {
+        if (busy || loaded == null) return
+        busy = true
+        error = null
+        scope.launch {
+            try {
+                // Re-read the registry before granting access; do not act on a stale UI row.
+                val current = store.load(admin)
+                val verified = current.registry.devices.single { it.fingerprint == device.fingerprint }
+                if (enable) admin.activateDeviceReadOnly(verified) else admin.deactivateDevice(verified)
+                accessStatus = accessStatus + (device.fingerprint to admin.deviceAccess(verified))
+                loaded = current
+            } catch (e: CancellationException) { throw e }
+            catch (e: CloudAdminException) { error = e.message }
+            catch (_: Exception) { error = "Не удалось подтвердить изменение SSH-ключа. Проверьте права токена и обновите статус." }
             finally { busy = false }
         }
     }
@@ -135,14 +155,33 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             FreshCutSecondaryButton("Сканировать QR устройства", {
                 scanningDevice = true
             }, enabled = !busy && current.registry.users.any { !it.archived } && devices.size < CloudUserRegistry.MAX_DEVICES)
-            Text("Регистрация открытого ключа не выдаёт доступ к GitHub.", color = p.textSecondary, fontSize = 14.sp)
+            Text("После регистрации можно выдать устройству SSH-доступ для чтения. Доступ к покупкам потребует отдельного ключа пространства.", color = p.textSecondary, fontSize = 14.sp)
             devices.forEach { device ->
                 val owner = current.registry.users.firstOrNull { it.id == device.userId }?.name.orEmpty()
                 FreshCutListRow(R.drawable.ic_scan_barcode, owner,
                     if (device.revoked) "Отозвано" else "Ожидает активации", showChevron = false)
                 Text(device.fingerprint.chunked(8).joinToString(" "), color = p.textSecondary, fontSize = 12.sp)
+                val active = accessStatus[device.fingerprint]
+                if (!device.revoked && active != true) FreshCutSecondaryButton("Разрешить SSH-чтение", {
+                    access(device, true)
+                }, enabled = !busy)
+                FreshCutSecondaryButton("Отключить SSH-доступ", { access(device, false) }, enabled = !busy)
+                if (active == true) Text("SSH-ключ зарегистрирован", color = p.textSecondary, fontSize = 12.sp)
                 if (!device.revoked) FreshCutSecondaryButton("Отозвать регистрацию", {
-                    change { it.registry.revokeDevice(device.fingerprint) }
+                    if (!busy) {
+                        busy = true
+                        scope.launch {
+                            try {
+                                val latest = store.load(admin)
+                                val verified = latest.registry.devices.single { it.fingerprint == device.fingerprint }
+                                admin.deactivateDevice(verified)
+                                loaded = store.save(admin, latest, latest.registry.revokeDevice(verified.fingerprint))
+                                accessStatus = accessStatus + (device.fingerprint to false)
+                            } catch (e: CancellationException) { throw e }
+                            catch (_: Exception) { loaded = null; error = "Отзыв не подтверждён. Обновите реестр и повторите." }
+                            finally { busy = false }
+                        }
+                    }
                 }, enabled = !busy)
             }
         }
