@@ -76,6 +76,7 @@ fun StatsScreen(
     onBack: () -> Unit,
     viewModel: ShoppingViewModel,
     navigation: @Composable () -> Unit = {},
+    listPicker: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val buyers = remember(archive, bought, users) {
@@ -132,6 +133,7 @@ fun StatsScreen(
         FreshCutRootHeader("ВАШИ ПОКУПКИ", stringResource(R.string.stats_title), "Расходы и привычки") {
             FreshCutToolbarAction(R.drawable.ic_history, "История покупок", { showHistory = true })
         }
+        listPicker()
         if (filterOpen) {
             var draftPeriod by remember { mutableStateOf(period) }
             var draftUser by remember { mutableStateOf(userId) }

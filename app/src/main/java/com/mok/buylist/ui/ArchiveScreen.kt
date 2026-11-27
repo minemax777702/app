@@ -91,6 +91,7 @@ fun ArchiveScreen(
     initiallyExpandedId: Long? = null,
     viewModel: ShoppingViewModel,
     navigation: @Composable () -> Unit = {},
+    listPicker: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
@@ -123,6 +124,7 @@ fun ArchiveScreen(
                 HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
             }
         }
+        if (initiallyExpandedId == null) listPicker()
         if (archive.isEmpty()) {
             EmptyArchive(Modifier.weight(1f))
         } else {

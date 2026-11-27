@@ -19,7 +19,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @Composable
-internal fun SupabasePanel() {
+internal fun SupabasePanel(authOnly: Boolean = false) {
     val p = LocalPalette.current
     val app = LocalContext.current.applicationContext as ShoppingApp
     val cloud = app.cloud
@@ -27,6 +27,7 @@ internal fun SupabasePanel() {
     val signedIn by cloud.signedIn.collectAsStateWithLifecycle()
     val workspace by cloud.workspace.collectAsStateWithLifecycle()
     val status by cloud.status.collectAsStateWithLifecycle()
+    val pendingCount by cloud.pendingCount.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -41,7 +42,8 @@ internal fun SupabasePanel() {
     var groupSheet by remember { mutableStateOf(false) }
     var person by remember { mutableStateOf<CloudPerson?>(null) }
     var editName by remember { mutableStateOf(false) }
-    var confirmImport by remember { mutableStateOf(false) }
+    var createUser by remember { mutableStateOf(false) }
+    var newListGroup by remember { mutableStateOf<String?>(null) }
     var deletion by remember { mutableStateOf<Pair<String, suspend () -> Unit>?>(null) }
     fun perform(action: suspend () -> Unit) {
         if (busy) return
@@ -78,6 +80,7 @@ internal fun SupabasePanel() {
         }
         return
     }
+    if (authOnly) return
     val me = directory.me
     if (me == null) {
         Text(status ?: "Загрузка…", color=p.textSecondary,fontSize=14.sp)
@@ -88,37 +91,36 @@ internal fun SupabasePanel() {
     Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
         FreshCutListRow(R.drawable.ic_user_round, me.name, if(me.admin) "Администратор" else "Пользователь",
             onClick={ if(!busy) editName=true })
-        status?.let {
-            Text(it,color=p.textSecondary,fontSize=13.sp)
-            FreshCutSecondaryButton("Повторить", { perform { cloud.refresh() } }, enabled = !busy)
-        }
-        FreshCutTabs(listOf("Списки","Группы","Пользователи"),tab,{ tab=it })
-        when(tab) {
+        if (pendingCount > 0) Text("Ожидают синхронизации: $pendingCount",color=p.textSecondary,fontSize=13.sp)
+        status?.let { Text(it,color=p.textSecondary,fontSize=13.sp) }
+        val tabs = if(me.admin) listOf("Списки","Группы","Пользователи") else listOf("Списки","Группы")
+        FreshCutTabs(tabs,tab.coerceAtMost(tabs.lastIndex),{ tab=it })
+        when(tab.coerceAtMost(tabs.lastIndex)) {
             0 -> {
-                FreshCutListRow(R.drawable.ic_archive,"На телефоне",selected=workspace==null,onClick={ perform { cloud.select(null) } })
-                directory.lists.forEach { row ->
+                directory.lists.filter{it.group==null}.forEach { row ->
                     FreshCutListRow(R.drawable.ic_list_check,row.name,
-                        if(row.group==null) "Личный" else directory.groups.firstOrNull{it.id==row.group}?.name.orEmpty(),
-                        selected=workspace?.listId==row.id, onClick={ perform { cloud.select(row.id) } },
-                        trailing=if(directory.manages(row)) {{ androidx.compose.material3.TextButton(onClick={ editingList=row;listSheet=true },enabled=!busy){Text("Изм.")} }} else null)
+                        selected=workspace?.listId==row.id,showChevron=false,
+                        onClick={ editingList=row;newListGroup=null;listSheet=true })
                 }
-                FreshCutSecondaryButton("Создать список",{ editingList=null;listSheet=true },enabled=!busy)
-                if(workspace!=null && directory.lists.any{it.id==workspace?.listId && it.owner==me.id})
-                    FreshCutSecondaryButton("Перенести покупки с телефона",{confirmImport=true},enabled=!busy)
+                FreshCutSecondaryButton("Создать список",{ editingList=null;newListGroup=null;listSheet=true },enabled=!busy)
             }
             1 -> {
                 directory.groups.forEach { group ->
-                    FreshCutListRow(R.drawable.ic_group,group.name,"Участников: "+(directory.members.count{it.group==group.id && it.user!=group.owner}+1),
+                    FreshCutListRow(R.drawable.ic_group,group.name,
+                        "${directory.lists.count{it.group==group.id}} списков · ${directory.members.count{it.group==group.id && it.user!=group.owner}+1} участников",
                         onClick={ editingGroup=group;groupSheet=true })
                 }
                 FreshCutSecondaryButton("Создать группу",{editingGroup=null;groupSheet=true},enabled=!busy)
             }
-            else -> directory.people.forEach { row ->
-                FreshCutListRow(R.drawable.ic_user_round,row.name,when {
-                    !row.active -> "Отключён"
-                    row.admin -> "Администратор"
-                    else -> "Пользователь"
-                },showChevron=me.admin && me.id!=row.id,onClick=if(me.admin && me.id!=row.id) {{person=row}} else null)
+            else -> {
+                directory.people.forEach { row ->
+                    FreshCutListRow(R.drawable.ic_user_round,row.name,when {
+                        !row.active -> "Отключён"
+                        row.admin -> "Администратор"
+                        else -> "Пользователь"
+                    },showChevron=me.id!=row.id,onClick=if(me.id!=row.id) {{person=row}} else null)
+                }
+                FreshCutSecondaryButton("Создать пользователя",{createUser=true},enabled=!busy)
             }
         }
         message?.let { Text(it,color=p.error,fontSize=13.sp) }
@@ -134,13 +136,13 @@ internal fun SupabasePanel() {
     if(listSheet) {
         val row=editingList
         var title by remember(row){mutableStateOf(row?.name.orEmpty())}
-        var group by remember(row){mutableStateOf(row?.group)}
+        var group by remember(row,newListGroup){mutableStateOf(row?.group ?: newListGroup)}
         AppSheet(onDismissRequest={listSheet=false},containerColor=p.sheet,title={SheetHeader(if(row==null)"Новый список" else "Список")},text={
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
                 SheetTextField(title,{title=it.take(100)},"Название")
                 if(row==null){
-                    FreshCutListRow(R.drawable.ic_user_round,"Личный",selected=group==null,onClick={group=null})
-                    directory.groups.filter{it.owner==me.id}.forEach{g->FreshCutListRow(R.drawable.ic_group,g.name,selected=group==g.id,onClick={group=g.id})}
+                    FreshCutListRow(R.drawable.ic_user_round,"Личный",selected=group==null,showChevron=false,onClick={group=null})
+                    directory.groups.filter{directory.participates(it)}.forEach{g->FreshCutListRow(R.drawable.ic_group,g.name,selected=group==g.id,showChevron=false,onClick={group=g.id})}
                 }else FreshCutSecondaryButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id) }},enabled=!busy)
             }
         },confirmButton={SheetActionButton(onClick={listSheet=false;perform{cloud.saveList(row?.id,title,group)}},enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
@@ -153,12 +155,20 @@ internal fun SupabasePanel() {
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
                 if(manage) SheetTextField(title,{title=it.take(100)},"Название")
                 if(row!=null) {
+                    if(directory.participates(row)) {
+                        FreshCutSectionTitle("Списки")
+                        directory.lists.filter{it.group==row.id}.forEach{item ->
+                            FreshCutListRow(R.drawable.ic_list_check,item.name,selected=workspace?.listId==item.id,showChevron=false,
+                                onClick={groupSheet=false;editingList=item;newListGroup=row.id;listSheet=true})
+                        }
+                        FreshCutSecondaryButton("Создать список",{groupSheet=false;editingList=null;newListGroup=row.id;listSheet=true},enabled=!busy)
+                    }
                     FreshCutSectionTitle("Участники")
                     directory.people.filter{it.active}.forEach{user->
                         val owner=user.id==row.owner
                         val member=owner || directory.members.any{it.group==row.id && it.user==user.id}
                         if(manage || member) FreshCutListRow(R.drawable.ic_user_round,user.name,if(owner)"Владелец" else if(member)"Участник" else "",
-                            selected=member,showChevron=manage && !owner,onClick=if(manage && !owner) {{perform{cloud.member(row.id,user.id,!member)}}} else null)
+                            selected=member,showChevron=false,onClick=if(manage && !owner) {{perform{cloud.member(row.id,user.id,!member)}}} else null)
                     }
                     if(manage) FreshCutSecondaryButton("Удалить группу",{groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id)}},enabled=!busy)
                 }
@@ -166,22 +176,47 @@ internal fun SupabasePanel() {
         },confirmButton={if(manage)SheetActionButton(onClick={groupSheet=false;perform{cloud.saveGroup(row?.id,title)}},enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
     }
     person?.let{row->
+        var personName by remember(row){mutableStateOf(row.name)}
         var admin by remember(row){mutableStateOf(row.admin)}
         var active by remember(row){mutableStateOf(row.active)}
         AppSheet(onDismissRequest={person=null},containerColor=p.sheet,title={SheetHeader(row.name)},text={
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
-                FreshCutListRow(R.drawable.ic_user_round,"Пользователь",selected=!admin,onClick={admin=false})
-                FreshCutListRow(R.drawable.ic_user_round,"Администратор",selected=admin,onClick={admin=true})
+                SheetTextField(personName,{personName=it.take(50)},"Имя")
+                FreshCutListRow(R.drawable.ic_user_round,"Пользователь",selected=!admin,showChevron=false,onClick={admin=false})
+                FreshCutListRow(R.drawable.ic_user_round,"Администратор",selected=admin,showChevron=false,onClick={admin=true})
                 FreshCutSecondaryButton(if(active)"Отключить доступ" else "Восстановить доступ",{active=!active})
+                if(row.active) {
+                    FreshCutSectionTitle("Группы")
+                    directory.groups.filter{directory.manages(it)}.forEach{g ->
+                        val owner=g.owner==row.id
+                        val included=owner || directory.members.any{it.group==g.id && it.user==row.id}
+                        FreshCutListRow(R.drawable.ic_group,g.name,selected=included,showChevron=false,
+                            onClick=if(owner)null else {{perform{cloud.member(g.id,row.id,!included)}}})
+                    }
+                }
             }
-        },confirmButton={SheetActionButton(onClick={person=null;perform{cloud.updatePerson(row.id,admin,active)}},enabled=!busy){Text("Сохранить")}})
+        },confirmButton={SheetActionButton(onClick={person=null;perform{cloud.updatePerson(row.id,personName,admin,active)}},enabled=!busy){Text("Сохранить")}})
     }
     deletion?.let{(title,action)->
         AppSheet(onDismissRequest={deletion=null},containerColor=p.sheet,title={SheetHeader(title)},text={
             Text("Покупки на телефоне сохранятся",color=p.textSecondary,fontSize=14.sp)
         },confirmButton={SheetActionButton(onClick={deletion=null;perform(action)},destructive=true,enabled=!busy){Text("Удалить")}})
     }
-    if(confirmImport) AppSheet(onDismissRequest={confirmImport=false},containerColor=p.sheet,title={SheetHeader("Перенести покупки?")},text={
-        Text("Покупки и архив с телефона будут добавлены в личный список",color=p.textSecondary,fontSize=14.sp)
-    },confirmButton={SheetActionButton(onClick={confirmImport=false;perform{cloud.importLocal(app.localRepository)}},enabled=!busy){Text("Перенести")}})
+    if(createUser) {
+        var newName by remember { mutableStateOf("") }
+        var newEmail by remember { mutableStateOf("") }
+        var newPassword by remember { mutableStateOf("") }
+        AppSheet(onDismissRequest={if(!busy)createUser=false},containerColor=p.sheet,title={SheetHeader("Новый пользователь")},text={
+            Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                SheetTextField(newName,{newName=it.take(50)},"Имя")
+                SheetTextField(newEmail,{newEmail=it.take(254)},"Электронная почта",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))
+                SheetTextField(newPassword,{newPassword=it.take(128)},"Пароль",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),visualTransformation=PasswordVisualTransformation())
+                message?.let{Text(it,color=p.error,fontSize=13.sp)}
+            }
+        },confirmButton={SheetActionButton(onClick={perform{
+            val sent=cloud.createPerson(newName,newEmail,newPassword)
+            newPassword="";createUser=false
+            message=if(sent)"Пользователь создан" else "Пользователь создан. Письмо подтверждения не отправлено"
+        }},enabled=!busy && newName.isNotBlank() && newEmail.contains('@') && newPassword.length>=8){Text(if(busy)"Создание…" else "Создать")}})
+    }
 }

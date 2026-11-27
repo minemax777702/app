@@ -91,6 +91,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val scope = rememberCoroutineScope()
     val app = context.applicationContext as com.mok.buylist.ShoppingApp
     val workspace by app.cloud.workspace.collectAsStateWithLifecycle()
+    val signedIn by app.cloud.signedIn.collectAsStateWithLifecycle()
     val controller = remember { SyncController(app.localRepository, scope) }
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as? MainActivity
@@ -152,8 +153,8 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             when (page) {
                 "cloud" -> SupabasePanel()
                 else -> {
-                    if (profile != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
-                        .clickable(role = Role.Button, onClick = onRename).padding(16.dp),
+                    if (signedIn && profile != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
+                        .clickable(role = Role.Button, onClick = { page = "cloud" }).padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(p.field),
                             contentAlignment = Alignment.Center) {
@@ -163,8 +164,9 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                             Text(profile.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                             Text("Личный профиль", color = p.textSecondary, fontSize = 13.sp)
                         }
-                        Icon(painterResource(R.drawable.ic_chevron_down), "Изменить имя", Modifier.size(24.dp).rotate(-90f), tint = p.text)
+                        Icon(painterResource(R.drawable.ic_chevron_down), "Аккаунт", Modifier.size(24.dp).rotate(-90f), tint = p.text)
                     }
+                    if (!signedIn) FreshCutSecondaryButton("Войти или зарегистрироваться",{page="cloud"})
                     FreshCutSectionTitle("Приложение", Modifier.padding(top = 8.dp))
                     ProfileMenuRow(R.drawable.ic_sun, "Оформление", when (themeMode) {
                         com.mok.buylist.ui.theme.ThemeMode.AUTO -> "Системная тема"
@@ -176,7 +178,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
                         "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
-                    ProfileMenuRow(R.drawable.ic_sync, "Облако", "Пользователи, списки и группы", { page = "cloud" })
+                    if (signedIn) ProfileMenuRow(R.drawable.ic_group, "Списки и группы", "", { page = "cloud" })
                     if (workspace == null) ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }
             }

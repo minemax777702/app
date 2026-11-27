@@ -124,7 +124,8 @@ import kotlin.math.roundToInt
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
+fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestination: String = "LIST",
+    onDestinationChange: (String) -> Unit = {}, listPicker: @Composable () -> Unit = {}) {
     val context = LocalContext.current
     val themeSettings = context.themeSettings
     val p = LocalPalette.current
@@ -190,10 +191,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var scanLookup by remember { mutableStateOf<String?>(null) }
     var pendingWeight by remember { mutableStateOf<Pair<String, LentaProduct>?>(null) }
     var showTheme by rememberSaveable { mutableStateOf(false) }
-    var showArchive by rememberSaveable { mutableStateOf(false) }
-    var showStats by rememberSaveable { mutableStateOf(false) }
-    var showSettings by rememberSaveable { mutableStateOf(false) }
-    var settingsTab by rememberSaveable { mutableIntStateOf(0) }
+    var showArchive by rememberSaveable { mutableStateOf(initialDestination == "ARCHIVE") }
+    var showStats by rememberSaveable { mutableStateOf(initialDestination == "STATS") }
+    var showSettings by rememberSaveable { mutableStateOf(initialDestination == "CATALOG" || initialDestination == "PROFILE") }
+    var settingsTab by rememberSaveable { mutableIntStateOf(if(initialDestination == "PROFILE") 1 else 0) }
     var addressRequest by rememberSaveable { mutableIntStateOf(0) }
     var renaming by rememberSaveable { mutableStateOf(false) }
     var detailsRow by remember { mutableStateOf<ListRow?>(null) }
@@ -221,6 +222,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         showStats -> FreshCutDestination.STATS
         else -> FreshCutDestination.LIST
     }
+    LaunchedEffect(destination) { onDestinationChange(destination.name) }
     val screenStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     Column(Modifier.fillMaxSize().background(p.background)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -250,6 +252,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 onFinish = viewModel::finishTrip,
 
             )
+            listPicker()
             // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
             Crossfade(
                 targetState = visibleRows?.isEmpty(),
@@ -343,6 +346,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 users = users,
                 meId = profile?.id.orEmpty(),
                 viewModel = viewModel,
+                listPicker = listPicker,
             )
         }
 
@@ -373,6 +377,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 meId = profile?.id.orEmpty(),
                 onBack = { showStats = false },
                 viewModel = viewModel,
+                listPicker = listPicker,
             )
         }
             }
@@ -381,10 +386,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp))
     }
 
-    // Первый запуск: без имени дальше не пускаем — нужен идентификатор, которым подписываются все действия.
-    if (profile == null) {
-        ProfileDialog(initialName = "", required = true, onSave = viewModel::saveProfile, onDismiss = {})
-    } else if (renaming) {
+    if (renaming) {
         ProfileDialog(
             initialName = profile?.name.orEmpty(),
             required = false,

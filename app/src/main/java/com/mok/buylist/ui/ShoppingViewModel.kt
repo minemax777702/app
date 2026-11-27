@@ -192,6 +192,7 @@ class ShoppingViewModel internal constructor(application: Application, workspace
         // Приложение могли закрыть сразу после последней покупки (или купить последнее в виджете):
         // дооформляем список — переносим в архив.
         viewModelScope.launch {
+            if (workspaceNamespace.isEmpty() && app.localProfile.profile.value == null) repository.saveProfile("На телефоне")
             repository.claimLegacyData()
         }
     }

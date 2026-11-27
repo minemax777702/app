@@ -44,8 +44,8 @@ internal data class CloudDirectory(
     val members: List<CloudMember> = emptyList(),
 ) {
     fun manages(group: CloudGroup) = me?.let { it.id == group.owner || it.admin } == true
-    fun manages(list: CloudList) = list.owner == me?.id && me != null ||
-        groups.any { it.id == list.group && it.owner == me?.id }
+    fun participates(group: CloudGroup) = me?.let { person -> group.owner == person.id || members.any { it.group == group.id && it.user == person.id } } == true
+    fun manages(list: CloudList) = me != null && (list.owner == me.id || groups.any { it.id == list.group && participates(it) })
 }
 internal data class CloudWorkspace(val namespace: String, val userId: String, val listId: String,
     val db: AppDatabase, val profile: UserProfile, val repository: ShoppingRepository, val catalog: LentaCatalog,
@@ -82,7 +82,8 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     } else null
     private fun api() = checkNotNull(client) { "Облако не настроено" }
     private val prefs = context.getSharedPreferences("buylist_supabase", Context.MODE_PRIVATE)
-    private val mutex = Mutex()
+    private val mutex = Mutex() // local cache and pending mutations; no network calls under this lock
+    private val refreshMutex = Mutex()
     private val signals = Channel<Unit>(Channel.CONFLATED)
     private val caches = mutableMapOf<String, CloudWorkspace>()
     private val _directory = MutableStateFlow(CloudDirectory())
@@ -93,7 +94,9 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     val signedIn = _signedIn.asStateFlow()
     private val _status = MutableStateFlow<String?>(null)
     val status = _status.asStateFlow()
-    private var account: String? = null
+    @Volatile private var account: String? = null
+    private val _pendingCount = MutableStateFlow(0)
+    val pendingCount = _pendingCount.asStateFlow()
 
     private fun reportFailure(stage: String, error: Throwable) {
         // Keep exception types and stack frames for diagnosis, but never log request URLs, tokens or data.
@@ -112,6 +115,15 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
 
     init {
         if (client != null) scope.launch {
+            // A previously authenticated account may open its own persisted cache immediately.
+            mutex.withLock {
+                prefs.getString("last_account", null)?.let { id ->
+                    account = id
+                    restoreDirectory(id)
+                    _signedIn.value = _directory.value.me != null
+                    if (_signedIn.value) _status.value = "Офлайн"
+                }
+            }
             client.auth.sessionStatus.collect { state ->
                 when (state) {
                     is SessionStatus.Authenticated -> {
@@ -123,11 +135,13 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                                 _directory.value = CloudDirectory()
                                 restoreDirectory(id)
                             }
+                            prefs.edit().putString("last_account", id).apply()
                             _signedIn.value = true
                         }
                         signal()
                     }
                     is SessionStatus.NotAuthenticated -> mutex.withLock {
+                        prefs.edit().remove("last_account").apply()
                         resetWorkspace(); account = null; _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
                         updateWidget()
                     }
@@ -197,11 +211,15 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     }
 
     suspend fun signOut() {
-        api().auth.signOut()
+        // Do not wait for connectivity to leave an account on this device.
         mutex.withLock {
-            resetWorkspace(); account = null; _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
-            updateWidget()
+            prefs.edit().remove("last_account").commit()
+            account = null
+            resetWorkspace(); _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
+            _pendingCount.value = 0
         }
+        api().auth.clearSession()
+        updateWidget()
     }
     private suspend fun resetWorkspace() {
         publishWorkspace(null)
@@ -242,13 +260,13 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         try {
             val json = Json.parseToJsonElement(saved).jsonObject
             fun get(key: String) = json.getValue(key).jsonArray.map { it.jsonObject }
-            val directory = decodeDirectory(uid, get("profiles"),get("groups"),get("lists"),get("members"))
+            val directory = withPending(uid, decodeDirectory(uid, get("profiles"),get("groups"),get("lists"),get("members")))
             val me = directory.me ?: return
             _directory.value = directory
             val id = prefs.getString("selected_$uid", null)
-            val selected = if (id == "local") null else directory.lists.firstOrNull { it.id == id }
-                ?: directory.lists.firstOrNull { it.owner == uid }
-            if (selected != null && context.getDatabasePath("cloud-${uid}-${selected.id}.db").exists()) {
+            val selected = directory.lists.firstOrNull { it.id == id }
+                ?: directory.lists.firstOrNull { it.owner == uid } ?: directory.lists.firstOrNull()
+            if (selected != null) {
                 publishWorkspace(open(me, selected, cachedOnly = true))
                 _status.value = "Офлайн"
                 updateWidget()
@@ -262,55 +280,92 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { throw IllegalStateException("Directory table: $table", e) }
     }
-    suspend fun refresh() = mutex.withLock {
+    private fun authenticated(uid: String): Boolean =
+        account == uid && api().auth.currentUserOrNull()?.id == uid
+
+    suspend fun refresh() = refreshMutex.withLock {
         val uid = account ?: return@withLock
+        if (!authenticated(uid)) { _status.value = "Офлайн"; return@withLock }
         try {
             val profiles = rows("profiles")
+            if (!authenticated(uid)) return@withLock
             if (profiles.none { it.string("id") == uid && it.flag("active") }) {
-                prefs.edit().remove("directory_$uid").apply()
-                resetWorkspace(); _directory.value = CloudDirectory(); _status.value = "Доступ отключён"
+                mutex.withLock {
+                    if (account != uid) return@withLock
+                    prefs.edit().remove("directory_$uid").remove("last_account").apply()
+                    resetWorkspace(); _directory.value = CloudDirectory(); _status.value = "Доступ отключён"
+                }
                 updateWidget()
                 return@withLock
             }
-            val person = profiles.first { it.string("id") == uid }.person()
-            // Keep account controls available even when a subsequent directory request fails.
-            _directory.value = _directory.value.copy(me = person, people = profiles.map { it.person() }.sortedBy { it.name })
+            // The queue is durable. A lost HTTP response is safe: created rows have client UUIDs.
+            var pendingError: Exception? = null
+            try { flushPending(uid) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { pendingError = e; reportFailure("pending CRUD", e) }
+            if (!authenticated(uid)) return@withLock
             val groups = rows("groups")
             val listRows = rows("shopping_lists")
             val members = rows("group_members")
-            val directory = decodeDirectory(uid, profiles, groups, listRows, members)
-            val me = requireNotNull(directory.me)
-            val lists = directory.lists
-            rememberDirectory(uid, profiles, groups, listRows, members)
-            _directory.value = directory
-            val preferred = prefs.getString("selected_$uid", null)
-            val selected = if (preferred == "local") null else lists.firstOrNull { it.id == preferred }
-                ?: lists.firstOrNull { it.owner == uid }
-            val allowed = lists.mapTo(HashSet()) { it.id }
-            if (_workspace.value?.listId?.let { it !in allowed } == true) {
-                publishWorkspace(null)
-                updateWidget()
+            val currentCaches = mutex.withLock {
+                if (!authenticated(uid)) return@withLock emptyList<CloudWorkspace>()
+                val directory = withPending(uid, decodeDirectory(uid, profiles, groups, listRows, members))
+                val me = requireNotNull(directory.me)
+                rememberDirectory(uid, profiles, groups, listRows, members)
+                _directory.value = directory
+                val preferred = prefs.getString("selected_$uid", null)
+                val selected = directory.lists.firstOrNull { it.id == preferred }
+                    ?: directory.lists.firstOrNull { it.owner == uid } ?: directory.lists.firstOrNull()
+                val allowed = directory.lists.mapTo(HashSet()) { it.id }
+                if (_workspace.value?.listId?.let { it !in allowed } == true) publishWorkspace(null)
+                caches.values.filter { it.userId != uid || it.listId !in allowed }.forEach {
+                    closeLater(it); caches.remove(it.namespace)
+                }
+                // Open Room without any network wait. Incoming data will be merged afterwards.
+                if (_workspace.value?.listId != selected?.id)
+                    publishWorkspace(selected?.let { open(me, it, cachedOnly = true) })
+                migrateGuest(me, directory)
+                caches.values.toList()
             }
-            caches.values.filter { it.userId != uid || it.listId !in allowed }.forEach {
-                closeLater(it); caches.remove(it.namespace)
-            }
-            if (_workspace.value?.listId != selected?.id) {
-                publishWorkspace(if (selected == null) null else open(me, selected))
-                updateWidget()
-            }
-            var ok = true
-            for (cache in caches.values.toList()) {
+            updateWidget()
+            val realLists = listRows.mapNotNull { it.string("id") }.toSet()
+            var ok = pendingError == null
+            for (cache in currentCaches) {
+                if (!authenticated(uid)) return@withLock
+                if (cache.listId !in realLists || !cache.job.isActive) continue
                 try {
-                    if (cache.profile.profile.value?.name != me.name) cache.repository.saveProfile(me.name)
+                    val person = _directory.value.me ?: break
+                    if (cache.profile.profile.value?.name != person.name) cache.repository.saveProfile(person.name)
                     sync(cache)
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { reportFailure("sync", e); ok = false }
                 catch (e: LinkageError) { reportFailure("sync linkage", e); ok = false }
             }
-            _status.value = if (ok) null else "Офлайн"
+            if (authenticated(uid) && ok) _status.value = null
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { reportFailure("refresh", e) }
         catch (e: LinkageError) { reportFailure("refresh linkage", e) }
+    }
+
+    /** Preserve the original offline database. Never transfer it to a different account. */
+    private suspend fun migrateGuest(me: CloudPerson, directory: CloudDirectory) {
+        val app = context.applicationContext as com.mok.buylist.ShoppingApp
+        val snapshot = app.localRepository.exportSnapshot()
+        if (snapshot.items.isEmpty() && snapshot.archives.isEmpty() && snapshot.products.isEmpty() &&
+            snapshot.customProducts.isEmpty() && snapshot.stores.isEmpty()) return
+        val bound = prefs.getString("guest_owner", null)
+        if (bound != null && bound != me.id) return
+        val hash = java.security.MessageDigest.getInstance("SHA-256").digest(SyncCodec.encode(snapshot))
+            .joinToString("") { "%02x".format(it.toInt() and 255) }
+        if (hash == prefs.getString("guest_hash", null)) return
+        val targetId = prefs.getString("guest_list", null)
+        val target = if (targetId == null) directory.lists.firstOrNull { it.owner == me.id }
+            else directory.lists.firstOrNull { it.id == targetId && it.owner == me.id }
+        if (target == null) return
+        check(prefs.edit().putString("guest_owner", me.id).putString("guest_list", target.id).commit())
+        val cache = open(me, target, cachedOnly = true)
+        cache.repository.applyRemote(snapshot)
+        check(prefs.edit().putString("guest_hash", hash).commit())
     }
 
     private suspend fun open(me: CloudPerson, list: CloudList, cachedOnly: Boolean = false): CloudWorkspace {
@@ -340,17 +395,16 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         }
     }
 
-    suspend fun select(listId: String?) = mutex.withLock {
-        val me = requireNotNull(_directory.value.me)
-        val next = if (listId == null) null else {
+    suspend fun select(listId: String?) {
+        mutex.withLock {
+            val me = requireNotNull(_directory.value.me)
             val list = _directory.value.lists.single { it.id == listId }
-            val exists = context.getDatabasePath("cloud-${me.id}-${list.id}.db").exists()
-            if (exists && status.value != null) open(me, list, cachedOnly = true) else open(me, list)
+            val next = open(me, list, cachedOnly = true)
+            check(prefs.edit().putString("selected_${me.id}", list.id).commit())
+            publishWorkspace(next)
         }
-        check(prefs.edit().putString("selected_${me.id}", listId ?: "local").commit())
-        publishWorkspace(next)
-        updateWidget()
         signal()
+        updateWidget()
     }
     private suspend fun updateWidget() {
         try { ShoppingWidget().updateAll(context) } catch (e: CancellationException) { throw e } catch (_: Exception) {}
@@ -358,6 +412,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
 
     private suspend fun sync(cache: CloudWorkspace) {
         repeat(4) {
+            check(authenticated(cache.userId) && cache.job.isActive)
             val row = api().from("list_states").select { filter { eq("list_id",cache.listId) } }.rows().single()
             val revision = row.getValue("revision").jsonPrimitive.long
             val encoded = row.string("payload").orEmpty()
@@ -368,6 +423,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             if (merged == SyncMerge.merge(remote, remote)) return
             val data = Base64.encodeToString(SyncCodec.encode(merged), Base64.NO_WRAP)
             require(data.length <= 8388608)
+            check(authenticated(cache.userId) && cache.job.isActive)
             val saved = api().from("list_states").update(body = buildJsonObject {
                 put("revision", revision+1); put("payload", data)
             }) { select(); filter { eq("list_id", cache.listId); eq("revision", revision) } }.rows()
@@ -378,47 +434,151 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
 
     private suspend fun update(table: String, id: String, values: JsonObject) {
         check(api().from(table).update(body = values) { select(); filter { eq("id", id) } }.rows().size == 1)
+    }
+
+    // Metadata mutations are written locally first. Never persist a password in this queue.
+    private fun pending(uid: String): List<JsonObject> =
+        prefs.getString("pending_$uid", null)?.let { Json.parseToJsonElement(it).jsonArray.map { row -> row.jsonObject } }.orEmpty()
+
+    private fun storePending(uid: String, rows: List<JsonObject>) {
+        check(prefs.edit().putString("pending_$uid", JsonArray(rows).toString()).commit())
+        _pendingCount.value = rows.size
+    }
+
+    private fun withPending(uid: String, initial: CloudDirectory): CloudDirectory {
+        val changes = pending(uid)
+        _pendingCount.value = changes.size
+        return changes.fold(initial) { dir, op -> project(dir, op) }
+    }
+
+    private fun project(dir: CloudDirectory, op: JsonObject): CloudDirectory {
+        val kind = op.string("kind")
+        val id = requireNotNull(op.string("id"))
+        val name = op.string("name").orEmpty()
+        return when(kind) {
+            "group_create" -> if (dir.groups.any { it.id == id }) dir else dir.copy(groups =
+                (dir.groups + CloudGroup(id, name, requireNotNull(dir.me).id)).sortedBy { it.name })
+            "group_rename" -> dir.copy(groups = dir.groups.map { if (it.id == id) it.copy(name = name) else it }.sortedBy { it.name })
+            "group_remove" -> dir.copy(groups = dir.groups.filterNot { it.id == id }, lists = dir.lists.filterNot { it.group == id },
+                members = dir.members.filterNot { it.group == id })
+            "list_create" -> if (dir.lists.any { it.id == id }) dir else {
+                val group = op.string("group")
+                if (group != null && dir.groups.none { it.id == group && dir.participates(it) }) dir
+                else dir.copy(lists = (dir.lists + CloudList(id, name, if (group == null) dir.me?.id else null, group, 0)).sortedBy { it.name })
+            }
+            "list_rename" -> dir.copy(lists = dir.lists.map { if (it.id == id) it.copy(name = name) else it }.sortedBy { it.name })
+            "list_remove" -> dir.copy(lists = dir.lists.filterNot { it.id == id })
+            "member" -> {
+                val user = requireNotNull(op.string("user"))
+                val members = dir.members.filterNot { it.group == id && it.user == user }
+                dir.copy(members = if (op.flag("active")) members + CloudMember(id,user) else members)
+            }
+            else -> error("Unknown pending operation")
+        }
+    }
+
+    private suspend fun enqueue(kind: String, id: String, name: String? = null, group: String? = null,
+                                user: String? = null, active: Boolean? = null) {
+        mutex.withLock {
+            val me = requireNotNull(directory.value.me)
+            check(account == me.id)
+            val op = buildJsonObject {
+                put("op", java.util.UUID.randomUUID().toString())
+                put("kind", kind); put("id", id)
+                name?.let { put("name", it) }; group?.let { put("group", it) }
+                user?.let { put("user", it) }; active?.let { put("active", it) }
+            }
+            val projected = project(directory.value, op)
+            storePending(me.id, pending(me.id) + op)
+            _directory.value = projected
+            if (_workspace.value?.listId?.let { current -> projected.lists.none { it.id == current } } == true) {
+                val selected = projected.lists.firstOrNull { it.owner == me.id } ?: projected.lists.firstOrNull()
+                publishWorkspace(selected?.let { open(me, it, cachedOnly = true) })
+            }
+        }
         signal()
     }
+
+    private suspend fun flushPending(uid: String) {
+        while (authenticated(uid)) {
+            val op = mutex.withLock { pending(uid).firstOrNull() } ?: return
+            val id = requireNotNull(op.string("id"))
+            val kind = requireNotNull(op.string("kind"))
+            val table = if (kind.startsWith("group_")) "groups" else "shopping_lists"
+            when (kind) {
+                "group_create", "list_create" -> {
+                    if (api().from(table).select { filter { eq("id", id) } }.rows().isEmpty()) {
+                        val values = buildJsonObject {
+                            put("id", id); put("name", requireNotNull(op.string("name")))
+                            if (kind == "list_create") {
+                                val group = op.string("group")
+                                if (group == null) put("owner_id",uid) else put("group_id",group)
+                            }
+                        }
+                        check(authenticated(uid))
+                        api().from(table).insert(body = JsonArray(listOf(values)))
+                    }
+                }
+                "group_rename", "list_rename" -> update(table,id,buildJsonObject { put("name",requireNotNull(op.string("name"))) })
+                "group_remove", "list_remove" -> {
+                    // An archived row may no longer be editable; recognize the completed operation on retry.
+                    val row = api().from(table).select { filter { eq("id",id) } }.rows().singleOrNull()
+                    if (row != null && !row.flag("archived")) update(table,id,buildJsonObject { put("archived",true) })
+                }
+                "member" -> {
+                    val user = requireNotNull(op.string("user"))
+                    val values = buildJsonObject { put("group_id",id); put("user_id",user); put("active",op.flag("active")) }
+                    val old = api().from("group_members").select { filter { eq("group_id",id); eq("user_id",user) } }.rows().singleOrNull()
+                    if (old == null) api().from("group_members").insert(body = JsonArray(listOf(values)))
+                    else if (old.flag("active") != op.flag("active"))
+                        check(api().from("group_members").update(body = buildJsonObject { put("active",op.flag("active")) }) {
+                            select(); filter { eq("group_id",id); eq("user_id",user) }
+                        }.rows().size == 1)
+                }
+                else -> error("Unknown pending operation")
+            }
+            mutex.withLock {
+                val rest = pending(uid).filterNot { it.string("op") == op.string("op") }
+                if (account == uid) storePending(uid, rest)
+                else check(prefs.edit().putString("pending_$uid",JsonArray(rest).toString()).commit())
+            }
+        }
+    }
+
     suspend fun renameSelf(name: String) {
-        update("profiles", requireNotNull(directory.value.me).id, buildJsonObject { put("display_name",name.trim().take(50)) })
-        refresh()
-    }
-    suspend fun updatePerson(id: String, admin: Boolean, active: Boolean) {
-        update("profiles",id,buildJsonObject { put("role",if (admin) "admin" else "user"); put("active",active) })
-        refresh()
-    }
-    suspend fun saveGroup(id: String?, name: String) {
-        val values = buildJsonObject { put("name",name.trim().take(100)) }
-        if (id == null) api().from("groups").insert(body = JsonArray(listOf(values))) else update("groups",id,values)
-        refresh()
-    }
-    suspend fun removeGroup(id: String) {
-        update("groups",id,buildJsonObject { put("archived",true) }); refresh()
-    }
-    suspend fun member(group: String, person: String, active: Boolean) {
-        val existing = api().from("group_members").select { filter { eq("group_id",group); eq("user_id",person) } }.rows()
-        if (existing.isEmpty()) {
-            api().from("group_members").insert(body = JsonArray(listOf(buildJsonObject { put("group_id",group); put("user_id",person); put("active",active) })))
-        } else check(api().from("group_members").update(body = buildJsonObject { put("active",active) }) {
-            select(); filter { eq("group_id",group); eq("user_id",person) }
-        }.rows().size == 1)
-        refresh()
-    }
-    suspend fun saveList(id: String?, name: String, group: String?) {
-        if (id == null) api().from("shopping_lists").insert(body = JsonArray(listOf(buildJsonObject {
-            put("name",name.trim().take(100))
-            if (group == null) put("owner_id",requireNotNull(directory.value.me).id) else put("group_id",group)
-        }))) else update("shopping_lists",id,buildJsonObject { put("name",name.trim().take(100)) })
-        refresh()
-    }
-    suspend fun removeList(id: String) {
-        update("shopping_lists",id,buildJsonObject { put("archived",true) }); refresh()
-    }
-    suspend fun importLocal(local: ShoppingRepository) = mutex.withLock {
-        val cache = requireNotNull(_workspace.value)
-        check(directory.value.lists.any { it.id == cache.listId && it.owner == cache.userId })
-        cache.repository.applyRemote(local.exportSnapshot())
+        val id = requireNotNull(directory.value.me).id
+        update("profiles", id, buildJsonObject { put("display_name",name.trim().take(50)) })
         signal()
     }
+    suspend fun updatePerson(id: String, name: String, admin: Boolean, active: Boolean) {
+        update("profiles",id,buildJsonObject { put("display_name",name.trim().take(50)); put("role",if (admin) "admin" else "user"); put("active",active) })
+        signal()
+    }
+    suspend fun createPerson(name: String, email: String, password: String): Boolean = withContext(Dispatchers.IO) {
+        check(directory.value.me?.admin == true)
+        val token = requireNotNull(api().auth.currentAccessTokenOrNull())
+        val connection = java.net.URL(BuildConfig.SUPABASE_URL + "/functions/v1/manage-users").openConnection() as java.net.HttpURLConnection
+        try {
+            connection.requestMethod = "POST"
+            connection.instanceFollowRedirects = false
+            connection.connectTimeout = 10000; connection.readTimeout = 20000
+            connection.doOutput = true
+            connection.setRequestProperty("apikey", BuildConfig.SUPABASE_KEY)
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.setRequestProperty("Content-Type", "application/json")
+            val payload = buildJsonObject { put("name",name.trim()); put("email",email.trim()); put("password",password) }.toString()
+            connection.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+            check(connection.responseCode == 201)
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            signal()
+            Json.parseToJsonElement(response).jsonObject.flag("confirmation_sent")
+        } finally { connection.disconnect() }
+    }
+    suspend fun saveGroup(id: String?, name: String) =
+        enqueue(if (id == null) "group_create" else "group_rename", id ?: java.util.UUID.randomUUID().toString(), name.trim().take(100))
+    suspend fun removeGroup(id: String) = enqueue("group_remove", id)
+    suspend fun member(group: String, person: String, active: Boolean) = enqueue("member", group, user = person, active = active)
+    suspend fun saveList(id: String?, name: String, group: String?) =
+        enqueue(if (id == null) "list_create" else "list_rename", id ?: java.util.UUID.randomUUID().toString(), name.trim().take(100), group)
+    suspend fun removeList(id: String) = enqueue("list_remove", id)
 }

@@ -26,3 +26,6 @@ Cloud diagnostics: `adb logcat -d -s BuyListCloud AndroidRuntime` (do not share 
 
 ## Release compatibility
 PostgREST responses are decoded directly as JSON arrays; CRUD sends concrete JSON rather than reflective generic serialization. Kotlin runtime resources are retained. Beta builds are signed but not minified; stable retains optimization. Realtime errors do not block REST access.
+
+## Groups and offline CRUD
+A group is a container, not a list. The deployed migration permits any active participant to create, rename, archive and edit shared lists, but group membership remains owner/admin managed. Admins cannot read private or shared shopping content without membership. Existing data is retained. Offline-created groups/lists use client UUIDs and persistent account-specific pending mutations; passwords are never queued. List selection opens Room immediately. Existing guest purchases are merged into the first authenticated account's personal list and bound to that account; the original guest database is preserved. Account creation, authentication and changing account roles require connectivity. The manage-users Edge Function creates accounts only after verifying a confirmed active administrator and sends email confirmation; the first admin must still be assigned via the dashboard.
