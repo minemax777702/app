@@ -16,6 +16,10 @@ val releaseStorePassword = signingValue("BUYLIST_STORE_PASSWORD")
 val releaseKeyAlias = signingValue("BUYLIST_KEY_ALIAS")
 val releaseKeyPassword = signingValue("BUYLIST_KEY_PASSWORD")
 
+val appVersion = providers.gradleProperty("buylist.version").get()
+val appVersionCode = providers.environmentVariable("BUYLIST_VERSION_CODE").orElse("3").map { it.toInt() }
+val appVersionName = providers.environmentVariable("BUYLIST_VERSION_NAME").orElse("$appVersion-beta.local")
+
 android {
     namespace = "com.mok.buylist"
     compileSdk {
@@ -26,8 +30,8 @@ android {
         applicationId = "com.mok.buylist"
         minSdk = 29
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = appVersionCode.get()
+        versionName = appVersionName.get()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
