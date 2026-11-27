@@ -34,7 +34,7 @@ private fun money(value: Long): String = NumberFormat.getNumberInstance(Locale.f
     .apply { minimumFractionDigits = 2; maximumFractionDigits = 2 }.format(BigDecimal.valueOf(value, 2)) + " ₽"
 
 @Composable
-internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, period: ExpensePeriod, stores: List<ShoppingStore> = emptyList(), onProductClick: (String) -> Unit, section: Int = 0, onPeriodChange: (ExpensePeriod) -> Unit) {
+internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, period: ExpensePeriod, closedTrips: List<com.mok.buylist.data.ArchivedList>, stores: List<ShoppingStore> = emptyList(), onProductClick: (String) -> Unit, section: Int = 0, onPeriodChange: (ExpensePeriod) -> Unit) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val today = remember { LocalDate.now(zone) }
@@ -44,7 +44,12 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     val selected = remember(mine, start, today) { mine.filter { !expenseDate(it, zone).isAfter(today) && (start == null || !expenseDate(it, zone).isBefore(start)) } }
     val allCoverage = remember(mine) { purchaseCoverage(mine) }
     val coverage = remember(selected) { purchaseCoverage(selected) }
-    val pricedTrips = selected.filter { it.total != null }.map { it.trip }.distinct().size
+    val closedIds = remember(closedTrips) { closedTrips.map { it.uid }.toSet() }
+    val closedPurchases = remember(mine, closedIds) { mine.filter { it.trip in closedIds } }
+    val closedByStore = remember(closedPurchases) { expenseByStore(closedPurchases).associateBy { it.id } }
+    val closedByProduct = remember(closedPurchases) { frequentProducts(closedPurchases).associateBy { it.key } }
+    val pricedClosed = remember(closedPurchases) { closedPurchases.filter { it.total != null } }
+    val pricedTrips = closedTripCount(pricedClosed)
     var storeLimit by rememberSaveable { mutableIntStateOf(5) }
     var productLimit by rememberSaveable { mutableIntStateOf(5) }
     var impulseLimit by rememberSaveable { mutableIntStateOf(3) }
@@ -53,7 +58,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Text(if (coverage.priced > 0) money(coverage.amount) else "—", color = p.text,
             fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold)
-        Text("${coverage.purchases} покупок", color = p.textSecondary, fontSize = 12.sp)
+        Text(tripCountLabel(closedTrips.size), color = p.textSecondary, fontSize = 12.sp)
         val first = start ?: selected.minOfOrNull { expenseDate(it, zone) } ?: today
         val length = (java.time.temporal.ChronoUnit.DAYS.between(first, today) + 1).coerceAtLeast(1L)
         val bucketCount = minOf(7L, length).toInt()
@@ -89,7 +94,6 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     if (section == 0 && coverage.purchases > 0) {
         FreshCutSectionTitle("Что купили", Modifier.padding(top = 8.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ExpenseMetric("Покупок", coverage.purchases.toString(), Modifier.weight(1f))
             ExpenseMetric("Товаров", coverage.distinctProducts.toString(), Modifier.weight(1f))
             ExpenseMetric("Единиц", coverage.units.toString(), Modifier.weight(1f))
         }
@@ -106,7 +110,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                 store.id == lentaStoreId() -> "Лента"
                 else -> stores.firstOrNull { it.id == store.id }?.name ?: "Другой магазин"
             }
-            FreshCutListRow(R.drawable.ic_store, title, "${store.events} покупок",
+            FreshCutListRow(R.drawable.ic_store, title, tripCountLabel(closedByStore[store.id]?.trips ?: 0),
                 value = if (store.priced > 0) money(store.total) else "—")
         }
         if (byStore.size > storeLimit) FreshCutSecondaryButton("Показать ещё", { storeLimit += 10 })
@@ -114,16 +118,19 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     if (section == 0) PanelCard {
         Text("Расходы подробнее", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
         FreshCutDetailLine("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—")
-        if (pricedTrips > 0) FreshCutDetailLine("Средний чек", money(coverage.amount / pricedTrips))
+        if (pricedTrips > 0) FreshCutDetailLine("Средний чек", money(expenseSum(pricedClosed) / pricedTrips))
     }
 
-    val topProducts = remember(selected) { frequentProducts(selected) }
+    val topProducts = remember(selected, closedByProduct) {
+        frequentProducts(selected).sortedWith(compareByDescending<FrequentProductSummary> { closedByProduct[it.key]?.trips ?: 0 }
+            .thenByDescending { it.units }.thenBy { it.name })
+    }
     if (section == 2) {
         FreshCutSectionTitle("Чаще всего покупаю")
         if (topProducts.isEmpty()) Text("Нет покупок за выбранный период", color = p.textSecondary)
         topProducts.take(productLimit).forEach { product ->
             FreshCutListRow(R.drawable.ic_package, product.name,
-                "${product.purchases} покупок · ${product.units} ед.",
+                "${tripCountLabel(closedByProduct[product.key]?.trips ?: 0)} · ${product.units} ед.",
                 value = product.knownTotal.takeIf { it > 0L }?.let(::money),
                 onClick = { onProductClick(product.key) })
         }
@@ -143,7 +150,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     if (section == 2 && impulsive.isNotEmpty()) PanelCard {
         Text("Импульсивные покупки", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
         val impulseCoverage = purchaseCoverage(impulsive)
-        Text(impulseCoverage.purchases.toString() + " покупок" +
+        Text("${impulseCoverage.units} ед." +
             if (impulseCoverage.priced > 0) " · " + money(impulseCoverage.amount) else "",
             color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         val date = DateTimeFormatter.ofPattern("dd.MM.yyyy")

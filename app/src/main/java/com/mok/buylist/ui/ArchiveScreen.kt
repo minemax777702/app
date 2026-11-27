@@ -51,7 +51,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -118,7 +117,7 @@ fun ArchiveScreen(
     }
     BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title), "Ваши завершённые покупки") {
+        FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title), tripCountLabel(archive.distinctBy { it.uid }.size)) {
             if (initiallyExpandedId != null) HeaderButton(R.drawable.ic_back, "Назад", onBack)
             if (archive.isNotEmpty() && onOpenStats != null) {
                 HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
@@ -273,12 +272,11 @@ private fun ArchiveCard(
     }
     val arrow = animateFloatAsState(if (expanded) 180f else 0f, Motion.smooth(), label = "archive-arrow")
     val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
-    val countLabel = pluralStringResource(R.plurals.archive_items, list.itemCount, list.itemCount)
     val amount = if (spent.known > 0) formatAmount(spent) else "—"
     if (!featured && !expanded) {
         Column(modifier) {
             FreshCutListRow(R.drawable.ic_archive, date,
-                (listOf(countLabel) + storeNames + listOfNotNull(listLabel)).joinToString(" · "),
+                (storeNames + listOfNotNull(listLabel)).joinToString(" · ").ifBlank { "Завершённый поход" },
                 value = amount, onClick = onToggle)
         }
         return
@@ -303,7 +301,6 @@ private fun ArchiveCard(
         }
         Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle)) {
             Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
-            Text(countLabel, color = p.textSecondary, fontSize = 12.sp)
         }
         if (expanded) {
             Column(Modifier.padding(top = 8.dp)) {

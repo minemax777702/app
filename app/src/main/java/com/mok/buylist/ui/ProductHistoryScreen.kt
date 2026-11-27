@@ -674,7 +674,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             }
             if (historyOpen) item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Покупок" to rows.size.toString(), "Интервал" to (interval?.let { "$it дн." } ?: "—")).forEach { (label, value) ->
+                    listOf("Походов" to closedTripCount(rows).toString(), "Интервал" to (interval?.let { "$it дн." } ?: "—")).forEach { (label, value) ->
                         Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(p.card).padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(value, color = p.text, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
@@ -744,7 +744,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 if (trips.isNotEmpty()) item {
                     HistoryCard {
                         Row(Modifier.fillMaxWidth().clickable { historyTripsExpanded = !historyTripsExpanded }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                            Text("Списки с товаром · ${trips.size}", Modifier.weight(1f), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Походы с товаром · ${trips.size}", Modifier.weight(1f), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                             Icon(painterResource(R.drawable.ic_chevron_down), if (historyTripsExpanded) "Свернуть" else "Раскрыть", Modifier.size(20.dp).rotate(if (historyTripsExpanded) 180f else 0f), tint = p.text)
                         }
                         if (historyTripsExpanded) {

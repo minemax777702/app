@@ -74,9 +74,30 @@ internal fun exactExpenseSum(purchases: List<ExpensePurchase>): Long? {
     return total
 }
 
+/** Closed lists are visits; the current open list is never a visit. */
+internal fun closedTripCount(rows: List<ExpensePurchase>): Int =
+    rows.asSequence().map { it.trip }.filter { it != "active" }.distinct().count()
+
+internal fun tripCountLabel(count: Int): String {
+    val suffix = when {
+        count % 100 in 11..14 -> "походов"
+        count % 10 == 1 -> "поход"
+        count % 10 in 2..4 -> "похода"
+        else -> "походов"
+    }
+    return "$count $suffix"
+}
+
+/** A visit belongs to the calendar period in which its list was closed. */
+internal fun closedTripsForPeriod(archive: List<ArchivedList>, start: LocalDate?, today: LocalDate, zone: ZoneId): List<ArchivedList> =
+    archive.filter { list ->
+        val day = Instant.ofEpochMilli(list.completedAt).atZone(zone).toLocalDate()
+        !day.isAfter(today) && (start == null || !day.isBefore(start))
+    }.distinctBy { it.uid }
+
 internal fun expenseProducts(purchases: List<ExpensePurchase>): List<ExpenseProduct> =
     purchases.groupBy { it.productKey }.map { (key, rows) ->
-        ExpenseProduct(key, rows.maxBy { it.at }.name, rows.map { it.trip }.distinct().size,
+        ExpenseProduct(key, rows.maxBy { it.at }.name, closedTripCount(rows),
             rows.sumOf { it.quantity.toLong() }, expenseSum(rows))
     }.sortedWith(compareByDescending<ExpenseProduct> { it.trips }.thenBy { it.name })
 

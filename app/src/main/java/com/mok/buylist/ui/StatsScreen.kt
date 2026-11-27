@@ -101,7 +101,7 @@ fun StatsScreen(
     val userId = selectedUser?.takeIf { id -> buyers.any { it.id == id } }
     val shownArchive = remember(archive, userId, period) {
         val byUser = if (userId == null) archive else filterByUser(archive, userId)
-        archiveForPeriod(byUser, periodStart(period, today), today, zone)
+        closedTripsForPeriod(byUser, periodStart(period, today), today, zone)
     }
     val stats = remember(shownArchive) { computeStats(shownArchive, System.currentTimeMillis(), ZoneId.systemDefault()) }
     // Столбики «вырастают» при открытии экрана: один раз, без повторов при прокрутке.
@@ -163,13 +163,12 @@ fun StatsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExpenseStatsPanel(purchases, userId, period, stores = stores,
+                    ExpenseStatsPanel(purchases, userId, period, closedTrips = shownArchive, stores = stores,
                         onProductClick = { selectedProduct = it }, section = section) { period = it }
                 } }
                 if (section == 0 && stats.lists > 0) item { Card {
                     Text(stringResource(R.string.stats_overview), color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberCard(stats.lists.toString(), stringResource(R.string.stats_lists), Modifier.weight(1f))
                         NumberCard(stats.items.toString(), stringResource(R.string.stats_items), Modifier.weight(1f))
                         NumberCard(stats.averageItems.toString(), stringResource(R.string.stats_average_label), Modifier.weight(1f))
                     }

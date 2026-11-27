@@ -13,6 +13,31 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 class ExpenseStatsTest {
+    @Test fun closedTripsCountDistinctListsNotProductsOrStores() {
+        val row = ExpensePurchase("a", "lenta:1", "Хлеб", "trip1", "u", 1, 2, 100, storeId = "store1")
+        val rows = listOf(row, row.copy(id = "b", storeId = "store2"),
+            row.copy(id = "c", trip = "trip2", unitPrice = null),
+            row.copy(id = "d", trip = "active", quantity = 5))
+        assertEquals(2, closedTripCount(rows))
+        assertEquals(11L, purchaseCoverage(rows).units)
+        assertEquals(2, frequentProducts(rows).single().trips)
+        assertEquals(2, expenseByStore(rows).first { it.id == "store1" }.trips)
+        assertEquals(0, closedTripCount(rows.filter { it.trip == "active" }))
+    }
+
+    @Test fun tripCountUsesClosureDateAndUniqueListId() {
+        val zone = ZoneId.of("Europe/Moscow")
+        val today = LocalDate.of(2026, 11, 27)
+        val time = today.atStartOfDay(zone).toInstant().toEpochMilli()
+        val list = ArchivedList(completedAt = time, itemCount = 1, items = "Хлеб")
+        val older = ArchivedList(completedAt = time - 86_400_000L, itemCount = 1, items = "Сыр")
+        assertEquals(1, closedTripsForPeriod(listOf(list, list, older), today, today, zone).size)
+        assertEquals("1 поход", tripCountLabel(1))
+        assertEquals("2 похода", tripCountLabel(2))
+        assertEquals("11 походов", tripCountLabel(11))
+        assertEquals("21 поход", tripCountLabel(21))
+    }
+
     @Test fun correctedArchivedPurchaseRetainsIdentityAndWinsAfterSync() {
         val item = ShoppingItem(name = "Яйца", customProductId = "uuid")
         val original = purchaseEvent(item, null, 500L, "buyer", priceOverride = 12900L)
