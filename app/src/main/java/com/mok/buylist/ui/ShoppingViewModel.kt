@@ -18,11 +18,6 @@ import com.mok.buylist.data.PricedLine
 import com.mok.buylist.data.ShoppingTotals
 import com.mok.buylist.data.calculateShoppingTotals
 import com.mok.buylist.data.decodePurchaseEvent
-import com.mok.buylist.data.plannedUnitPrice
-import com.mok.buylist.data.sharedCatalogIdentities
-import com.mok.buylist.data.LentaProduct
-import com.mok.buylist.data.StoreProduct
-import com.mok.buylist.data.StoredProductBarcode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -38,6 +33,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 enum class RowState {
     ACTIVE,
@@ -54,15 +50,24 @@ data class ListRow(val item: ShoppingItem, val state: RowState)
 /** Сколько куплено из всего текущего списка. */
 data class Progress(val bought: Int, val total: Int)
 
-data class BatchPriceRefresh(val completed: Int, val total: Int, val failed: Int, val running: Boolean)
-
-private data class PriceCatalogSnapshot(
-    val products: List<LentaProduct>,
-    val address: String,
-    val custom: List<CustomProduct>,
-    val offers: List<StoreProduct>,
-    val barcodes: List<StoredProductBarcode>,
-)
+data class BatchPriceRefresh(
+    val completed: Int, val total: Int, val failed: Int, val running: Boolean,
+    val missingBarcodes: Int = 0, val missingPrices: Int = 0,
+    val stopping: Boolean = false, val stopped: Boolean = false,
+    val addressChanged: Boolean = false,
+) {
+    internal fun summary(): String = buildList {
+        val updated = (completed - failed).coerceAtLeast(0)
+        add(when {
+            addressChanged -> "Обновление остановлено: адрес магазина изменился"
+            stopped -> "Обновление остановлено"
+            else -> "Данные каталога обновлены"
+        } + ": $updated из $total")
+        if (failed > 0) add("ошибок: $failed")
+        if (missingBarcodes > 0) add("без штрихкода: $missingBarcodes")
+        if (missingPrices > 0) add("без новой цены: $missingPrices")
+    }.joinToString(" · ")
+}
 
 /** Сколько миллисекунд после покупки или удаления на строке остаётся кнопка «Отменить». */
 private const val UNDO_WINDOW_MS = 1_500L
@@ -79,6 +84,22 @@ internal fun mergeRows(active: List<ShoppingItem>, recent: List<ListRow>): List<
 class ShoppingViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = application.repository
     private val lenta = application.lentaCatalog
+    private val journal = ActionJournal.get(application)
+    private val actionMutex = kotlinx.coroutines.sync.Mutex()
+    internal val actions = journal.entries
+    private val plannedPrefs = application.getSharedPreferences("planned_shopping_stores", android.content.Context.MODE_PRIVATE)
+    internal val plannedStores = MutableStateFlow(plannedPrefs.all.mapNotNull { (id, value) ->
+        (value as? String)?.let { id to it }
+    }.toMap())
+    internal data class CustomStoreRequest(val product: CustomProduct, val prices: List<ProductShopPrice>, val onResult: (Boolean) -> Unit)
+    internal val customStoreRequest = MutableStateFlow<CustomStoreRequest?>(null)
+
+    private fun rememberPlannedStore(itemId: String, storeId: String?) {
+        val updated = plannedStores.value.toMutableMap()
+        if (storeId == null) updated.remove(itemId) else updated[itemId] = storeId
+        plannedPrefs.edit().apply { if (storeId == null) remove(itemId) else putString(itemId, storeId) }.apply()
+        plannedStores.value = updated.toMap()
+    }
 
     private val activeItems: StateFlow<List<ShoppingItem>?> = repository.observeItems()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -97,7 +118,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
      * а прогресс пропадает (total = 0), вместо вечного «3 из 3».
      */
     val progress: StateFlow<Progress> = combine(activeItems, repository.observeBoughtCount(), recent) { active, bought, recent ->
-        if (active.isNullOrEmpty() && recent.isEmpty()) {
+        if (active.isNullOrEmpty() && bought == 0) {
             Progress(0, 0)
         } else {
             Progress(bought = bought, total = bought + (active?.size ?: 0))
@@ -123,26 +144,27 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     val bought: StateFlow<List<ShoppingItem>> = repository.observeBought()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    private val priceCatalog = combine(
-        lenta.products, lenta.address, repository.observeCustomProducts(),
-        repository.observeStoreProducts(), lenta.barcodeRows,
-    ) { products, address, custom, offers, barcodes ->
-        PriceCatalogSnapshot(products, address, custom, offers, barcodes)
+    private val priceInputs = combine(lenta.products, lenta.address, customProducts, customBarcodes, lenta.barcodeRows) { products, address, custom, customCodes, lentaCodes ->
+        Triple(products, address, com.mok.buylist.data.sharedCatalogIdentities(products, custom, lentaCodes, customCodes))
     }
+    // Re-evaluate undo availability on journal, item, tombstone or catalog identity changes.
+    internal val availableUndoIds: StateFlow<Set<String>> =
+        combine(actions, repository.observeAllItems(), repository.observeUndoTombstones(), priceInputs) { entries, _, _, _ ->
+            undoableRecentActions(entries).filter { action ->
+                repository.canUndoListAction(action.before, action.after, action.removedAt)
+            }.mapTo(HashSet<String>()) { it.id }.toSet()
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0), emptySet())
 
-    internal val totals: StateFlow<ShoppingTotals> = combine(
-        repository.observeAllItems(), priceCatalog, repository.observeCustomBarcodes(),
-    ) { items, catalog, customCodes ->
-        val aliases = sharedCatalogIdentities(
-            catalog.products, catalog.custom, catalog.barcodes, customCodes,
-        )
+    internal val totals: StateFlow<ShoppingTotals> = combine(repository.observeAllItems(), combine(priceInputs, plannedStores) { input, planned -> input to planned }, storeProducts, archive, customProducts) { items, inputAndPlan, links, history, custom ->
+        val (input, planned) = inputAndPlan
+        val (products, address, aliases) = input
+        val purchases = expensePurchases(history, items.filter { it.deleted })
         val lines = items.map { item ->
-            val event = if (item.deleted) decodePurchaseEvent(item.purchaseEvent) else null
-            val price = if (item.deleted) event?.unitPrice else plannedUnitPrice(
-                item, catalog.products, catalog.address, catalog.custom, catalog.offers, aliases,
-            )
-            PricedLine(item.quantity, item.deleted, price,
-                if (item.deleted) event?.weightGrams else item.weightGrams)
+            val key = if (item.customProductId.isNotBlank()) "custom:${item.customProductId}" else "lenta:${item.productId}"
+            val price = if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.unitPrice else
+                displayShopPrice(key, productShopPrices(key, emptyList(), links, purchases, aliases, products, address), planned[item.id])?.priceKopecks
+                    ?: custom.firstOrNull { it.id == item.customProductId }?.estimatedPriceKopecks
+            PricedLine(item.quantity, item.deleted, price, if (item.deleted) decodePurchaseEvent(item.purchaseEvent)?.weightGrams else item.weightGrams)
         }
         calculateShoppingTotals(lines)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), calculateShoppingTotals(emptyList()))
@@ -168,7 +190,6 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         // дооформляем список — переносим в архив.
         viewModelScope.launch {
             repository.claimLegacyData()
-            repository.finishTripIfDone()
         }
     }
 
@@ -181,25 +202,40 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         if (ids.isEmpty()) return
         val address = lenta.address.value
         if (address.isBlank()) {
-            batchPriceRefresh.value = BatchPriceRefresh(0, ids.size, ids.size, false)
+            batchPriceRefresh.value = BatchPriceRefresh(ids.size, ids.size, ids.size, false)
             return
         }
         batchPriceRefresh.value = BatchPriceRefresh(0, ids.size, 0, true)
         viewModelScope.launch {
             var failed = 0
             var completed = 0
+            var missingBarcodes = 0
+            var missingPrices = 0
+            var addressChanged = false
             for (id in ids) {
-                if (lenta.address.value != address) { failed += ids.size - completed; break }
+                if (batchPriceRefresh.value?.stopping == true) break
+                if (lenta.address.value != address) { addressChanged = true; break }
                 try {
-                    lenta.refreshPrice(id)
+                    val result = lenta.refreshProduct(id)
+                    if (!result.hasBarcode) missingBarcodes++
+                    if (!result.manualPrice && !result.priceAvailable) missingPrices++
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: Exception) { failed++ }
                 completed++
-                batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, true)
+                batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, true,
+                    missingBarcodes, missingPrices, stopping = batchPriceRefresh.value?.stopping == true)
             }
-            batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, false)
+            val stopped = completed < ids.size && (addressChanged || batchPriceRefresh.value?.stopping == true)
+            batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, false,
+                missingBarcodes, missingPrices, stopped = stopped, addressChanged = addressChanged)
         }
+    }
+
+    /** Заканчиваем уже начатый запрос и не запускаем следующий. Сохранённые данные не откатываются. */
+    fun stopBatchRefresh() {
+        val current = batchPriceRefresh.value ?: return
+        if (current.running && !current.stopping) batchPriceRefresh.value = current.copy(stopping = true)
     }
 
     fun refreshPrice(id: Long) {
@@ -207,12 +243,18 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         priceRefresh.value = id to "Загрузка"
         viewModelScope.launch {
             priceRefresh.value = try {
-                lenta.refreshPrice(id)
-                id to "Цена обновлена"
+                val result = lenta.refreshProduct(id)
+                val message = buildList {
+                    add("Данные товара обновлены")
+                    if (!result.hasBarcode) add("штрихкод отсутствует")
+                    if (result.manualPrice) add("ручная цена сохранена")
+                    else if (!result.priceAvailable) add("цена недоступна")
+                }.joinToString(" · ")
+                id to message
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                id to (e.message ?: "Не удалось обновить цену")
+                id to (e.message ?: "Не удалось обновить товар")
             }
         }
     }
@@ -222,7 +264,11 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun addProduct(product: com.mok.buylist.data.LentaProduct, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addProduct(product)) }
+        viewModelScope.launch { actionMutex.withLock {
+            val added = repository.addProduct(product)
+            if (added) repository.actionItemByKey("lenta:${product.id}")?.let { journal.record("Добавлен товар", it.name, after = it) }
+            onResult(added)
+        } }
     }
 
     fun editCustomProduct(id: String, name: String, onResult: (String?) -> Unit) {
@@ -271,7 +317,15 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun saveStoreProduct(storeId: String, productKey: String, price: Long?,
         onResult: (String?) -> Unit) {
-        viewModelScope.launch { onResult(repository.saveStoreProduct(storeId, productKey, price)) }
+        viewModelScope.launch {
+            val issue = repository.saveStoreProduct(storeId, productKey, price)
+            if (issue == null) {
+                val name = if (productKey.startsWith("lenta:")) lenta.products.value.firstOrNull { "lenta:${it.id}" == productKey }?.name
+                    else customProducts.value.firstOrNull { "custom:${it.id}" == productKey }?.name
+                journal.record(if (price == null) "Цена магазина сброшена" else "Цена магазина сохранена", name.orEmpty())
+            }
+            onResult(issue)
+        }
     }
 
     fun removeStoreProduct(storeId: String, productKey: String,
@@ -297,80 +351,145 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
 
     fun addManualProduct(name: String, barcode: String, estimatedPriceKopecks: Long?, isWeighted: Boolean,
         onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addManualProduct(name, barcode, estimatedPriceKopecks, isWeighted)) }
+        viewModelScope.launch { actionMutex.withLock {
+            val existing = repository.getItems().map { it.id }.toSet()
+            val added = repository.addManualProduct(name, barcode, estimatedPriceKopecks, isWeighted)
+            if (added) {
+                val item = repository.getItems().filter { it.id !in existing }.singleOrNull()
+                journal.record("Создан товар", name, after = item)
+            }
+            onResult(added)
+        } }
     }
 
     fun addCustomProduct(product: CustomProduct, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch { onResult(repository.addCustomToList(product)) }
+        val aliases = com.mok.buylist.data.sharedCatalogIdentities(lenta.products.value, customProducts.value,
+            lenta.barcodeRows.value, customBarcodes.value)
+        val prices = productShopPrices("custom:${product.id}", stores.value, storeProducts.value,
+            expensePurchases(archive.value, bought.value), aliases, lenta.products.value, lenta.address.value)
+            .filter { price -> stores.value.any { it.id == price.storeId && !it.deleted } }
+        if (prices.size > 1) customStoreRequest.value = CustomStoreRequest(product, prices, onResult)
+        else addCustomWithStore(product, prices.singleOrNull()?.storeId, onResult)
+    }
+
+    internal fun confirmCustomStore(storeId: String?) {
+        val request = customStoreRequest.value ?: return
+        customStoreRequest.value = null
+        addCustomWithStore(request.product, storeId ?: highestShopPrice(request.prices)?.storeId, request.onResult)
+    }
+
+    internal fun cancelCustomStore() { customStoreRequest.value = null }
+
+    private fun addCustomWithStore(product: CustomProduct, storeId: String?, onResult: (Boolean) -> Unit) {
+        viewModelScope.launch { actionMutex.withLock {
+            val added = repository.addCustomToList(product)
+            if (added) repository.actionItemByKey("custom:${product.id}")?.let {
+                rememberPlannedStore(it.id, storeId)
+                journal.record("Добавлен товар", it.name, after = it)
+            }
+            onResult(added)
+        } }
     }
 
     fun buyScannedCustom(product: CustomProduct, price: Long?, storeName: String, weightGrams: Int?,
         onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.getItems().associateBy { it.id }
             val result = repository.buyScannedCustom(product, price, storeName, weightGrams)
-            if (result == null) { onResult(false); return@launch }
-            showUndo(result.item, RowState.BOUGHT)
+            if (result == null) { onResult(false); return@withLock }
+            repository.actionItem(result.item.id)?.let { after ->
+                journal.record("Покупка отмечена", after.name, before = before[after.id], after = after)
+            }
             onResult(true)
-        }
+        } }
     }
 
     fun buyScanned(product: com.mok.buylist.data.LentaProduct, price: Long?, onResult: (Boolean) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.getItems().associateBy { it.id }
             val result = repository.buyScanned(product, price)
-            if (result == null) { onResult(false); return@launch }
-            showUndo(result.item, RowState.BOUGHT)
+            if (result == null) { onResult(false); return@withLock }
+            repository.actionItem(result.item.id)?.let { after ->
+                journal.record("Покупка отмечена", after.name, before = before[after.id], after = after)
+            }
             onResult(true)
-        }
+        } }
     }
 
-    /** Куплено: товар остаётся в базе (для прогресса), но из списка уходит. */
-    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "",
-        weightGrams: Int? = null) {
-        showUndo(item, RowState.BOUGHT)
-        viewModelScope.launch { repository.buy(item.id, priceOverride, storeName = storeName, weightGrams = weightGrams) }
+    fun buy(item: ShoppingItem, priceOverride: Long? = null, storeName: String = "", weightGrams: Int? = null) {
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.actionItem(item.id)?.takeUnless { it.deleted } ?: return@withLock
+            repository.buy(item.id, priceOverride, storeName = storeName, weightGrams = weightGrams)
+            val after = repository.actionItem(item.id)
+            if (after?.deleted == true) journal.record("Покупка отмечена", before.name, before, after)
+        } }
     }
 
     fun setQuantity(item: ShoppingItem, quantity: Int) {
-        viewModelScope.launch { repository.setQuantity(item.id, quantity) }
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.actionItem(item.id)?.takeUnless { it.deleted } ?: return@withLock
+            repository.setQuantity(item.id, quantity)
+            val after = repository.actionItem(item.id)
+            if (after != null && after.quantity != before.quantity)
+                journal.record("Количество изменено", "${before.name} · ${before.quantity} → ${after.quantity}", before, after)
+        } }
     }
 
     fun setWeight(item: ShoppingItem, grams: Int?) {
-        viewModelScope.launch { repository.setWeight(item.id, grams) }
+        viewModelScope.launch { actionMutex.withLock {
+            val before = repository.actionItem(item.id)?.takeUnless { it.deleted } ?: return@withLock
+            repository.setWeight(item.id, grams)
+            val after = repository.actionItem(item.id)
+            if (after != null && after != before) journal.record("Вес изменён", before.name, before, after)
+        } }
     }
 
     fun finishTrip() {
-        if (recent.value.isEmpty()) viewModelScope.launch { repository.finishTrip() }
+        viewModelScope.launch { actionMutex.withLock {
+            if (bought.value.isNotEmpty()) {
+                repository.finishTrip()
+                journal.record("Список завершён")
+            }
+        } }
     }
 
-    /** Удалено свайпом: товар стирается из списка и в прогресс не входит. */
     fun remove(item: ShoppingItem) {
-        showUndo(item, RowState.REMOVED)
-        viewModelScope.launch { repository.remove(item.id) }
+        viewModelScope.launch { actionMutex.withLock {
+            val (before, at) = repository.remove(item.id) ?: return@withLock
+            journal.record("Товар удалён", before.name, before = before, removedAt = at)
+        } }
     }
 
     fun restore(item: ShoppingItem) {
-        undoTimers.remove(item.id)?.cancel()
-        viewModelScope.launch {
-            repository.restore(item)
-            // Строку убираем из «отменяемых» после записи в базу, иначе она на миг пропадёт из списка.
-            forgetRow(item.id)
-        }
+        undoableRecentActions(actions.value).firstOrNull { it.before?.id == item.id || it.after?.id == item.id }
+            ?.let { undoAction(it.id) }
     }
 
-    private fun showUndo(item: ShoppingItem, state: RowState) {
-        recent.value = recent.value.filter { it.item.id != item.id } + ListRow(item, state)
-        undoTimers[item.id]?.cancel()
-        undoTimers[item.id] = viewModelScope.launch {
-            delay(UNDO_WINDOW_MS)
-            undoTimers.remove(item.id)
-            forgetRow(item.id)
-        }
+    internal fun clearNotifications(group: NotificationGroup?) {
+        viewModelScope.launch { actionMutex.withLock {
+            val snapshot = actions.value
+            // Проверяем фактическое состояние БД, а не потенциально устаревший UI StateFlow.
+            val protectedIds = undoableRecentActions(snapshot).filter { action ->
+                repository.canUndoListAction(action.before, action.after, action.removedAt)
+            }.mapTo(HashSet()) { it.id }
+            journal.clear(notificationIdsToClear(snapshot, group, protectedIds))
+        } }
     }
 
-    private fun forgetRow(id: String) {
-        recent.value = recent.value.filter { it.item.id != id }
-        // Последняя строка с «Отменить» исчезла: если покупать больше нечего, список завершён.
-        if (recent.value.isEmpty()) viewModelScope.launch { repository.finishTripIfDone() }
+    /** Explicitly confirmed full cleanup; also forfeits the remaining undo history. */
+    internal fun clearAllNotifications() {
+        viewModelScope.launch { actionMutex.withLock {
+            journal.clear(actions.value.mapTo(HashSet()) { it.id })
+        } }
+    }
+
+    internal fun undoAction(id: String) {
+        viewModelScope.launch { actionMutex.withLock {
+            val action = undoableRecentActions(actions.value).firstOrNull { it.id == id } ?: return@withLock
+            val success = repository.undoListAction(action.before, action.after, action.removedAt)
+            val restored = if (success) action.before?.let { repository.actionItem(it.id) } else null
+            journal.completeUndo(id, success, restored)
+        } }
     }
 
     fun deleteArchived(list: ArchivedList) {

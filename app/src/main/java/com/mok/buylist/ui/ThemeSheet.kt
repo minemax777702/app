@@ -3,6 +3,8 @@ package com.mok.buylist.ui
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,10 +18,14 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,26 +50,32 @@ fun ThemeSheet(
     onDismiss: () -> Unit,
 ) {
     val p = LocalPalette.current
-    ModalBottomSheet(
+    var widgetExpanded by rememberSaveable { mutableStateOf(false) }
+    AppModalSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = p.sheet,
         dragHandle = { SheetDragHandle(onDismiss) },
         contentColor = p.text,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
         ) {
-            NoticeInSheet()
-            SheetHeader(stringResource(R.string.theme_title))
-            SectionLabel(R.string.theme_app)
+            SheetHeader("Оформление")
+            androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
             ThemeSegments(appMode, onAppMode)
-            SectionLabel(R.string.theme_widget, Modifier.padding(top = 20.dp))
-            ThemeSegments(widgetMode, onWidgetMode)
+            // Раздельная настройка виджета сохранена как дополнительная секция.
+            TextButton(onClick = { widgetExpanded = !widgetExpanded }) {
+                Text(if (widgetExpanded) "Скрыть настройки виджета" else "Тема виджета", color = p.text)
+            }
+            if (widgetExpanded) {
+                SectionLabel(R.string.theme_widget)
+                ThemeSegments(widgetMode, onWidgetMode)
+            }
         }
     }
 }
@@ -83,19 +95,10 @@ private fun SectionLabel(@StringRes title: Int, modifier: Modifier = Modifier) {
 
 @Composable
 private fun ThemeSegments(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
-    val p = LocalPalette.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(p.field)
-            .padding(4.dp)
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        ThemeOption(ThemeMode.AUTO, R.string.theme_auto, R.drawable.ic_theme_auto, selected, onSelect, Modifier.weight(1f))
-        ThemeOption(ThemeMode.LIGHT, R.string.theme_light, R.drawable.ic_sun, selected, onSelect, Modifier.weight(1f))
-        ThemeOption(ThemeMode.DARK, R.string.theme_dark, R.drawable.ic_moon, selected, onSelect, Modifier.weight(1f))
+    Column(Modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ThemeOption(ThemeMode.AUTO, R.string.theme_auto, R.drawable.ic_theme_auto, selected, onSelect)
+        ThemeOption(ThemeMode.LIGHT, R.string.theme_light, R.drawable.ic_sun, selected, onSelect)
+        ThemeOption(ThemeMode.DARK, R.string.theme_dark, R.drawable.ic_moon, selected, onSelect)
     }
 }
 
@@ -108,28 +111,6 @@ private fun ThemeOption(
     onSelect: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val p = LocalPalette.current
-    val isSelected = mode == selected
-    Column(
-        modifier
-            .height(68.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (isSelected) p.accent else Color.Transparent)
-            .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(mode) }),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterVertically),
-    ) {
-        Icon(
-            painterResource(icon),
-            contentDescription = null,
-            Modifier.size(24.dp),
-            tint = if (isSelected) p.onAccent else p.iconMuted,
-        )
-        Text(
-            stringResource(label),
-            color = if (isSelected) p.onAccent else p.text,
-            fontSize = 14.sp,
-            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold,
-        )
-    }
+    FreshCutListRow(icon, stringResource(label), if (mode == ThemeMode.AUTO) "Как на устройстве" else "",
+        selected = mode == selected, onClick = { onSelect(mode) }, showChevron = false)
 }

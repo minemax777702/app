@@ -1,25 +1,19 @@
 package com.mok.buylist.ui
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,10 +22,8 @@ import com.mok.buylist.R
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.ui.theme.LocalPalette
 
-/**
- * In-sheet store selector using the app's own cards and icons.
- * Choosing a store always closes and resets the inline "add store" form.
- */
+/** Отдельная панель выбора и создания магазина: Figma select-store/create-store. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun StoreSelectField(
     stores: List<ShoppingStore>,
@@ -42,115 +34,55 @@ internal fun StoreSelectField(
     val p = LocalPalette.current
     var expanded by remember { mutableStateOf(false) }
     var adding by remember { mutableStateOf(false) }
-    var showAll by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     val available = stores.filterNot { it.deleted }.distinctBy { it.id }.sortedBy { it.nameKey }
-
-    fun choose(store: ShoppingStore?) {
-        expanded = false
-        adding = false
-        showAll = false
-        newName = ""
-        error = false
-        onSelected(store)
-    }
-
+    fun close() { expanded = false; adding = false; newName = ""; error = false }
+    fun choose(store: ShoppingStore?) { close(); onSelected(store) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            Modifier.fillMaxWidth()
-                .background(p.field, RoundedCornerShape(18.dp))
-                .clickable {
-                    expanded = !expanded
-                    if (!expanded) {
-                        adding = false
-                        newName = ""
-                        error = false
-                    }
-                }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Icon(painterResource(R.drawable.ic_store), contentDescription = null,
-                tint = p.accent, modifier = Modifier.size(22.dp))
-            Column(Modifier.weight(1f)) {
-                Text("Магазин", color = p.textSecondary, fontSize = 12.sp)
-                Text(selectedStore?.name ?: "Не выбран", color = p.text,
-                    fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            }
-            Icon(painterResource(R.drawable.ic_chevron_down),
-                contentDescription = if (expanded) "Свернуть магазины" else "Выбрать магазин",
-                tint = p.iconMuted, modifier = Modifier.size(22.dp))
+        Text("Магазин", color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp)).background(p.card)
+            .border(1.dp, p.line, RoundedCornerShape(16.dp)).clickable { expanded = true }.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(selectedStore?.name ?: "Без магазина", Modifier.weight(1f), color = p.text, fontSize = 15.sp)
+            Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать магазин", Modifier.size(20.dp), tint = p.textSecondary)
         }
-        AnimatedVisibility(visible = expanded) {
-            Column(
-                Modifier.fillMaxWidth()
-                    .background(p.field, RoundedCornerShape(18.dp))
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                @Composable
-                fun option(name: String, selected: Boolean, onClick: () -> Unit) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable(onClick = onClick)
-                            .background(if (selected) p.chipBg else p.field, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(name, Modifier.weight(1f), color = p.text, fontSize = 15.sp)
-                        if (selected) Icon(painterResource(R.drawable.ic_check), null,
-                            tint = p.accent, modifier = Modifier.size(18.dp))
-                    }
-                }
-                option("Без магазина", selectedStore == null) { choose(null) }
-                (if (showAll) available else available.take(6)).forEach { store ->
-                    option(store.name, selectedStore?.id == store.id) { choose(store) }
-                }
-                if (!showAll && available.size > 6)
-                    TextButton(onClick = { showAll = true }) {
-                        Text("Показать все (${available.size})", color = p.accent)
-                    }
-                if (!adding) {
-                    Row(Modifier.fillMaxWidth().clickable {
-                        adding = true
-                        newName = ""
-                        error = false
-                    }.padding(horizontal = 12.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Icon(painterResource(R.drawable.ic_plus), null, tint = p.accent,
-                            modifier = Modifier.size(20.dp))
-                        Text("Добавить магазин", color = p.accent, fontWeight = FontWeight.SemiBold)
-                    }
-                } else {
-                    Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        SheetTextField(newName, { newName = it; error = false },
-                            "Название магазина", isError = error)
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            TextButton(onClick = {
-                                adding = false
-                                newName = ""
-                                error = false
-                            }) { Text("Отмена", color = p.textSecondary) }
-                            TextButton(
-                                enabled = !saving && newName.isNotBlank() && newName.length <= 100,
-                                onClick = {
-                                    saving = true
-                                    onCreate(newName.trim()) { store ->
-                                        saving = false
-                                        if (store != null) choose(store)
-                                        else error = true
-                                    }
-                                },
-                            ) { Text("Сохранить", color = p.accent) }
-                        }
-                        if (error) Text("Не удалось сохранить магазин", color = p.error, fontSize = 12.sp)
-                    }
-                }
+    }
+    if (expanded && !adding) AppModalSheet(onDismissRequest = { close() }, containerColor = p.sheet) {
+        Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding().verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SheetHeader("Выбрать магазин")
+            Spacer(Modifier.height(12.dp))
+            available.forEach { store ->
+                FreshCutListRow(R.drawable.ic_store, store.name, if (selectedStore?.id == store.id) "Выбран" else "",
+                    selected = selectedStore?.id == store.id, showChevron = false, onClick = { choose(store) })
+            }
+            FreshCutListRow(R.drawable.ic_store, "Без магазина", "Не указывать", selected = selectedStore == null,
+                showChevron = false, onClick = { choose(null) })
+            Spacer(Modifier.height(20.dp))
+            SheetActionButton(onClick = { adding = true; newName = ""; error = false }) {
+                Text("Добавить магазин")
             }
         }
     }
+    if (adding) AppSheet(
+        onDismissRequest = { if (!saving) adding = false },
+        containerColor = p.sheet,
+        title = { SheetHeader("Новый магазин") },
+        text = {
+            SheetTextField(newName, { newName = it; error = false }, "Название магазина", isError = error)
+            if (error) Text("Не удалось сохранить магазин", color = p.error, fontSize = 12.sp)
+        },
+        confirmButton = {
+            SheetActionButton(enabled = !saving && newName.isNotBlank() && newName.length <= 100, onClick = {
+                saving = true
+                onCreate(newName.trim()) { store ->
+                    saving = false
+                    if (store != null) choose(store) else error = true
+                }
+            }) { Text(if (saving) "Сохранение…" else "Добавить магазин") }
+        },
+    )
+
 }

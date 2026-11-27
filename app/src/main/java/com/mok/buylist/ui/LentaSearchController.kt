@@ -2,10 +2,14 @@ package com.mok.buylist.ui
 
 import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.matchesProductSearch
+import com.mok.buylist.data.isBarcodeSearch
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -16,10 +20,10 @@ internal data class LentaSearchState(
     val failed: Boolean = false,
     val started: Boolean = false,
     val hasMore: Boolean = false,
+    val complete: Boolean = false,
+    val stalled: Boolean = false,
+    val pagesLoaded: Int = 0,
 )
-
-private const val MAX_PAGES_PER_FETCH = 12
-private const val MAX_IDENTICAL_PAGES = 8
 
 internal class LentaSearchController(
     private val search: suspend (String, String, Int, Long) -> List<LentaProduct>,
@@ -34,23 +38,25 @@ internal class LentaSearchController(
     private var nextPage = 1
     private var storeId = 0L
     private val seenIds = HashSet<Long>()
+    private var fullSearch = false
     private var onlineOnly = false
     private var initialized = false
 
-    fun update(query: String, address: String, saved: List<LentaProduct>, onlineOnly: Boolean) {
+    fun update(query: String, address: String, saved: List<LentaProduct>, onlineOnly: Boolean, fullSearch: Boolean = false) {
         val trimmed = query.trim()
         val newSavedIds = saved.mapTo(HashSet()) { it.id }
         val reset = !initialized || this.query != trimmed ||
-            this.address != address || this.onlineOnly != onlineOnly
+            this.address != address || this.onlineOnly != onlineOnly || this.fullSearch != fullSearch
         initialized = true
         if (reset) job?.cancel()
         this.query = trimmed
-        this.address = address
         this.onlineOnly = onlineOnly
+        this.fullSearch = fullSearch
+        this.address = address
         savedIds = newSavedIds
         val key = nameKeyOf(trimmed)
         val local = if (onlineOnly || key.length < 2) emptyList() else saved.filter {
-            nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
+            matchesProductSearch(it.name, it.pack, this.query) ||
                 barcodeAliases(it.id).any { alias -> alias.contains(key) ||
                     com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) }
         }.sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
@@ -67,61 +73,74 @@ internal class LentaSearchController(
         storeId = 0
         seenIds.clear()
         state.value = LentaSearchState(local = local)
-        if (key.length >= 2 && address.isNotBlank() && (onlineOnly || local.isEmpty())) {
+        if (key.length >= 2 && address.isNotBlank() && (fullSearch || onlineOnly || local.isEmpty())) {
             job = scope.launch { delay(500); fetch() }
         }
     }
 
+    fun setFullSearch(enabled: Boolean) {
+        if (fullSearch == enabled) return
+        fullSearch = enabled
+        if (enabled && !state.value.complete && !state.value.loading) searchOnline()
+    }
+
     fun searchOnline() {
-        if (state.value.loading || query.length < 2 || address.isBlank()) return
+        if (state.value.loading || state.value.complete || query.length < 2 || address.isBlank()) return
         job?.cancel()
         job = scope.launch { fetch() }
     }
 
     private suspend fun fetch() {
-        state.value = state.value.copy(loading = true, failed = false, started = true)
+        state.value = state.value.copy(loading = true, failed = false, started = true, stalled = false, hasMore = true)
+        var skipped = 0
+        var repeatedPages = 0
         try {
-            var previousPageIds: Set<Long>? = null
-            var identicalPages = 0
-            // Пропускаем сохранённые и уже показанные товары, включая страницы после пятой.
-            // Лимиты ограничивают нагрузку на сервис, но не объявляют выдачу законченной.
-            repeat(MAX_PAGES_PER_FETCH) {
+            while (true) {
+                coroutineContext.ensureActive()
                 val page = nextPage
                 val response = search(query, address, page, storeId)
+                coroutineContext.ensureActive()
                 if (response.isEmpty()) {
-                    state.value = state.value.copy(loading = false, hasMore = false, failed = false)
+                    state.value = state.value.copy(loading = false, hasMore = false, complete = true, failed = false)
                     return
                 }
-                if (page == 1) storeId = response.first().storeId
+                if (storeId == 0L) storeId = response.first().storeId
+                val fresh = response.filter { it.id > 0 && it.id !in seenIds }.distinctBy { it.id }
                 nextPage = page + 1
-
-                val pageIds = response.mapNotNull { it.id.takeIf { id -> id > 0 } }.toSet()
-                identicalPages = if (pageIds == previousPageIds) identicalPages + 1 else 1
-                previousPageIds = pageIds
-
-                val fresh = response.filter { it.id > 0 && seenIds.add(it.id) }.distinctBy { it.id }
-                val added = fresh.filter { it.id !in savedIds }
-                if (added.isNotEmpty()) {
-                    state.value = state.value.copy(
-                        online = state.value.online + added,
-                        loading = false, hasMore = true, failed = false,
-                    )
+                seenIds.addAll(fresh.map { it.id })
+                val relevant = fresh.filter { product ->
+                    isBarcodeSearch(query) || matchesProductSearch(product.name, product.pack, query)
+                }
+                // Keep existing IDs excluded from the online add-to-catalog screen.
+                // In combined search, refresh a saved match with the live store result.
+                val current = state.value
+                val replacements = if (onlineOnly) emptyMap() else relevant.associateBy { it.id }
+                val local = current.local.map { replacements[it.id] ?: it }
+                val added = relevant.filter { it.id !in savedIds }
+                state.value = current.copy(
+                    local = local,
+                    online = current.online + added,
+                    pagesLoaded = page,
+                )
+                if (fresh.isEmpty()) repeatedPages++ else repeatedPages = 0
+                if (added.isEmpty()) skipped++ else skipped = 0
+                // No total-page limit: even five consecutive irrelevant pages may
+                // precede a relevant product. Only identical/overlapping pages with
+                // no new IDs trigger a recoverable guard in full search.
+                if (fullSearch && repeatedPages >= 5) {
+                    state.value = state.value.copy(loading = false, stalled = true, hasMore = true)
                     return
                 }
-                if (identicalPages >= MAX_IDENTICAL_PAGES) {
-                    // Сервер повторяет одинаковую страницу. Оставляем ручное
-                    // продолжение с nextPage вместо бесконечных запросов.
-                    state.value = state.value.copy(loading = false, hasMore = true, failed = false)
+                if (!fullSearch && (added.isNotEmpty() || skipped >= 5)) {
+                    state.value = state.value.copy(loading = false, hasMore = true)
                     return
                 }
+                if (fullSearch) delay(100)
             }
-            // Если новых товаров пока нет, кнопка «Показать ещё» продолжит
-            // поиск с сохранённой позиции, не возвращаясь на первую страницу.
-            state.value = state.value.copy(loading = false, hasMore = true, failed = false)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            state.value = state.value.copy(loading = false, failed = true)
+            state.value = state.value.copy(loading = false, failed = true, hasMore = true)
         }
     }
 }

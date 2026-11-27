@@ -8,6 +8,7 @@ internal data class ProductShopPrice(
     val storeId: String,
     val storeName: String,
     val priceKopecks: Long?,
+    val manual: Boolean = false,
 )
 
 /**
@@ -23,6 +24,8 @@ internal fun productShopPrices(
     links: List<StoreProduct>,
     purchases: List<ExpensePurchase>,
     aliases: Map<String, String> = emptyMap(),
+    catalog: List<com.mok.buylist.data.LentaProduct> = emptyList(),
+    address: String = "",
 ): List<ProductShopPrice> {
     val canonical = aliases[productKey] ?: productKey
     fun isSame(key: String): Boolean = (aliases[key] ?: key) == canonical
@@ -40,11 +43,16 @@ internal fun productShopPrices(
                 .maxWithOrNull(compareBy<ExpensePurchase> { it.at }.thenBy { it.id })
                 ?.unitPrice
         }
-    return (linked.keys + paid.keys).distinct().map { storeId ->
+    val lenta = catalog.firstOrNull { isSame("lenta:${it.id}") }
+    val currentPrice = lenta?.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" }
+        ?.price?.let { com.mok.buylist.data.parsePriceKopecks(it) }
+    val catalogStore = if (lenta != null) listOf(com.mok.buylist.data.lentaStoreId()) else emptyList()
+    return (linked.keys + paid.keys + catalogStore).distinct().map { storeId ->
         val store = stores.firstOrNull { it.id == storeId }
         ProductShopPrice(storeId, store?.name ?: if (storeId ==
             com.mok.buylist.data.lentaStoreId()) "Лента" else "Магазин",
-            linked[storeId]?.priceKopecks ?: paid[storeId])
+            linked[storeId]?.priceKopecks ?: (if (storeId == com.mok.buylist.data.lentaStoreId()) currentPrice else null) ?: paid[storeId],
+            manual = linked[storeId]?.priceKopecks != null)
     }.sortedWith(compareBy<ProductShopPrice> { it.priceKopecks == null }
         .thenBy { it.priceKopecks ?: Long.MAX_VALUE }
         .thenBy { it.storeName.lowercase() })
@@ -53,3 +61,13 @@ internal fun productShopPrices(
 internal fun cheapestShopPrice(prices: List<ProductShopPrice>): ProductShopPrice? =
     prices.filter { it.priceKopecks != null }.minWithOrNull(
         compareBy<ProductShopPrice> { it.priceKopecks!! }.thenBy { it.storeName.lowercase() })
+
+/** Budget conservatively when a custom product has no selected store. */
+internal fun highestShopPrice(prices: List<ProductShopPrice>): ProductShopPrice? =
+    prices.filter { it.priceKopecks != null }.maxWithOrNull(
+        compareBy<ProductShopPrice> { it.priceKopecks ?: 0L }.thenBy { it.storeName.lowercase() })
+        ?: prices.singleOrNull()
+
+internal fun displayShopPrice(key: String, prices: List<ProductShopPrice>, preferredStoreId: String? = null): ProductShopPrice? =
+    if (key.startsWith("lenta:")) prices.firstOrNull { it.storeId == com.mok.buylist.data.lentaStoreId() && it.priceKopecks != null }
+    else prices.firstOrNull { it.storeId == preferredStoreId } ?: highestShopPrice(prices)

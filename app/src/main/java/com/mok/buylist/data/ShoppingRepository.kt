@@ -6,9 +6,6 @@ import androidx.room.withTransaction
 import androidx.room.InvalidationTracker
 import android.util.Log
 import com.mok.buylist.lentaCatalog
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.mok.buylist.sync.BackupCodec
@@ -52,12 +49,6 @@ class ShoppingRepository(
     private val profile: UserProfile,
 ) {
     private val dao = db.shoppingDao()
-    private val previewScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private fun fetchPreview(id: String, barcode: String) {
-        if (barcode.isNotBlank()) previewScope.launch {
-            com.mok.buylist.ui.CustomProductPreviews.fetch(context, id, barcode)
-        }
-    }
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
     fun observeStores(): Flow<List<ShoppingStore>> = dao.observeStores().map { rows ->
@@ -116,6 +107,12 @@ class ShoppingRepository(
             (aliases[it.productKey] ?: it.productKey) == canonical }
             .maxByOrNull { it.updatedAt }?.priceKopecks
         if (configured != null) return configured
+        if (storeId == lentaStoreId()) {
+            dao.getLentaProducts().map { it.toProduct() }.firstOrNull {
+                (aliases["lenta:${it.id}"] ?: "lenta:${it.id}") == canonical &&
+                    it.address == context.lentaCatalog.address.value && it.address.isNotBlank() && it.channel == "locc"
+            }?.price?.let(::parsePriceKopecks)?.let { return it }
+        }
         val receipts = dao.getBought().mapNotNull { decodePurchaseEvent(it.purchaseEvent) } +
             dao.getArchives().flatMap { archive -> archive.events.mapNotNull(::decodePurchaseEvent) }
         return lastStorePurchasePrice(receipts, productKey, storeId, aliases, excludedEventId)
@@ -138,7 +135,7 @@ class ShoppingRepository(
             return@withTransaction null
         if (barcode.isNotEmpty() && !validProductBarcode(barcode)) return@withTransaction null
         if (storePrice != null && storePrice < 0) return@withTransaction null
-        if (storeId == lentaStoreId() ||
+        if (storeId != lentaStoreId() &&
             dao.getStores().none { it.id == storeId && !it.deleted })
             return@withTransaction null
         val matching = if (barcode.isBlank()) emptyList() else {
@@ -164,14 +161,12 @@ class ShoppingRepository(
         dao.upsertStoreProduct(StoreProduct(storeId, customKey(product.id), storePrice,
             maxOf(now, (earlier?.updatedAt ?: 0L) + 1)))
         product.id
-    }.also { id -> if (id != null) fetchPreview(id, rawBarcode.trim()) }
+    }
 
     suspend fun saveStoreProduct(storeId: String, productKey: String, price: Long?): String? =
         db.withTransaction {
             if (storeId.isBlank() || productKey.isBlank()) return@withTransaction "Выберите магазин и товар"
             if (price != null && price < 0) return@withTransaction "Некорректная цена"
-            if (storeId == lentaStoreId() && !productKey.startsWith("lenta:"))
-                return@withTransaction "Каталог Ленты управляется автоматически"
             val available = storeId == lentaStoreId() ||
                 dao.getStores().any { it.id == storeId && !it.deleted }
             if (!available) return@withTransaction "Магазин не найден"
@@ -181,9 +176,16 @@ class ShoppingRepository(
                 dao.getLentaProducts().any { it.id.toString() == productKey.removePrefix("lenta:") }
             } else false
             if (!valid) return@withTransaction "Товар не найден"
-            val original = dao.getStoreProducts().firstOrNull {
-                it.storeId == storeId && it.productKey == productKey }
-            val now = maxOf(System.currentTimeMillis(), (original?.updatedAt ?: 0L) + 1)
+            val aliases = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+                dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+            val canonical = aliases[productKey] ?: productKey
+            val matching = dao.getStoreProducts().filter { it.storeId == storeId &&
+                (aliases[it.productKey] ?: it.productKey) == canonical }
+            val now = maxOf(System.currentTimeMillis(), (matching.maxOfOrNull { it.updatedAt } ?: 0L) + 1)
+            // Keep availability links; update all active aliases consistently.
+            matching.filterNot { it.deleted }.forEach {
+                dao.upsertStoreProduct(it.copy(priceKopecks = price, updatedAt = now))
+            }
             dao.upsertStoreProduct(StoreProduct(storeId, productKey, price, now))
             null
         }
@@ -206,12 +208,18 @@ class ShoppingRepository(
     }
 
     suspend fun removeStoreProduct(storeId: String, productKey: String): String? = db.withTransaction {
-        if (storeId == lentaStoreId()) return@withTransaction "Каталог Ленты нельзя изменять"
-        val existing = dao.getStoreProducts().firstOrNull {
-            it.storeId == storeId && it.productKey == productKey && !it.deleted
-        } ?: return@withTransaction "Товар не найден"
-        dao.upsertStoreProduct(existing.copy(deleted = true,
-            updatedAt = maxOf(System.currentTimeMillis(), existing.updatedAt + 1)))
+        if (storeId == lentaStoreId() && productKey.startsWith("lenta:")) return@withTransaction "Для товара каталога сбросьте ручную цену"
+        val aliases = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+            dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val canonical = aliases[productKey] ?: productKey
+        if (storeId == lentaStoreId() && canonical.startsWith("lenta:"))
+            return@withTransaction "Для товара каталога сбросьте ручную цену"
+        val existing = dao.getStoreProducts().filter {
+            it.storeId == storeId && !it.deleted && (aliases[it.productKey] ?: it.productKey) == canonical
+        }
+        if (existing.isEmpty()) return@withTransaction "Товар не найден"
+        val now = maxOf(System.currentTimeMillis(), existing.maxOf { it.updatedAt } + 1)
+        existing.forEach { dao.upsertStoreProduct(it.copy(deleted = true, updatedAt = now)) }
         null
     }
 
@@ -374,7 +382,6 @@ class ShoppingRepository(
                     isWeighted = saved.isWeighted || isWeighted)
                 dao.upsertCustomProduct(updated)
                 dao.upsertCustomProductBarcode(CustomProductBarcode(updated.id, code, updated.updatedAt))
-                fetchPreview(updated.id, code)
                 return addCustomToList(updated)
             }
             if ((estimatedPriceKopecks != null && estimatedPriceKopecks != saved.estimatedPriceKopecks) ||
@@ -395,7 +402,7 @@ class ShoppingRepository(
             if (code.isNotEmpty()) dao.upsertCustomProductBarcode(CustomProductBarcode(product.id, code, product.updatedAt))
             addCustomToListInTransaction(product)
         }.also {
-            if (it) { refreshWidget(); fetchPreview(product.id, code) }
+            if (it) refreshWidget()
         }
     }
 
@@ -452,6 +459,8 @@ class ShoppingRepository(
     fun observeAllItems(): Flow<List<ShoppingItem>> = dao.observeAllItems()
 
     suspend fun getItems(): List<ShoppingItem> = dao.getItems()
+    suspend fun actionItem(id: String): ShoppingItem? = dao.findById(id)
+    suspend fun actionItemByKey(key: String): ShoppingItem? = dao.findByKey(key)
 
     /** Сколько товаров куплено в текущем списке — для полосы прогресса. */
     fun observeBoughtCount(): Flow<Int> = dao.observeBoughtCount()
@@ -576,17 +585,18 @@ class ShoppingRepository(
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
             }
+            val effectivePrice = priceOverride ?: latestStorePrice("lenta:${product.id}", lentaStoreId())
             attachBoughtProductToStore(lentaStoreId(), "lenta:${product.id}", now)
             val planned = findActiveIdentity("lenta:${product.id}")
             if (planned != null) {
                 dao.updateItem(planned.copy(deleted = true, updatedAt = now, authorId = profile.id,
-                    purchaseEvent = purchaseEvent(planned, current, now, profile.id, priceOverride,
+                    purchaseEvent = purchaseEvent(planned, current, now, profile.id, effectivePrice,
                         storeId = lentaStoreId())))
                 return@withTransaction ScannedPurchaseResult(planned, impulsive = false)
             }
             val base = ShoppingItem(name = name, productId = product.id, createdAt = now, updatedAt = now,
                 authorId = profile.id, deleted = true)
-            val event = purchaseEvent(base, current, now, profile.id, priceOverride,
+            val event = purchaseEvent(base, current, now, profile.id, effectivePrice,
                 impulsive = true, storeId = lentaStoreId())
             val eventId = checkNotNull(decodePurchaseEvent(event)).id
             val bought = base.copy(nameKey = "impulse:$eventId", purchaseEvent = event).also { dao.insertItem(it) }
@@ -623,11 +633,12 @@ class ShoppingRepository(
                 item.productId > 0 -> "lenta:${item.productId}"
                 else -> ""
             }
+            val effectivePrice = priceOverride ?: if (item.productId > 0) latestStorePrice(productKey, storeId) else null
             attachBoughtProductToStore(storeId, productKey, now)
             val boughtItem = if (weightGrams != null) item.copy(weightGrams = weightGrams) else item
             dao.updateItem(boughtItem.copy(deleted = true, updatedAt = now, authorId = profile.id,
                 purchaseEvent = purchaseEvent(boughtItem, product,
-                    now, profile.id, priceOverride, impulsive, storeId)))
+                    now, profile.id, effectivePrice, impulsive, storeId)))
         }
         refreshWidget()
     }
@@ -697,14 +708,59 @@ class ShoppingRepository(
     }
 
     /** Удаление из списка без покупки: строка стирается, в историю подсказок товар остаётся. */
-    suspend fun remove(id: String) {
-        db.withTransaction {
-            val item = dao.findById(id)
+    suspend fun remove(id: String): Pair<ShoppingItem, Long>? {
+        val removed = db.withTransaction {
+            val item = dao.findById(id)?.takeUnless { it.deleted } ?: return@withTransaction null
+            val at = maxOf(System.currentTimeMillis(), item.updatedAt + 1)
             dao.deleteById(id)
-            // Без надгробия второй телефон вернул бы товар при следующем обмене.
-            if (item != null) dao.upsertTombstone(tomb(TombKind.ITEM, item.nameKey, System.currentTimeMillis()))
+            dao.upsertTombstone(tomb(TombKind.ITEM, item.nameKey, at))
+            item to at
         }
-        refreshWidget()
+        if (removed != null) refreshWidget()
+        return removed
+    }
+
+    fun observeUndoTombstones() = dao.observeTombstones()
+
+    /** Read-only eligibility check; the same guard is used within the undo transaction. */
+    suspend fun canUndoListAction(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean =
+        db.withTransaction { matchesUndoRevision(before, after, removedAt) }
+
+    private suspend fun matchesUndoRevision(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean {
+        val snapshot = before ?: after ?: return false
+        val current = dao.findById(snapshot.id)
+        val marker = dao.getTombstones().firstOrNull { it.kind == TombKind.ITEM.code && it.target == snapshot.nameKey }
+        if (after != null) {
+            if (current != after || (marker != null && marker.deletedAt >= after.updatedAt)) return false
+        } else if (before == null || current != null || removedAt == null || marker?.deletedAt != removedAt) return false
+        if (before != null) {
+            val existing = dao.findByKey(before.nameKey)
+            if (existing != null && existing.id != before.id) return false
+            if (current == null && hasActiveIdentity(before.nameKey)) return false
+        }
+        return true
+    }
+
+    /** Exact revision guard prevents undo from changing a newer or archived purchase. */
+    suspend fun undoListAction(before: ShoppingItem?, after: ShoppingItem?, removedAt: Long?): Boolean {
+        val snapshot = before ?: after ?: return false
+        val changed = db.withTransaction {
+            if (!matchesUndoRevision(before, after, removedAt)) return@withTransaction false
+            val current = dao.findById(snapshot.id)
+            val marker = dao.getTombstones().firstOrNull { it.kind == TombKind.ITEM.code && it.target == snapshot.nameKey }
+            val now = maxOf(System.currentTimeMillis(), snapshot.updatedAt + 1,
+                (after?.updatedAt ?: 0L) + 1, (marker?.deletedAt ?: 0L) + 1)
+            if (before == null) {
+                dao.deleteById(snapshot.id)
+                dao.upsertTombstone(tomb(TombKind.ITEM, snapshot.nameKey, now))
+            } else {
+                val restored = before.copy(updatedAt = now, authorId = profile.id)
+                if (current == null) dao.insertItem(restored) else dao.updateItem(restored)
+            }
+            true
+        }
+        if (changed) refreshWidget()
+        return changed
     }
 
     /** Отмена покупки или удаления: товар возвращается на прежнее место. */

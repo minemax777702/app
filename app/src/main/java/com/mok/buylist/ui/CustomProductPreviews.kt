@@ -22,22 +22,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
-import com.mok.buylist.data.validProductBarcode
-import com.mok.buylist.barcodeSourceSettings
 import com.mok.buylist.ui.theme.LocalPalette
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
 
 /** Local files are independent from purchases; API errors never prevent adding a product. */
 internal object CustomProductPreviews {
     private val revisions = mutableStateMapOf<String, Int>()
-    private val requested = mutableSetOf<String>()
     fun version(id: String): Int = revisions[id] ?: 0
     private fun file(context: Context, id: String): File {
         require(id.matches(Regex("[0-9a-fA-F-]{36}")))
@@ -82,53 +76,6 @@ internal object CustomProductPreviews {
         if (saved) withContext(Dispatchers.Main) { revisions[id] = version(id) + 1 }
         saved
     }
-    suspend fun fetch(context: Context, id: String, barcode: String, force: Boolean = false): Boolean {
-        if (!validProductBarcode(barcode)) return false
-        val enabled = context.barcodeSourceSettings.enabled.value
-        if (enabled.none { it == BarcodeSource.OPEN_FOOD_FACTS ||
-                it == BarcodeSource.UPCITEMDB || it == BarcodeSource.OLEGON }) return false
-        val token = id + ":" + barcode + "|" +
-            enabled.map { it.name }.sorted().joinToString(",")
-        synchronized(requested) {
-            if (!force && (token in requested || file(context, id).exists())) return false
-            requested.add(token)
-        }
-        return withContext(Dispatchers.IO) {
-            val suggestions = BarcodeProductLookup.lookup(barcode, force = force, sources = enabled)
-            for (suggestion in suggestions) {
-                val url = suggestion.imageUrl ?: continue
-                val bytes = runCatching {
-                    val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 3000
-                        readTimeout = 3000
-                        instanceFollowRedirects = false
-                        setRequestProperty("User-Agent", "BuyList-Android/1.0 (product preview)")
-                    }
-                    try {
-                        if (connection.responseCode != 200) return@runCatching null
-                        val output = ByteArrayOutputStream()
-                        connection.inputStream.use { input ->
-                            val buffer = ByteArray(8192)
-                            while (true) {
-                                val n = input.read(buffer)
-                                if (n < 0) break
-                                if (output.size() + n > 4_000_000) return@runCatching null
-                                output.write(buffer, 0, n)
-                            }
-                        }
-                        output.toByteArray()
-                    } finally { connection.disconnect() }
-                }.getOrNull() ?: continue
-                // Never overwrite a photo from the gallery during automatic lookup.
-                if (!force && file(context, id).exists()) return@withContext false
-                if (save(context, id, bytes)) {
-                    withContext(Dispatchers.Main) { revisions[id] = version(id) + 1 }
-                    return@withContext true
-                }
-            }
-            false
-        }
-    }
 }
 
 @Composable
@@ -145,7 +92,7 @@ internal fun CustomProductImage(productId: String, modifier: Modifier = Modifier
 }
 
 @Composable
-internal fun CustomProductImageActions(productId: String, barcode: String) {
+internal fun CustomProductImageActions(productId: String) {
     val context = LocalContext.current
     val p = LocalPalette.current
     val scope = rememberCoroutineScope()
@@ -163,16 +110,6 @@ internal fun CustomProductImageActions(productId: String, barcode: String) {
         Column(horizontalAlignment = Alignment.Start) {
             TextButton(onClick = { picker.launch("image/*") }, enabled = !loading) {
                 Text("Выбрать фото", color = p.accent)
-            }
-            if (barcode.isNotBlank()) TextButton(onClick = {
-                scope.launch {
-                    loading = true
-                    val ok = CustomProductPreviews.fetch(context, productId, barcode, force = true)
-                    loading = false
-                    message = if (ok) "Фото обновлено" else "Фото по штрихкоду не найдено"
-                }
-            }, enabled = !loading && validProductBarcode(barcode)) {
-                Text(if (loading) "Загрузка…" else "Обновить по штрихкоду", color = p.accent)
             }
         }
         message?.let { Text(it, color = p.textSecondary, fontSize = 12.sp) }

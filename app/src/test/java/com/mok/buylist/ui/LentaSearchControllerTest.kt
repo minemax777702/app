@@ -10,6 +10,82 @@ import org.junit.Test
 class LentaSearchControllerTest {
     private fun product(id: Long, name: String) = LentaProduct(id, name, "", "", "1", "card", "", "address", storeId = 7)
 
+    @Test fun fullSearchLoadsAllPagesIncludingCheaperLaterResults() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            when (page) {
+                1 -> listOf(product(1, "Молоко 500 мл").copy(price = "100"))
+                in 2..8 -> listOf(product(page.toLong(), "Печенье с молоком"))
+                9 -> listOf(product(9, "Молоко 1 л").copy(price = "110"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("молоко", "address", emptyList(), false, fullSearch = true)
+        delay(1800)
+        assertEquals((1..10).toList(), pages)
+        assertEquals(true, controller.state.value.complete)
+        val rows = controller.state.value.online.map { ProductSearchRow.lenta(it, com.mok.buylist.data.parsePriceKopecks(it.price)) }
+        assertEquals(listOf("lenta:9", "lenta:1"), sortProductRows(rows, ProductSort.UNIT_ASC).map { it.key })
+    }
+
+    @Test fun selectingFullSortContinuesExistingPagesAndStopsOnRepeatedResponses() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            listOf(product(1, "Молоко"))
+        }, this)
+        controller.update("молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        controller.setFullSearch(true)
+        delay(650)
+        assertEquals((1..6).toList(), pages)
+        assertEquals(true, controller.state.value.stalled)
+        assertFalse(controller.state.value.complete)
+        assertEquals(listOf(1L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun fullSearchUpdatesLocalPricesWithoutDuplicates() = runBlocking {
+        val saved = product(1, "Молоко 1 л").copy(price = "200")
+        val controller = LentaSearchController({ _, _, page, _ ->
+            if (page == 1) listOf(saved.copy(price = "100")) else emptyList()
+        }, this)
+        controller.update("молоко", "address", listOf(saved), false, fullSearch = true)
+        delay(800)
+        assertEquals("100", controller.state.value.local.single().price)
+        assertEquals(emptyList<LentaProduct>(), controller.state.value.online)
+        assertEquals(true, controller.state.value.complete)
+    }
+
+    @Test fun irrelevantPagesAreSkippedAndLaterRelevantResultsRemain() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            when (page) {
+                1 -> listOf(product(1, "Печенье со сгущенным молоком"), product(4, "Конфеты Птичье молоко"), product(5, "Вафли Топленое молоко"),
+                    product(6, "Аромадиффузор, клубничное молоко"),
+                    product(7, "Вспениватель молока"), product(8, "Сироп Топленое молоко"),
+                    product(9, "Вино Клубничное молоко"))
+                2 -> listOf(product(2, "Молоко 1 л"), product(3, "Шоколад с молоком"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("Молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals(listOf(1, 2), pages)
+        assertEquals(listOf(2L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun savedIngredientsDoNotPreventOnlineSearch() = runBlocking {
+        val controller = LentaSearchController({ _, _, _, _ -> listOf(product(2, "Молоко")) }, this)
+        controller.update("Молоко", "address", listOf(product(1, "Печенье с молоком")), false)
+        delay(550)
+        assertEquals(emptyList<Long>(), controller.state.value.local.map { it.id })
+        assertEquals(listOf(2L), controller.state.value.online.map { it.id })
+    }
+
     @Test fun savedProductCanBeFoundByConfirmedOldBarcode() = runBlocking {
         val requests = mutableListOf<Int>()
         val controller = LentaSearchController({ _, _, page, _ ->
@@ -75,24 +151,28 @@ class LentaSearchControllerTest {
         delay(50)
         controller.searchOnline()
         delay(50)
-        assertEquals((1..9).toList(), requests)
+        assertEquals((1..6).toList(), requests)
         assertEquals(listOf(1L), controller.state.value.online.map { it.id })
         assertFalse(controller.state.value.failed)
         assertEquals(true, controller.state.value.hasMore)
     }
 
-    @Test fun newProductOnSixthPageAppearsWithoutAnotherClick() = runBlocking {
+    @Test fun newProductOnSixthPageAppearsAfterResuming() = runBlocking {
         val requests = mutableListOf<Int>()
         val saved = (1L..5L).map { product(it, "Молоко") }
         val controller = LentaSearchController({ _, _, page, _ ->
             requests += page
             when (page) {
                 in 1..5 -> listOf(product(page.toLong(), "Молоко"))
-                6 -> listOf(product(6, "Новое молоко"))
+                6 -> listOf(product(6, "Молоко новое"))
                 else -> emptyList()
             }
         }, this)
         controller.update("молоко", "address", saved, false)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..5).toList(), requests)
+        assertEquals(emptyList<Long>(), controller.state.value.online.map { it.id })
         controller.searchOnline()
         delay(50)
         assertEquals((1..6).toList(), requests)
@@ -106,15 +186,18 @@ class LentaSearchControllerTest {
         val controller = LentaSearchController({ _, _, page, _ ->
             requests += page
             if (page <= 12) listOf(product(page.toLong(), "Молоко"))
-            else if (page == 13) listOf(product(13, "Новое молоко"))
+            else if (page == 13) listOf(product(13, "Молоко новое"))
             else emptyList()
         }, this)
         controller.update("молоко", "address", saved, false)
         controller.searchOnline()
         delay(50)
-        assertEquals((1..12).toList(), requests)
+        assertEquals((1..5).toList(), requests)
         assertEquals(emptyList<Long>(), controller.state.value.online.map { it.id })
         assertEquals(true, controller.state.value.hasMore)
+        controller.searchOnline()
+        delay(50)
+        assertEquals((1..10).toList(), requests)
         controller.searchOnline()
         delay(50)
         assertEquals((1..13).toList(), requests)

@@ -20,6 +20,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -35,7 +39,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,6 +58,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -70,7 +75,7 @@ import com.mok.buylist.lentaCatalog
 import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.CustomProductBarcode
 import com.mok.buylist.data.CustomProduct
-import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.matchesProductName
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Manrope
@@ -122,47 +127,46 @@ fun AddItemSheet(
         lenta.save(product, scannedBarcode)
     }
 
-    ModalBottomSheet(
+    AppModalSheet(
         onDismissRequest = onDismiss,
         containerColor = p.sheet,
         contentColor = p.text,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = { SheetDragHandle(onDismiss) },
+        dragHandle = { SearchSheetDragHandle(onDismiss) },
+        sheetGesturesEnabled = false,
     ) {
+        // ModalBottomSheet uses its own window and focus owner.
+        val keyboard = LocalSoftwareKeyboardController.current
+        val focus = LocalFocusManager.current
+        val view = androidx.compose.ui.platform.LocalView.current
+        fun dismissKeyboard() {
+            focus.clearFocus(force = true)
+            keyboard?.hide()
+            val imm = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as? android.view.inputmethod.InputMethodManager
+            imm?.hideSoftInputFromWindow(view.windowToken, 0)
+        }
         Column(
             Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
-                .imePadding()
+                .imePadding().navigationBarsPadding()
+                .fillMaxHeight(0.98f)
                 .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            NoticeInSheet()
             SheetHeader(stringResource(R.string.add_title))
 
-
-            AnimatedVisibility(
-                visible = voice.listening,
-                enter = expandVertically(Motion.smooth()) + fadeIn(Motion.smooth()),
-                exit = shrinkVertically(Motion.smooth(Motion.Quick)) + fadeOut(Motion.smooth(Motion.Quick)),
-            ) {
-                ListeningIndicator(voice.levels)
-            }
 
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .height(60.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(p.field)
-                    .drawBehind {
-                        val line = 3.dp.toPx()
-                        drawRect(p.accent, Offset(0f, size.height - line), Size(size.width, line))
-                    }
-                    .padding(start = 18.dp, end = 8.dp),
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .padding(start = 12.dp, end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp), tint = p.textSecondary)
                 BasicTextField(
                     value = text,
                     onValueChange = {
@@ -172,103 +176,100 @@ fun AddItemSheet(
                     },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
+                    textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                     cursorBrush = SolidColor(p.accent),
                     keyboardOptions = KeyboardOptions(
                         capitalization = KeyboardCapitalization.Sentences,
                         imeAction = ImeAction.Search,
                     ),
-                    keyboardActions = KeyboardActions(onSearch = { }),
+                    keyboardActions = KeyboardActions(onSearch = { dismissKeyboard() }),
                     decorationBox = { inner ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (text.isEmpty()) {
                                 Text(
                                     stringResource(R.string.add_hint),
                                     color = p.textSecondary,
-                                    fontSize = 18.sp,
-                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
                                 )
                             }
                             inner()
                         }
                     },
                 )
-                AnimatedVisibility(
-                    visible = voice.available,
-                    enter = fadeIn(Motion.smooth(Motion.Quick)) + scaleIn(Motion.smooth(Motion.Quick), initialScale = 0.8f),
-                ) {
-                    MicButton(voice)
+                IconButton(onClick = { dismissKeyboard(); voice.toggle() }, enabled = voice.available, modifier = Modifier.size(40.dp)) {
+                    Icon(painterResource(if (voice.listening) R.drawable.ic_close else R.drawable.ic_mic),
+                        if (voice.listening) "Остановить запись" else "Голосовой поиск", Modifier.size(22.dp), tint = p.text)
                 }
-                IconButton(onClick = { scanning = true }) {
-                    Icon(painterResource(R.drawable.ic_camera), contentDescription = "Сканировать штрихкод", tint = p.accent)
+                IconButton(onClick = { dismissKeyboard(); scanning = true }, modifier = Modifier.size(40.dp)) {
+                    Icon(painterResource(R.drawable.ic_scan_barcode), "Сканировать штрихкод", Modifier.size(22.dp), tint = p.text)
                 }
+            }
+            if (voice.listening) {
+                ListeningIndicator(voice.levels)
+                Spacer(Modifier.weight(1f))
             }
 
             val matches = remember(customProducts, customBarcodes, text) {
                 if (text.isBlank()) emptyList() else customProducts.filter { !it.deleted &&
-                    (nameKeyOf(it.name).contains(nameKeyOf(text)) ||
+                    (matchesProductName(it.name, text) ||
                         customBarcodes.any { barcode -> !barcode.deleted &&
                             barcode.productId == it.id && barcode.code == text.trim() } ||
                         (it.barcode == text.trim() && customBarcodes.none { barcode ->
-                            barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }.take(5)
+                            barcode.productId == it.id && barcode.code == text.trim() && barcode.deleted })) }
             }
-            if (!voice.listening && matches.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    matches.forEach { custom ->
-                        Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                                .background(p.field)
-                                .clickable {
+            if (!voice.listening) {
+                if (text.isBlank()) {
+                    Text("Введите название или штрихкод", color = p.textSecondary, fontSize = 13.sp)
+                    FreshCutSecondaryButton("Создать свой товар", { dismissKeyboard(); newName = ""; newBarcode = ""; createOpen = true })
+                    Spacer(Modifier.weight(1f))
+                } else LentaSuggestions(
+                    query = text,
+                    modifier = Modifier.weight(1f),
+                    hasOtherResults = matches.isNotEmpty(),
+                    onUserScroll = { dismissKeyboard() },
+                    customResults = matches.map { ProductSearchRow.custom(it) },
+                    customContent = { row ->
+                        row.custom?.let { custom ->
+                            FreshCutListRow(
+                                icon = R.drawable.ic_package,
+                                title = custom.name,
+                                subtitle = listOfNotNull(if (custom.isWeighted) "Весовой товар" else "Свой товар", row.normalized?.label()).joinToString(" · "),
+                                value = row.price?.let {
+                                    java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
+                                },
+                                onClick = {
+                                    dismissKeyboard()
                                     onAddCustom(custom) { added ->
                                         activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                                         if (added) { text = ""; onQueryChange(""); scannedCode = null }
                                     }
-                                }
-                                .padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            LentaImage("", Modifier.size(52.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(custom.name, color = p.text, fontSize = 13.sp,
-                                    lineHeight = 17.sp, fontWeight = FontWeight.Bold)
-                                custom.estimatedPriceKopecks?.let { price ->
-                                    Text("${java.math.BigDecimal.valueOf(price, 2).stripTrailingZeros().toPlainString()} ₽",
-                                        color = p.accent, fontSize = 13.sp,
-                                        fontWeight = FontWeight.ExtraBold)
-                                }
+                                },
+                            )
+                        }
+                    },
+                    footer = {
+                        FreshCutSecondaryButton("Создать свой товар", {
+                            dismissKeyboard()
+                            newName = if (scannedCode == text) "" else text
+                            newBarcode = scannedCode.orEmpty()
+                            createOpen = true
+                        })
+                    },
+                    onSettings = onAddressSettings,
+                    onAdd = { product ->
+                        dismissKeyboard()
+                        scope.launch {
+                            val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
+                            saveLenta(chosen, scannedCode?.takeIf { it == text })
+                            onAdd(chosen) { added ->
+                                activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                if (added) { text = ""; scannedCode = null; onQueryChange("") }
                             }
                         }
-                    }
-                }
-            }
-            if (!voice.listening) {
-                CreateCustomProductAction(
-                    onClick = {
-                        newName = if (scannedCode == text) "" else text
-                        newBarcode = scannedCode.orEmpty()
-                        createOpen = true
                     },
-                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp),
                 )
             }
-
-            if (!voice.listening) LentaSuggestions(
-                query = text,
-                modifier = Modifier.weight(1f),
-                hasOtherResults = matches.isNotEmpty(),
-                onSettings = onAddressSettings,
-                onAdd = { product ->
-                    scope.launch {
-                        val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
-                        saveLenta(chosen, scannedCode?.takeIf { it == text })
-                        onAdd(chosen) { added ->
-                            activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                            if (added) { text = ""; scannedCode = null; onQueryChange("") }
-                        }
-                    }
-                },
-            )
 
         }
     }
@@ -307,17 +308,18 @@ fun AddItemSheet(
 internal fun SheetHeader(title: String) {
     val p = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().padding(bottom = 8.dp),
+        Modifier.fillMaxWidth().heightIn(min = 44.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             title,
             Modifier.weight(1f),
             color = p.text,
-            fontSize = 20.sp,
-            lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontSize = 24.sp,
+            lineHeight = 30.sp,
+            fontWeight = FontWeight.SemiBold,
         )
+        LocalSheetClose.current?.let { SheetCloseButton(it) }
     }
 }
 
@@ -349,7 +351,7 @@ private fun MicButton(voice: VoiceInput) {
             painterResource(R.drawable.ic_mic),
             contentDescription = stringResource(if (listening) R.string.voice_stop else R.string.voice_start),
             Modifier.size(24.dp),
-            tint = if (listening) p.onAccent else p.chipText,
+            tint = if (listening) p.onAccent else p.text,
         )
     }
 }
@@ -387,5 +389,16 @@ private fun ListeningIndicator(levels: List<Float>) {
                 fontWeight = FontWeight.Bold,
             )
         }
+    }
+}
+
+@Composable
+private fun SearchModeAction(icon: Int, title: String, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Row(modifier.height(48.dp).clip(RoundedCornerShape(16.dp)).background(p.card)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(painterResource(icon), null, Modifier.size(24.dp), tint = if (enabled) p.text else p.textSecondary)
+        Text(title, color = if (enabled) p.text else p.textSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

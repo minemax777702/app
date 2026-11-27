@@ -75,6 +75,7 @@ fun StatsScreen(
     meId: String,
     onBack: () -> Unit,
     viewModel: ShoppingViewModel,
+    navigation: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val buyers = remember(archive, bought, users) {
@@ -92,13 +93,15 @@ fun StatsScreen(
     }
     var selectedUser by rememberSaveable { mutableStateOf<String?>(null) }
     var period by rememberSaveable { mutableStateOf(ExpensePeriod.MONTH) }
+    var section by rememberSaveable { mutableStateOf(0) }
+    var filterOpen by rememberSaveable { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     val today = remember { java.time.LocalDate.now(zone) }
     // Выбранного человека могло не стать (например, после обмена): тогда снова показываем всех.
     val userId = selectedUser?.takeIf { id -> buyers.any { it.id == id } }
     val shownArchive = remember(archive, userId, period) {
         val byUser = if (userId == null) archive else filterByUser(archive, userId)
-        archiveForPeriod(byUser, periodStart(period, today), today, zone)
+        closedTripsForPeriod(byUser, periodStart(period, today), today, zone)
     }
     val stats = remember(shownArchive) { computeStats(shownArchive, System.currentTimeMillis(), ZoneId.systemDefault()) }
     // Столбики «вырастают» при открытии экрана: один раз, без повторов при прокрутке.
@@ -116,58 +119,63 @@ fun StatsScreen(
         }
     }
     if (selectedProduct != null) {
-        ProductDetailsScreen(selectedProduct!!, purchases.filter { userId == null || it.buyer == userId }, users, viewModel, onBack = { selectedProduct = null })
+        ProductDetailsScreen(selectedProduct!!, purchases.filter { userId == null || it.buyer == userId }, users, viewModel, onBack = { selectedProduct = null }, navigation = navigation)
         return
     }
     if (showHistory) {
         BackHandler { showHistory = false }
-        ProductHistoryScreen(historyPurchases, onProductClick = { selectedProduct = it }, onBack = { showHistory = false })
+        ProductHistoryScreen(historyPurchases, onProductClick = { selectedProduct = it }, onBack = { showHistory = false }, navigation = navigation)
         return
     }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader(stringResource(R.string.stats_title), onBack)
-        if (buyers.size > 1) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                UserChip(stringResource(R.string.stats_everyone), selected = userId == null) { selectedUser = null }
-                buyers.forEach { user ->
-                    UserChip(
-                        if (user.id == meId) stringResource(R.string.stats_you, user.name) else user.name,
-                        selected = userId == user.id,
-                    ) { selectedUser = user.id }
-                }
-            }
+        FreshCutRootHeader("ВАШИ ПОКУПКИ", stringResource(R.string.stats_title), "Расходы и привычки") {
+            FreshCutToolbarAction(R.drawable.ic_history, "История покупок", { showHistory = true })
         }
+        if (filterOpen) {
+            var draftPeriod by remember { mutableStateOf(period) }
+            var draftUser by remember { mutableStateOf(userId) }
+            val ids = listOf<String?>(null) + buyers.map { it.id }
+            val labels = listOf("Все покупатели") + buyers.map { it.name }
+            AppSheet(onDismissRequest = { filterOpen = false }, containerColor = p.sheet,
+                title = { SheetHeader("Фильтры статистики") }, text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        FilterSelect("Период", draftPeriod.title, ExpensePeriod.entries.map { it.title }) { draftPeriod = ExpensePeriod.entries[it] }
+                        if (buyers.size > 1) FilterSelect("Покупатель", labels[ids.indexOf(draftUser).coerceAtLeast(0)], labels) { draftUser = ids[it] }
+                        androidx.compose.material3.TextButton(onClick = { draftPeriod = ExpensePeriod.MONTH; draftUser = null }) { Text("Сбросить", color = p.text) }
+                    }
+                }, confirmButton = { SheetActionButton(onClick = { period = draftPeriod; selectedUser = draftUser; filterOpen = false }) { Text("Применить") } })
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(period.title + " · " + (buyers.firstOrNull { it.id == userId }?.name ?: "Все покупатели"), Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
+            androidx.compose.material3.TextButton(onClick = { filterOpen = true }) { Text("Фильтры", color = p.text) }
+        }
+        FreshCutTabs(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
+            Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         if (stats.lists == 0 && purchases.none { userId == null || it.buyer == userId }) {
             EmptyStats(Modifier.weight(1f))
         } else {
+            androidx.compose.runtime.key(section) {
             LazyColumn(
                 Modifier
                     .weight(1f),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp,
-                    bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ExpenseStatsPanel(purchases, userId, period, stores = stores,
-                        onProductClick = { selectedProduct = it }) { period = it }
+                    ExpenseStatsPanel(purchases, userId, period, closedTrips = shownArchive, stores = stores,
+                        onProductClick = { selectedProduct = it }, section = section) { period = it }
                 } }
-                if (stats.lists > 0) item { Card {
+                if (section == 0 && stats.lists > 0) item { Card {
                     Text(stringResource(R.string.stats_overview), color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        NumberCard(stats.lists.toString(), stringResource(R.string.stats_lists), Modifier.weight(1f))
                         NumberCard(stats.items.toString(), stringResource(R.string.stats_items), Modifier.weight(1f))
                         NumberCard(stats.averageItems.toString(), stringResource(R.string.stats_average_label), Modifier.weight(1f))
                     }
                 } }
-                item { WeeksCard(if (monthly) stats.months else stats.weeks, shown, monthly) { monthly = it } }
-                stats.busiestDay?.let { day ->
+                if (section == 2) item { HistoryButton(onClick = { showHistory = true }) }
+                if (section == 3) item { WeeksCard(if (monthly) stats.months else stats.weeks, shown, monthly) { monthly = it } }
+                if (section == 0) stats.busiestDay?.let { day ->
                     item {
                     val name = day.getDisplayName(TextStyle.FULL_STANDALONE, LocalConfiguration.current.locales[0])
                     Card {
@@ -186,7 +194,9 @@ fun StatsScreen(
                     } }
                 }
             }
+            }
         }
+        navigation()
     }
 }
 
@@ -200,7 +210,7 @@ private fun HistoryButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(p.boughtBg), contentAlignment = Alignment.Center) {
-            Icon(painterResource(R.drawable.ic_history), contentDescription = null, modifier = Modifier.size(21.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_history), contentDescription = null, modifier = Modifier.size(21.dp), tint = p.text)
         }
         Text(stringResource(R.string.stats_product_history), Modifier.weight(1f), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
         Text("›", color = p.textSecondary, fontSize = 24.sp)
@@ -251,7 +261,7 @@ private fun NumberCard(value: String, label: String, modifier: Modifier = Modifi
         modifier,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(value, color = p.accent, fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, color = p.text, fontSize = 26.sp, lineHeight = 30.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Text(label, color = p.textSecondary, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
     }
 }
@@ -355,7 +365,7 @@ private fun EmptyStats(modifier: Modifier = Modifier) {
             Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_chart), contentDescription = null, Modifier.size(64.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_chart), contentDescription = null, Modifier.size(64.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.stats_empty_title),

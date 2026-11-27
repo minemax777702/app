@@ -1,6 +1,7 @@
 package com.mok.buylist.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +56,8 @@ import com.mok.buylist.lentaCatalog
 import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.data.nameKeyOf
+import com.mok.buylist.data.matchesProductName
+import com.mok.buylist.data.matchesProductSearch
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.Manrope
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,6 +72,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val products by catalog.products.collectAsStateWithLifecycle()
+    val address by catalog.address.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
@@ -78,14 +82,9 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(batch) {
-        val result = batch
-        if (result != null && !result.running) {
-            activity?.notifyUser(if (result.failed == 0) "Цены обновлены" else "Не обновлено: ${result.failed} из ${result.total}")
-            viewModel.batchPriceRefresh.value = null
-        }
-    }
+    val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
+    var catalogMenu by remember { mutableStateOf(false) }
     var onlineQuery by rememberSaveable { mutableStateOf("") }
     var adding by rememberSaveable { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
@@ -99,7 +98,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var shownCount by rememberSaveable(query) { mutableStateOf(20) }
     val rows = remember(products, query, barcodeRows) {
         val key = nameKeyOf(query)
-        products.filter { key.isEmpty() || nameKeyOf(it.name).contains(key) || nameKeyOf(it.pack).contains(key) ||
+        products.filter { key.isEmpty() || matchesProductSearch(it.name, it.pack, query) ||
             catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) ||
                 com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) } }
             .sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
@@ -111,104 +110,141 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val ownRows = remember(customProducts, customBarcodeRows, query) {
         val key = nameKeyOf(query)
         customProducts.filter { !it.deleted &&
-            (key.isBlank() || nameKeyOf(it.name).contains(key) || customBarcodeRows.any { row -> !row.deleted && row.productId == it.id && row.code.contains(key) }) }
+            (key.isBlank() || matchesProductName(it.name, query) || customBarcodeRows.any { row -> !row.deleted && row.productId == it.id && row.code.contains(key) }) }
             .sortedBy { nameKeyOf(it.name) }
     }
+    val shopPrices = remember(ownRows, rows, stores, storeLinks, knownPurchases, identities, products, address) {
+        (ownRows.map { "custom:" + it.id } + rows.map { "lenta:" + it.id }).associateWith { key ->
+            productShopPrices(key, stores, storeLinks, knownPurchases, identities, products, address)
+        }
+    }
+    val catalogRows = remember(ownRows, rows, shopPrices, address) {
+        (ownRows.map { product ->
+            ProductSearchRow.custom(product, cheapestShopPrice(shopPrices["custom:" + product.id].orEmpty())?.priceKopecks ?: product.estimatedPriceKopecks)
+        } + rows.map { product ->
+            ProductSearchRow.lenta(product, displayShopPrice("lenta:" + product.id, shopPrices["lenta:" + product.id].orEmpty())?.priceKopecks
+                ?: searchCatalogPrice(product, address))
+        }).sortedWith(compareBy<ProductSearchRow> { nameKeyOf(it.custom?.name ?: it.lenta?.name.orEmpty()) }.thenBy { it.key })
+    }
     Column(Modifier.fillMaxSize().background(p.background)) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            ProductSearch(query, { query = it }, Modifier.weight(1f))
-            IconButton(onClick = { scanning = true }) {
-                Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.accent)
-            }
-            Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(p.accent)
-                .clickable(role = Role.Button) { onlineQuery = ""; adding = true }, contentAlignment = Alignment.Center) {
-                Icon(painterResource(R.drawable.ic_plus), stringResource(R.string.products_add), tint = p.onAccent)
-            }
-        }
-        if (products.isNotEmpty()) TextButton(onClick = viewModel::refreshAllPrices, enabled = batch?.running != true,
-            modifier = Modifier.padding(start = 8.dp)) {
-            Text(if (batch?.running == true) "Обновление ${batch!!.completed}/${batch!!.total}" else "Обновить все цены")
-        }
-        if (rows.isEmpty() && ownRows.isEmpty()) Text(if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено", Modifier.fillMaxWidth().padding(32.dp), color = p.textSecondary, fontSize = 16.sp, textAlign = TextAlign.Center)
-        CreateCustomProductAction(onClick = {
-            customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
-            customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
-            createCustom = true
-        }, modifier = Modifier.padding(horizontal = 16.dp))
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(ownRows.take(shownCount), key = { "custom:${it.id}" }) { product ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
-                    .clickable(role = Role.Button) { onProductClick("custom:${product.id}") }
-                    .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    CustomProductImage(product.id, Modifier.size(42.dp))
-                    androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-                    Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        Text(product.name, color = p.text, fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold)
-                        if (product.isWeighted) Text("Весовой · ₽/кг",
-                            color = p.textSecondary, fontSize = 12.sp)
-                        val shopPrices = productShopPrices(
-                            "custom:${product.id}", stores, storeLinks, knownPurchases, identities)
-                        if (shopPrices.isNotEmpty()) Text(
-                            shopPrices.joinToString(" · ") { it.storeName },
-                            color = p.textSecondary, fontSize = 12.sp,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        val cheapest = cheapestShopPrice(shopPrices)
-                        val bestPrice = cheapest?.priceKopecks ?: product.estimatedPriceKopecks
-                        if (bestPrice != null) {
-                            Text(
-                                (if (cheapest != null) "От " else "Ориентир: ") +
-                                    java.math.BigDecimal.valueOf(bestPrice, 2)
-                                        .stripTrailingZeros().toPlainString() + " ₽" +
-                                    if (cheapest != null) " · ${cheapest.storeName}" else "",
-                                color = p.accent, fontSize = 13.sp,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        }
+        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            ProductSearch(query, { query = it }, Modifier.weight(1f), trailing = {
+                Box {
+                    IconButton(onClick = { catalogMenu = true }) {
+                        Icon(painterResource(R.drawable.ic_more), "Действия каталога", tint = p.text, modifier = Modifier.size(24.dp))
                     }
-                    IconButton(onClick = { viewModel.addCustomProduct(product) { added ->
-                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                    } }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent,
-                            modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { pendingCustomDelete = product }) {
-                        Icon(painterResource(R.drawable.ic_trash), "Удалить свой товар",
-                            tint = p.iconMuted, modifier = Modifier.size(20.dp))
+                    AppDropdownMenu(expanded = catalogMenu, onDismissRequest = { catalogMenu = false }) {
+                        AppDropdownMenuItem(text = { Text("Сканировать штрихкод") }, onClick = { catalogMenu = false; scanning = true })
+                        AppDropdownMenuItem(text = { Text("Найти в Ленте") }, onClick = { catalogMenu = false; onlineQuery = query; adding = true })
+                        AppDropdownMenuItem(text = { Text("Создать свой товар") }, onClick = {
+                            catalogMenu = false
+                            customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
+                            customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
+                            createCustom = true
+                        })
                     }
                 }
-            }
-            items(rows.take(shownCount), key = { "lenta:${it.id}" }) { product ->
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card)
-                    .clickable(role = Role.Button) { onProductClick("lenta:${product.id}") }
-                    .padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    LentaImage(product.image, Modifier.size(42.dp))
-                    androidx.compose.foundation.layout.Spacer(Modifier.size(10.dp))
-                    Column(Modifier.weight(1f).padding(vertical = 12.dp)) {
-                        Text(product.name, color = p.text, fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold, maxLines = 2,
-                            overflow = TextOverflow.Ellipsis)
-                        val linked = storeLinks.filter { !it.deleted &&
-                            it.productKey == "lenta:${product.id}" }
-                        if (linked.isNotEmpty()) Text(linked.take(2).joinToString(" · ") { row ->
-                            val shop = stores.firstOrNull { it.id == row.storeId }?.name ?: "Магазин"
-                            shop + (row.priceKopecks?.let { price ->
-                                ": " + java.math.BigDecimal.valueOf(price, 2)
-                                    .stripTrailingZeros().toPlainString() + " ₽"
-                            } ?: "")
-                        }, color = p.textSecondary, fontSize = 12.sp)
-                    }
-                    IconButton(onClick = { onAdd(product) }) {
-                        Icon(painterResource(R.drawable.ic_plus), "Добавить в список", tint = p.accent, modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { pendingDelete = product }) {
-                        Icon(painterResource(R.drawable.ic_trash), stringResource(R.string.products_delete), tint = p.iconMuted, modifier = Modifier.size(20.dp))
+            })
+        }
+        if (products.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(productCountLabel(ownRows.size + rows.size), color = p.textSecondary, fontSize = 12.sp)
+            val running = batch?.takeIf { it.running }
+            if (running != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${running.completed}/${running.total}", color = p.textSecondary, fontSize = 12.sp)
+                    TextButton(onClick = viewModel::stopBatchRefresh, enabled = !running.stopping) {
+                        Text(if (running.stopping) "Остановка…" else "Остановить",
+                            color = if (running.stopping) p.textSecondary else p.error)
                     }
                 }
+            } else {
+                TextButton(onClick = viewModel::refreshAllPrices) {
+                    Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(18.dp), tint = p.text)
+                    Text("  Обновить данные", color = p.text)
+                }
             }
-            if (shownCount < rows.size || shownCount < ownRows.size) item {
-                Text("Показать ещё", Modifier.clickable { shownCount += 20 }.padding(12.dp), color = p.accent)
+        }
+        if (rows.isEmpty() && ownRows.isEmpty()) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(painterResource(R.drawable.ic_package), null, Modifier.size(40.dp), tint = p.textSecondary)
+                Text(if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено",
+                    color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                Text(if (query.isBlank()) "Добавьте товар, чтобы начать." else "Попробуйте другое название или штрихкод.",
+                    color = p.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
             }
+        }
+        LazyColumn(Modifier.weight(1f), overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(catalogRows.take(shownCount), key = { it.key }) { row ->
+                val own = row.custom
+                val lenta = row.lenta
+                if (own != null) {
+                    val product = own
+                    val prices = shopPrices[row.key].orEmpty()
+                    val best = row.price
+                    val subtitle = (listOfNotNull(row.normalized?.label(), if (product.isWeighted) "Весовой" else null) + prices.map { it.storeName })
+                        .joinToString(" · ").ifBlank { "Свой товар" }
+                    var menu by remember { mutableStateOf(false) }
+                    FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
+                        value = best?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                        onClick = { onProductClick("custom:${product.id}") },
+                        leading = { CustomProductImage(product.id, Modifier.size(44.dp)) },
+                        trailing = {
+                            Box {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                    Icon(painterResource(R.drawable.ic_more), "Действия с товаром", Modifier.size(20.dp), tint = p.textSecondary)
+                                }
+                                AppDropdownMenu(menu, { menu = false }) {
+                                    AppDropdownMenuItem(text = { Text("Добавить в список") }, onClick = {
+                                        menu = false
+                                        viewModel.addCustomProduct(product) { added ->
+                                            activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                        }
+                                    })
+                                    AppDropdownMenuItem(text = { Text("Удалить товар", color = p.error) },
+                                        onClick = { menu = false; pendingCustomDelete = product })
+                                }
+                            }
+                        })
+                } else if (lenta != null) {
+                    val product = lenta
+                    val prices = shopPrices[row.key].orEmpty()
+                    val value = row.price
+                    val subtitle = (listOfNotNull(row.normalized?.label(), "Лента") + prices.map { it.storeName }).distinct().joinToString(" · ")
+                    var menu by remember { mutableStateOf(false) }
+                    FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
+                        value = value?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                        onClick = { onProductClick("lenta:${product.id}") },
+                        leading = { LentaImage(product.image, Modifier.size(44.dp)) },
+                        trailing = {
+                            Box {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                    Icon(painterResource(R.drawable.ic_more), "Действия с товаром", Modifier.size(20.dp), tint = p.textSecondary)
+                                }
+                                AppDropdownMenu(menu, { menu = false }) {
+                                    AppDropdownMenuItem(text = { Text("Добавить в список") }, onClick = { menu = false; onAdd(product) })
+                                    if (refresh?.second != "Загрузка") AppDropdownMenuItem(
+                                        text = { Text("Обновить информацию") },
+                                        onClick = { menu = false; viewModel.refreshPrice(product.id) })
+                                    AppDropdownMenuItem(text = { Text("Удалить товар", color = p.error) },
+                                        onClick = { menu = false; pendingDelete = product })
+                                }
+                            }
+                        })
+                }
+            }
+            if (shownCount < catalogRows.size) item {
+                FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
+            }
+        }
+        if (rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            SheetActionButton(onClick = {
+                customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
+                customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
+                createCustom = true
+            }) { Text("Создать свой товар") }
         }
     }
     if (createCustom) {
@@ -227,15 +263,14 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         )
     }
     if (adding) {
-        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,
-            dragHandle = { SheetDragHandle { adding = false } }) {
+        AppModalSheet(onDismissRequest = { adding = false }, containerColor = p.sheet,
+            dragHandle = { SearchSheetDragHandle { adding = false } }, sheetGesturesEnabled = false) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).imePadding().padding(horizontal = 20.dp)) {
-                NoticeInSheet()
                 SheetHeader("Добавить продукт")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ProductSearch(onlineQuery, { onlineQuery = it; scannedOnlineCode = null }, Modifier.weight(1f))
                     IconButton(onClick = { scanningOnline = true }) {
-                        Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.accent)
+                        Icon(painterResource(R.drawable.ic_camera), "Поиск по штрихкоду", tint = p.text)
                     }
                 }
                 LentaSuggestions(onlineQuery, Modifier.weight(1f), onAdd = { product ->
@@ -257,7 +292,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         AppSheet(
             onDismissRequest = { pendingCustomDelete = null },
             containerColor = p.sheet,
-            title = { SheetHeader("Удалить товар?") },
+            title = { SheetHeader("Удалить товар?") }, minBodyHeight = 230.dp,
             text = {
                 Text("«${product.name}» исчезнет из базы продуктов. История покупок сохранится.",
                     color = p.textSecondary)
@@ -283,30 +318,27 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
 }
 
 @Composable
-internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null) {
     val p = LocalPalette.current
     BasicTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
-        textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+        textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
         cursorBrush = SolidColor(p.accent),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Search),
         decorationBox = { inner ->
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(p.field)
-                    .padding(horizontal = 18.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (value.isEmpty()) {
-                    Text(stringResource(R.string.products_search), color = p.textSecondary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Row(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(16.dp))
+                .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp)).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp), tint = p.textSecondary)
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(stringResource(R.string.products_search), color = p.textSecondary, fontSize = 15.sp)
+                    inner()
                 }
-                inner()
+                trailing?.invoke()
             }
         },
     )

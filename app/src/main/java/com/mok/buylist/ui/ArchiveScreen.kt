@@ -1,5 +1,9 @@
 package com.mok.buylist.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -25,9 +29,12 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,7 +51,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -84,12 +90,14 @@ fun ArchiveScreen(
     meId: String,
     initiallyExpandedId: Long? = null,
     viewModel: ShoppingViewModel,
+    navigation: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
     var pendingDelete by remember { mutableStateOf<ArchivedList?>(null) }
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
     var selectedProduct by rememberSaveable { mutableStateOf<String?>(null) }
+    var skippedForRepeat by rememberSaveable(expandedId) { mutableStateOf(arrayListOf<Int>()) }
     val allArchive by viewModel.archive.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
@@ -98,11 +106,19 @@ fun ArchiveScreen(
     val multiUser = users.size > 1
     if (selectedProduct != null) {
         ProductDetailsScreen(selectedProduct!!, remember(allArchive, bought) { expensePurchases(allArchive, bought) },
-            users, viewModel, onBack = { selectedProduct = null })
+            users, viewModel, onBack = { selectedProduct = null }, navigation = navigation)
         return
     }
+    details?.let { (list, index) ->
+        ArchiveProductDetails(list, index, userNames, meId, multiUser, stores,
+            onProduct = { id -> details = null; selectedProduct = id },
+            onDismiss = { details = null }, navigation = navigation)
+        return
+    }
+    BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader(stringResource(R.string.archive_title), onBack) {
+        FreshCutRootHeader("ИСТОРИЯ", stringResource(R.string.archive_title), tripCountLabel(archive.distinctBy { it.uid }.size)) {
+            if (initiallyExpandedId != null) HeaderButton(R.drawable.ic_back, "Назад", onBack)
             if (archive.isNotEmpty() && onOpenStats != null) {
                 HeaderButton(R.drawable.ic_chart, stringResource(R.string.stats_open), onOpenStats)
             }
@@ -113,20 +129,29 @@ fun ArchiveScreen(
             LazyColumn(
                 Modifier.weight(1f),
                 contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 0.dp,
                     bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(archive, key = { it.id }) { list ->
+                itemsIndexed(archive, key = { _, list -> list.id }) { index, list ->
                     ArchiveCard(
                         list = list,
                         now = now,
                         expanded = expandedId == list.id,
+                        featured = index == 0,
                         onToggle = { expandedId = if (expandedId == list.id) null else list.id },
-                        onRepeat = onRepeat,
+                        skipped = if (expandedId == list.id) skippedForRepeat.toSet() else emptySet(),
+                        onSelectionChange = { skippedForRepeat = ArrayList(it) },
+                        onRepeat = {
+                            val indices = list.names.indices.filter { it !in skippedForRepeat }
+                            if (indices.isNotEmpty()) {
+                                onRepeat(indices.map { list.names[it] },
+                                    indices.map { list.counts[it] }, indices.map { list.events[it] })
+                            }
+                        },
                         onDelete = { pendingDelete = list },
                         onInfo = { index -> details = list to index },
                         buyers = remember(list) { listBuyers(list) },
@@ -136,18 +161,14 @@ fun ArchiveScreen(
                         stores = stores,
                         modifier = Modifier.animateItem(
                             fadeInSpec = Motion.smooth(),
-                            placementSpec = Motion.settle(),
+                            placementSpec = null,
                             fadeOutSpec = Motion.smooth(Motion.Quick),
                         ),
                     )
                 }
             }
         }
-    }
-
-    details?.let { (list, index) ->
-        ArchiveProductDetails(list, index, userNames, meId, multiUser, stores,
-            onProduct = { id -> details = null; selectedProduct = id }) { details = null }
+        navigation()
     }
 
     pendingDelete?.let { list ->
@@ -182,33 +203,12 @@ internal fun durationText(minutes: Int): String = when {
 @Composable
 internal fun SubScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
-            .background(p.header)
-            .drawBehind {
-                drawCircle(
-                    color = Color.White.copy(alpha = if (p.isDark) 0.07f else 0.1f),
-                    radius = 110.dp.toPx(),
-                    center = Offset(size.width - 50.dp.toPx(), 20.dp.toPx()),
-                )
-            }
-            .statusBarsPadding()
-            .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 28.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        HeaderButton(R.drawable.ic_back, stringResource(R.string.archive_back), onBack)
-        Spacer(Modifier.width(14.dp))
-        Text(
-            title,
-            Modifier.weight(1f),
-            color = p.onHeader,
-            fontSize = 26.sp,
-            lineHeight = 32.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = (-0.3).sp,
-        )
+    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        HeaderButton(R.drawable.ic_back, "Назад", onBack)
+        Spacer(Modifier.width(12.dp))
+        Text(title, Modifier.weight(1f), color = p.text, fontSize = 24.sp,
+            lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
         trailing()
     }
 }
@@ -218,9 +218,9 @@ internal fun HeaderButton(icon: Int, description: String, onClick: () -> Unit) {
     val p = LocalPalette.current
     Box(
         Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.16f))
+            .size(44.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(p.field)
             .clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
@@ -233,8 +233,11 @@ private fun ArchiveCard(
     list: ArchivedList,
     now: Long,
     expanded: Boolean,
+    featured: Boolean,
+    skipped: Set<Int>,
+    onSelectionChange: (Set<Int>) -> Unit,
     onToggle: () -> Unit,
-    onRepeat: (names: List<String>, quantities: List<Int>, events: List<String>) -> Unit,
+    onRepeat: () -> Unit,
     onDelete: () -> Unit,
     onInfo: (Int) -> Unit,
     /** Кто купил: один человек подписывается на самом списке, несколько — на товарах. */
@@ -247,6 +250,7 @@ private fun ArchiveCard(
 ) {
     val p = LocalPalette.current
     val names = list.names
+    val chosen = names.indices.count { it !in skipped }
     val storeNames = list.events.mapNotNull { purchaseStoreName(decodePurchaseEvent(it), stores) }.distinct()
     val youLabel = stringResource(R.string.archive_buyer_you)
     fun buyerLabel(id: String): String = when {
@@ -260,10 +264,6 @@ private fun ArchiveCard(
         is ListBuyers.Mixed -> buyers.ids.map { buyerLabel(it) }.filter { it.isNotEmpty() }.distinct().joinToString(" + ").ifEmpty { null }
         ListBuyers.Unknown -> null
     }
-    // Какие товары не нужны при повторе. Свернули карточку — выбор сбрасывается, снова всё отмечено.
-    var skipped by remember(list.id, expanded) { mutableStateOf(emptySet<Int>()) }
-    val chosenIndices = names.indices.filter { it !in skipped }
-    val chosen = chosenIndices.map { names[it] }
     val today = stringResource(R.string.archive_today)
     val yesterday = stringResource(R.string.archive_yesterday)
     val locale = LocalConfiguration.current.locales[0]
@@ -271,92 +271,52 @@ private fun ArchiveCard(
         formatArchiveDate(list.completedAt, now, ZoneId.systemDefault(), today, yesterday, locale)
     }
     val arrow = animateFloatAsState(if (expanded) 180f else 0f, Motion.smooth(), label = "archive-arrow")
+    val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
+    val amount = if (spent.known > 0) formatAmount(spent) else "—"
+    if (!featured && !expanded) {
+        Column(modifier) {
+            FreshCutListRow(R.drawable.ic_archive, date,
+                (storeNames + listOfNotNull(listLabel)).joinToString(" · ").ifBlank { "Завершённый поход" },
+                value = amount, onClick = onToggle)
+        }
+        return
+    }
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(p.card)
-            .clickable(role = Role.Button, onClick = onToggle)
             .animateContentSize(Motion.smooth())
-            .padding(start = 18.dp, end = 10.dp, top = 14.dp, bottom = 14.dp),
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(date, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                    if (listLabel != null) {
-                        Text(
-                            listLabel,
-                            Modifier
-                                .clip(CircleShape)
-                                .background(p.chipBg)
-                                .padding(horizontal = 10.dp, vertical = 3.dp),
-                            color = p.chipText,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+        Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                val subtitle = (storeNames + listOfNotNull(listLabel)).joinToString(" · ")
+                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp)
+            }
+            Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value }, tint = p.textSecondary)
+        }
+        Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle)) {
+            Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (expanded) {
+            Column(Modifier.padding(top = 8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Выбрано $chosen из ${names.size}", Modifier.weight(1f),
+                        color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    TextButton(onClick = {
+                        onSelectionChange(if (chosen == names.size) names.indices.toSet() else emptySet())
+                    }, enabled = names.isNotEmpty()) {
+                        Text(if (chosen == names.size) "Снять все" else "Выбрать все", color = p.text, fontSize = 13.sp)
                     }
                 }
-                // «5 товаров · 32 мин». Времени нет у старых записей и у походов из одной покупки.
-                val summary = listOfNotNull(
-                    pluralStringResource(R.plurals.archive_items, list.itemCount, list.itemCount),
-                ).joinToString(" · ")
-                Text(
-                    summary,
-                    color = p.textSecondary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-                if (storeNames.isNotEmpty())
-                    Text(if (storeNames.size == 1) storeNames.single()
-                        else "Магазины: " + storeNames.joinToString(", "),
-                        color = p.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Icon(
-                painterResource(R.drawable.ic_chevron_down),
-                contentDescription = null,
-                Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value },
-                tint = p.iconMuted,
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-
-        if (expanded) {
-            // Planned-but-unpurchased items are not part of the amount spent.
-            val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
-            if (spent.known > 0)
-                Text("Потрачено: ${formatAmount(spent)}",
-                    Modifier.padding(top = 8.dp), color = p.textSecondary)
-        }
-
-        if (!expanded) {
-            val preview = names.take(PREVIEW_ITEMS).joinToString(", ") +
-                if (names.size > PREVIEW_ITEMS) ", " + stringResource(R.string.archive_more, names.size - PREVIEW_ITEMS) else ""
-            Text(
-                preview,
-                Modifier.padding(top = 6.dp, end = 8.dp),
-                color = p.textSecondary,
-                fontSize = 15.sp,
-                lineHeight = 21.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        if (expanded) {
-            Column(Modifier.padding(top = 10.dp, end = 8.dp)) {
                 names.forEachIndexed { index, name ->
-                    ArchiveItemRow(
-                        name = name,
-                        store = purchaseStoreName(decodePurchaseEvent(list.events[index]), stores),
-                        impulsive = decodePurchaseEvent(list.events[index])?.impulsive == true,
-                        checked = index !in skipped,
-                        onToggle = { skipped = if (index in skipped) skipped - index else skipped + index },
-                        onInfo = { onInfo(index) },
-                    )
+                    ArchiveItemRow(name, null, false, index !in skipped,
+                        onToggle = { onSelectionChange(if (index in skipped) skipped - index else skipped + index) },
+                        onInfo = { onInfo(index) })
                 }
                 Spacer(Modifier.height(12.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(p.chipBorder.copy(alpha = 0.6f)))
@@ -372,27 +332,23 @@ private fun ArchiveCard(
                             .weight(1f)
                             .height(52.dp)
                             .clip(CircleShape)
-                            .background(p.accent.copy(alpha = if (chosen.isEmpty()) 0.38f else 1f))
-                            .clickable(enabled = chosen.isNotEmpty(), role = Role.Button) { onRepeat(chosen, chosenIndices.map { list.counts[it] }, chosenIndices.map { list.events[it] }) }
+                            .background(if (chosen > 0) p.actionFill else p.field)
+                            .clickable(enabled = chosen > 0, role = Role.Button, onClick = onRepeat)
                             .padding(horizontal = 12.dp),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, Modifier.size(20.dp), tint = p.onAccent)
+                        Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, Modifier.size(20.dp), tint = if (chosen > 0) p.actionInk else p.textSecondary)
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            stringResource(R.string.archive_repeat),
+                            "Купить снова · $chosen",
                             modifier = Modifier.weight(1f, fill = false),
-                            color = p.onAccent,
-                            fontSize = 16.sp,
+                            color = if (chosen > 0) p.actionInk else p.textSecondary,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (chosen.isNotEmpty() && chosen.size != names.size) {
-                            Text(" (${chosen.size})", color = p.onAccent, fontSize = 16.sp,
-                                fontWeight = FontWeight.ExtraBold, maxLines = 1, softWrap = false)
-                        }
                     }
                     val deleteLabel = stringResource(R.string.archive_delete)
                     Box(
@@ -403,7 +359,7 @@ private fun ArchiveCard(
                             .clickable(role = Role.Button, onClickLabel = deleteLabel, onClick = onDelete),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(painterResource(R.drawable.ic_trash), contentDescription = deleteLabel, Modifier.size(22.dp), tint = p.error)
+                        Icon(painterResource(R.drawable.ic_trash), contentDescription = deleteLabel, Modifier.size(22.dp), tint = p.text)
                     }
                 }
             }
@@ -411,11 +367,10 @@ private fun ArchiveCard(
     }
 }
 
-/** Товар в раскрытой карточке: нажатием отмечается, нужен ли он при повторе. */
+/** Товар при выборе повторной покупки. */
 @Composable
 private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
     val p = LocalPalette.current
-    val on = animateFloatAsState(if (checked) 1f else 0f, Motion.smooth(Motion.Quick), label = "archive-check")
     Row(
         Modifier
             .fillMaxWidth()
@@ -425,33 +380,16 @@ private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, che
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = 1f - on.value }
-                    .border(2.dp, p.ring, CircleShape),
-            )
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        val scale = 0.6f + 0.4f * on.value
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = on.value
-                    }
-                    .clip(CircleShape)
-                    .background(p.accent),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(painterResource(R.drawable.ic_check), contentDescription = null, Modifier.size(15.dp), tint = p.onAccent)
-            }
-        }
-        Spacer(Modifier.width(14.dp))
+        Checkbox(
+            checked = checked,
+            onCheckedChange = { onToggle() },
+            colors = CheckboxDefaults.colors(checkedColor = p.actionFill, checkmarkColor = p.actionInk,
+                uncheckedColor = p.textSecondary),
+        )
+        Spacer(Modifier.width(4.dp))
         Column(Modifier.weight(1f)) {
             Text(name, color = if (checked) p.text else p.textSecondary,
-                fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                fontSize = 14.sp, fontWeight = FontWeight.Medium)
             if (store != null) Text(store, color = p.textSecondary, fontSize = 12.sp)
             if (impulsive) Text("Импульсивная покупка", color = p.accent, fontSize = 12.sp)
         }
@@ -463,7 +401,7 @@ private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, che
 
 @Composable
 private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map<String, String>, meId: String, showBuyers: Boolean,
-    stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit) {
+    stores: List<ShoppingStore>, onProduct: (String) -> Unit, onDismiss: () -> Unit, navigation: @Composable () -> Unit) {
     val p = LocalPalette.current
     val event = remember(list, index) { decodePurchaseEvent(list.events[index]) }
     val products by LocalContext.current.lentaCatalog.products.collectAsStateWithLifecycle()
@@ -488,99 +426,43 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
     val productKey = event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
         ?: event?.productId?.let { "lenta:$it" }
 
-    AppSheet(
-        onDismissRequest = onDismiss,
-        containerColor = p.sheet,
-        title = { SheetHeader("Подробно о товаре") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-                        .padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val customId = event?.customProductId.orEmpty()
-                    if (customId.isNotBlank()) CustomProductImage(customId, Modifier.size(88.dp))
-                    else LentaImage(image, Modifier.size(88.dp))
-                    Column(
-                        Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                    ) {
-                        Text(name, color = p.text, fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp, lineHeight = 23.sp, maxLines = 4,
-                            overflow = TextOverflow.Ellipsis)
-                        Text(if (customId.isNotBlank()) "Свой товар" else "Товар из истории",
-                            color = p.textSecondary, fontSize = 12.sp)
-                    }
-                }
-
-                Column(
-                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    Text("Стоимость покупки", color = p.textSecondary, fontSize = 12.sp)
-                    Text(total?.let(::money) ?: "Цена не указана",
-                        color = if (total == null) p.textSecondary else p.accent,
-                        fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text("Количество", color = p.textSecondary, fontSize = 13.sp)
-                        Text(quantityText, color = p.text, fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold)
-                    }
-                    if (price != null) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(if (weight != null) "Цена за кг" else "Цена за шт.",
-                                color = p.textSecondary, fontSize = 13.sp)
-                            Text(money(price), color = p.text, fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-
-                if (store != null || (showBuyers && buyer.isNotBlank())) {
-                    Text("Информация о покупке", color = p.text,
-                        fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Column(
-                        Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
-                            .padding(horizontal = 18.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        store?.let {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Магазин", color = p.textSecondary, fontSize = 12.sp)
-                                Text(it, color = p.text, fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                        if (showBuyers && buyer.isNotBlank()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text("Покупатель", color = p.textSecondary, fontSize = 12.sp)
-                                Text(buyer, color = p.text, fontSize = 15.sp,
-                                    fontWeight = FontWeight.SemiBold)
-                            }
-                        }
-                    }
+    BackHandler(onBack = onDismiss)
+    Column(Modifier.fillMaxSize().background(p.background)) {
+        SubScreenHeader("Покупка", onDismiss)
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val customId = event?.customProductId.orEmpty()
+                if (customId.isNotBlank()) CustomProductImage(customId, Modifier.size(84.dp))
+                else LentaImage(image, Modifier.size(84.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 22.sp, lineHeight = 28.sp)
+                    Text(java.time.format.DateTimeFormatter.ofPattern("d MMMM, HH:mm", java.util.Locale.forLanguageTag("ru-RU"))
+                        .format(java.time.Instant.ofEpochMilli(list.completedAt).atZone(ZoneId.systemDefault())),
+                        color = p.textSecondary, fontSize = 13.sp)
                 }
             }
-        },
-        confirmButton = {
-            productKey?.let { key ->
-                SheetActionButton(onClick = { onProduct(key) }) {
-                    Text("Открыть товар")
-                }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("СТОИМОСТЬ ПОКУПКИ", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(total?.let(::money) ?: "Цена не указана", color = p.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
             }
-        },
-    )
+            Spacer(Modifier.height(12.dp))
+            Column {
+                FreshCutDetailLine("Количество", quantityText)
+                FreshCutDetailLine(if (weight != null) "Цена за кг" else "Цена за единицу", price?.let(::money) ?: "—")
+                FreshCutDetailLine("Магазин", store ?: "Не указан")
+                FreshCutDetailLine("Покупатель", buyer.ifBlank { "Не указан" })
+            }
+        }
+        productKey?.let { key ->
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+                SheetActionButton(onClick = { onProduct(key) }) { Text("Открыть товар") }
+            }
+        }
+        navigation()
+    }
 }
 
 @Composable
@@ -592,17 +474,18 @@ private fun EmptyArchive(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Box(
-            Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
+            Modifier.padding(bottom = 12.dp).size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.field),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_history), contentDescription = null, Modifier.size(64.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_archive), contentDescription = null, Modifier.size(24.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.archive_empty_title),
             color = p.text,
-            fontSize = 22.sp,
+            fontSize = 23.sp,
             lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.SemiBold,
         )
+        Text("Завершённые списки появятся здесь.", color = p.textSecondary, fontSize = 14.sp)
     }
 }

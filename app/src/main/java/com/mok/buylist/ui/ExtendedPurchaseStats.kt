@@ -28,13 +28,14 @@ internal fun purchaseCoverage(rows: List<ExpensePurchase>): PurchaseCoverage {
 internal data class StoreExpenseSummary(
     val id: String,
     val events: Int,
+    val trips: Int,
     val priced: Int,
     val total: Long,
 )
 
 internal fun expenseByStore(rows: List<ExpensePurchase>): List<StoreExpenseSummary> =
     rows.groupBy { it.storeId }.map { (id, purchases) ->
-        StoreExpenseSummary(id, purchases.size, purchases.count { it.total != null },
+        StoreExpenseSummary(id, purchases.size, closedTripCount(purchases), purchases.count { it.total != null },
             expenseSum(purchases))
     }.sortedWith(compareByDescending<StoreExpenseSummary> { it.total }
         .thenByDescending { it.events }.thenBy { it.id })
@@ -43,13 +44,14 @@ internal data class FrequentProductSummary(
     val key: String,
     val name: String,
     val purchases: Int,
+    val trips: Int,
     val units: Long,
     val knownTotal: Long,
 )
 
 internal fun frequentProducts(rows: List<ExpensePurchase>): List<FrequentProductSummary> =
     rows.groupBy { it.productKey }.map { (key, purchases) ->
-        FrequentProductSummary(key, purchases.maxBy { it.at }.name, purchases.size,
+        FrequentProductSummary(key, purchases.maxBy { it.at }.name, purchases.size, closedTripCount(purchases),
             purchases.sumOf { it.quantity.toLong() }, expenseSum(purchases))
-    }.sortedWith(compareByDescending<FrequentProductSummary> { it.purchases }
+    }.sortedWith(compareByDescending<FrequentProductSummary> { it.trips }
         .thenByDescending { it.units }.thenBy { it.name })

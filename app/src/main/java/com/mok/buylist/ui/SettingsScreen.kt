@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,51 +30,44 @@ fun SettingsScreen(
     archive: List<com.mok.buylist.data.ArchivedList>,
     bought: List<com.mok.buylist.data.ShoppingItem>,
     users: List<com.mok.buylist.data.AppUser>,
+    onOpenTheme: () -> Unit = {},
+    navigation: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val activeTab = tab.coerceIn(0, 1)
     var syncActive by remember { mutableStateOf(false) }
+    var storeDetail by remember { mutableStateOf(false) }
     var section by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     var selectedProduct by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     if (selectedProduct != null) {
         ProductDetailsScreen(selectedProduct!!, remember(archive, bought) { expensePurchases(archive, bought) },
-            users, viewModel, onBack = { selectedProduct = null })
+            users, viewModel, onBack = { selectedProduct = null }, navigation = navigation)
         return
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
-        if (!syncActive) SubScreenHeader("Настройки", onBack)
-        SecondaryTabRow(selectedTabIndex = activeTab, containerColor = p.background, contentColor = p.accent) {
-            listOf("Товары и магазины", "Настройки").forEachIndexed { index, title ->
-                Tab(selected = activeTab == index, onClick = { onTab(index) }, enabled = !syncActive, text = { Text(title) })
-            }
-        }
         if (activeTab == 0) {
-            androidx.compose.foundation.layout.Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-            ) {
-                listOf("Товары", "Магазины").forEachIndexed { index, label ->
-                    androidx.compose.foundation.layout.Box(
-                        Modifier.weight(1f)
-                            .background(
-                                if (section == index) p.chipBg else p.field,
-                                androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-                            .clickable { section = index }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = androidx.compose.ui.Alignment.Center,
-                    ) {
-                        Text(label, color = if (section == index) p.accent else p.textSecondary)
-                    }
+            if (!storeDetail || section == 0) {
+                FreshCutRootHeader("ВАША БАЗА", if (section == 0) "Товары" else "Магазины",
+                    if (section == 0) "Все товары и магазины" else "Цены и покупки по магазинам")
+                FreshCutSegments(listOf("Товары", "Магазины"), section, { section = it; storeDetail = false },
+                    Modifier.padding(horizontal = 20.dp))
+            }
+            Box(Modifier.weight(1f)) {
+                if (section == 0) stateHolder.SaveableStateProvider("products") {
+                    ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(1) }, viewModel = viewModel,
+                        onProductClick = { selectedProduct = it })
+                } else stateHolder.SaveableStateProvider("stores") {
+                    StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it }, onDetailChange = { storeDetail = it })
                 }
             }
-            if (section == 0) stateHolder.SaveableStateProvider("products") {
-                ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(1) }, viewModel = viewModel,
-                    onProductClick = { selectedProduct = it })
-            } else stateHolder.SaveableStateProvider("stores") {
-                StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it })
+            navigation()
+        } else {
+            Box(Modifier.weight(1f)) {
+                SyncScreen(profile, onRename, addressRequest, onActiveChange = { syncActive = it },
+                    onOpenTheme = onOpenTheme)
             }
+            navigation()
         }
-        else SyncScreen(profile, onRename, addressRequest, onActiveChange = { syncActive = it })
     }
 }

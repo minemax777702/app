@@ -33,7 +33,7 @@ data class LentaProduct(
         fun parse(o: JSONObject, address: String, storeId: Long = 0, live: Boolean = false, channel: String = o.optString("channel", "lo")): LentaProduct = LentaProduct(
             id = o.optLong("id"), name = o.optString("name"), image = o.optString("image"),
             pack = o.optString("package"), price = o.optString("price"), priceType = o.optString("priceType"),
-            ean = o.optString("ean").takeUnless { it == "null" }.orEmpty(), address = address,
+            ean = catalogBarcode(o.optString("ean")).orEmpty(), address = address,
             stock = if (live && o.has("stock") && !o.isNull("stock")) o.optInt("stock") else null,
             storeId = if (storeId != 0L) storeId else o.optLong("storeId"), channel = channel,
             fetchedAt = if (live) System.currentTimeMillis() else o.optLong("savedAt"),
@@ -63,8 +63,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         barcodeAliases(product.id).any { com.mok.buylist.sync.barcodeMatches(it, scanned) }
 
     private suspend fun rememberBarcode(id: Long, code: String?) {
-        val barcode = code?.trim().orEmpty()
-        if (barcode.length !in setOf(8, 12, 13) || !barcode.all(Char::isDigit)) return
+        val barcode = catalogBarcode(code) ?: return
         dao.insertProductBarcode(StoredProductBarcode(id, barcode))
     }
 
@@ -122,9 +121,22 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
 
     suspend fun save(product: LentaProduct, scannedBarcode: String? = null) {
         if (product.id <= 0 || product.name.isBlank()) return
+        // Поисковая выдача не всегда содержит EAN. Запрашиваем карточку только при отсутствии известных кодов.
+        val stored = dao.getLentaProducts().firstOrNull { it.id == product.id }
+        val known = catalogBarcode(product.ean) != null || catalogBarcode(scannedBarcode) != null ||
+            catalogBarcode(stored?.ean) != null || dao.getProductBarcodes().any { it.productId == product.id && !it.deleted }
+        val enriched = if (!known && product.address.isNotBlank() && product.address == address.value) {
+            try {
+                val fresh = details(product)
+                if (fresh.id == product.id && address.value == product.address)
+                    mergeLentaDetails(product, fresh, updatePrice = false) else product
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) { product }
+        } else product
         db.withTransaction {
             val old = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()
-            val saved = product.copy(ean = product.ean.ifBlank { old?.ean.orEmpty() }, stock = null)
+            val saved = enriched.copy(ean = catalogBarcode(enriched.ean) ?: catalogBarcode(old?.ean).orEmpty(), stock = null)
             val deletedAt = dao.getTombstones().firstOrNull { it.kind == TombKind.PRODUCT.code && it.target == product.id.toString() }?.deletedAt ?: 0
             dao.upsertLentaProduct(saved.toStored().copy(updatedAt = maxOf(System.currentTimeMillis(), deletedAt + 1)))
             // Если Лента заменила EAN у того же ID, старый код остаётся доступным.
@@ -160,23 +172,37 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         LentaProduct.parse(item, product.address, product.storeId, live = true, channel = "locc")
     }
 
-    suspend fun refreshPrice(id: Long) = refreshMutex.withLock {
+    /** A manually configured store price is synced in store_products, not in API metadata. */
+    suspend fun hasManualPrice(id: Long): Boolean {
+        val identities = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() },
+            dao.getCustomProducts(), dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val key = "lenta:$id"
+        return dao.getStoreProducts().any { !it.deleted && it.storeId == lentaStoreId() &&
+            it.priceKopecks != null && (identities[it.productKey] ?: it.productKey) == (identities[key] ?: key) }
+    }
+
+    /** Обновляет карточку независимо от доступности цены; ручная цена хранится отдельно. */
+    internal suspend fun refreshProduct(id: Long): ProductRefreshResult = refreshMutex.withLock {
         val currentAddress = address.value
         require(currentAddress.isNotBlank()) { "Укажите адрес магазина" }
         val product = dao.getLentaProducts().firstOrNull { it.id == id }?.toProduct()
             ?: error("Товар не найден в базе")
         val fresh = details(product.copy(address = currentAddress, storeId = 0))
-        require(fresh.id == id && fresh.address == currentAddress && fresh.channel == "locc" &&
-            parsePriceKopecks(fresh.price) != null) { "Цена для выбранного магазина недоступна" }
+        require(fresh.id == id && fresh.address == currentAddress && fresh.channel == "locc") {
+            "Лента вернула данные другого товара"
+        }
         db.withTransaction {
             check(address.value == currentAddress) { "Адрес магазина изменился" }
             val existing = dao.getLentaProducts().firstOrNull { it.id == id }?.toProduct()
                 ?: error("Товар удалён из базы")
-            val saved = existing.copy(price = fresh.price, priceType = fresh.priceType, ean = fresh.ean.ifBlank { existing.ean },
-                address = currentAddress, storeId = fresh.storeId, channel = fresh.channel, fetchedAt = fresh.fetchedAt)
+            val manual = hasManualPrice(id)
+            val priceAvailable = parsePriceKopecks(fresh.price) != null
+            val saved = mergeLentaDetails(existing, fresh, updatePrice = !manual && priceAvailable)
             dao.upsertLentaProduct(saved.toStored())
             rememberBarcode(id, existing.ean)
             rememberBarcode(id, fresh.ean)
+            val hasBarcode = dao.getProductBarcodes().any { it.productId == id && !it.deleted }
+            ProductRefreshResult(hasBarcode, manual, priceAvailable)
         }
     }
 
@@ -264,3 +290,29 @@ internal fun StoredLentaProduct.toProduct() = LentaProduct(
     id, name, image, pack, priceKopecks?.let { java.math.BigDecimal.valueOf(it, 2).toPlainString() }.orEmpty(),
     priceType, ean, address, storeId = storeId, channel = channel, fetchedAt = fetchedAt,
 )
+
+
+internal data class ProductRefreshResult(
+    val hasBarcode: Boolean,
+    val manualPrice: Boolean,
+    val priceAvailable: Boolean,
+)
+
+/** Допускаем те же форматы EAN/UPC, что и при сохранении алиасов каталога. */
+internal fun catalogBarcode(raw: String?): String? =
+    raw?.trim()?.takeIf { it.length in setOf(8, 12, 13) && it.all { c -> c in '0'..'9' } }
+
+/** Пустые поля ответа не затирают сведения, а цена сохраняет контекст своего магазина. */
+internal fun mergeLentaDetails(existing: LentaProduct, fresh: LentaProduct, updatePrice: Boolean): LentaProduct {
+    require(existing.id == fresh.id)
+    fun String.usableOr(old: String) = takeUnless { it.isBlank() || it == "null" } ?: old
+    val metadata = existing.copy(
+        name = fresh.name.usableOr(existing.name),
+        image = fresh.image.usableOr(existing.image),
+        pack = fresh.pack.usableOr(existing.pack),
+        ean = catalogBarcode(fresh.ean) ?: catalogBarcode(existing.ean).orEmpty(),
+    )
+    if (!updatePrice || parsePriceKopecks(fresh.price) == null) return metadata
+    return metadata.copy(price = fresh.price, priceType = fresh.priceType,
+        address = fresh.address, storeId = fresh.storeId, channel = fresh.channel, fetchedAt = fresh.fetchedAt)
+}

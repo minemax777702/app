@@ -25,7 +25,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 
 enum class ThemeMode { AUTO, LIGHT, DARK }
 
-/** Цвета дизайна: фиксированная зелёная палитра, одна на приложение и виджет. */
+/** FRESH CUT: семантическая палитра из экспортированного макета Figma. */
 @Immutable
 class ShoppingPalette(
     val isDark: Boolean,
@@ -51,58 +51,62 @@ class ShoppingPalette(
     val error: Color,
     val danger: Color,
     val onDanger: Color,
-)
+) {
+    val actionFill: Color get() = Color(0xFFD6F36D)
+    val actionInk: Color get() = Color(0xFF18230C)
+    val line: Color get() = chipBorder
+}
 
 val LightPalette = ShoppingPalette(
     isDark = false,
-    header = Color(0xFF0C7F50),
-    onHeader = Color(0xFFFFFFFF),
-    headerTrack = Color(0x47FFFFFF),
-    headerFill = Color(0xFFFFFFFF),
-    background = Color(0xFFF1F8F3),
+    header = Color(0xFFF6F5F0),
+    onHeader = Color(0xFF171C19),
+    headerTrack = Color(0xFFEFEEE8),
+    headerFill = Color(0xFF35491C),
+    background = Color(0xFFF6F5F0),
     card = Color(0xFFFFFFFF),
-    text = Color(0xFF14231B),
-    textSecondary = Color(0xFF4F6057),
-    ring = Color(0xFF3E9A70),
-    boughtBg = Color(0xFFDDF1E6),
-    accent = Color(0xFF0C7F50),
+    text = Color(0xFF171C19),
+    textSecondary = Color(0xFF646B63),
+    ring = Color(0xFF646B63),
+    boughtBg = Color(0xFFEFEEE8),
+    accent = Color(0xFF35491C),
     onAccent = Color(0xFFFFFFFF),
-    chipBg = Color(0xFFE3F4EA),
-    chipBorder = Color(0xFFB7DCC8),
-    chipText = Color(0xFF0A5C3B),
-    field = Color(0xFFEEF6F1),
-    sheet = Color(0xFFFFFFFF),
-    iconMuted = Color(0xFF3E6B55),
-    widgetBg = Color(0xFFF7FBF8),
-    error = Color(0xFFB3261E),
-    danger = Color(0xFFC62828),
+    chipBg = Color(0xFFEFEEE8),
+    chipBorder = Color(0xFFE1E2D9),
+    chipText = Color(0xFF35491C),
+    field = Color(0xFFEFEEE8),
+    sheet = Color(0xFFF6F5F0),
+    iconMuted = Color(0xFF646B63),
+    widgetBg = Color(0xFFF6F5F0),
+    error = Color(0xFFB84038),
+    danger = Color(0xFFB84038),
     onDanger = Color(0xFFFFFFFF),
 )
 
 val DarkPalette = ShoppingPalette(
     isDark = true,
-    header = Color(0xFF0F4A33),
-    onHeader = Color(0xFFFFFFFF),
-    headerTrack = Color(0x2EFFFFFF),
-    headerFill = Color(0xFF5FE0A0),
-    background = Color(0xFF0E1512),
-    card = Color(0xFF17211C),
-    text = Color(0xFFE4F0E9),
-    textSecondary = Color(0xFF9DB0A5),
-    ring = Color(0xFF5FB88A),
-    boughtBg = Color(0xFF1F3A2D),
-    accent = Color(0xFF5FE0A0),
-    onAccent = Color(0xFF08261A),
-    chipBg = Color(0xFF1F3A2D),
-    chipBorder = Color(0xFF2F5A44),
-    chipText = Color(0xFF9BEBC3),
-    field = Color(0xFF1A261F),
-    sheet = Color(0xFF17211C),
-    iconMuted = Color(0xFF9DB0A5),
-    widgetBg = Color(0xFF17211C),
-    error = Color(0xFFFFB4AB),
-    danger = Color(0xFF8E2A2A),
-    onDanger = Color(0xFFFFFFFF),
+    header = Color(0xFF171B18),
+    onHeader = Color(0xFFF4F6EE),
+    headerTrack = Color(0xFF2B332C),
+    headerFill = Color(0xFFD6F36D),
+    background = Color(0xFF171B18),
+    card = Color(0xFF232924),
+    text = Color(0xFFF4F6EE),
+    textSecondary = Color(0xFFA3AEA0),
+    ring = Color(0xFFA3AEA0),
+    boughtBg = Color(0xFF2B332C),
+    accent = Color(0xFFD6F36D),
+    onAccent = Color(0xFF18230C),
+    chipBg = Color(0xFF2B332C),
+    chipBorder = Color(0xFF39433A),
+    chipText = Color(0xFFD6F36D),
+    field = Color(0xFF2B332C),
+    sheet = Color(0xFF171B18),
+    iconMuted = Color(0xFFA3AEA0),
+    widgetBg = Color(0xFF171B18),
+    error = Color(0xFFFF9B92),
+    danger = Color(0xFFFF9B92),
+    onDanger = Color(0xFF171B18),
 )
 
 val LocalPalette = staticCompositionLocalOf { LightPalette }

@@ -195,6 +195,9 @@ interface ShoppingDao {
     @Query("SELECT * FROM tombstones")
     suspend fun getTombstones(): List<Tombstone>
 
+    @Query("SELECT * FROM tombstones")
+    fun observeTombstones(): Flow<List<Tombstone>>
+
     @Query("DELETE FROM tombstones")
     suspend fun clearTombstones()
 

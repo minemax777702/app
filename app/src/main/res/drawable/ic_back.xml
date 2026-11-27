@@ -1,13 +1,6 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp"
-    android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#00000000"
-        android:pathData="M19,12H5M12,19l-7,-7 7,-7"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:strokeWidth="2.4" />
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Hugeicons Stroke Rounded: arrow-left-01. Source f9dbcca8d72cc2777a0ccd873c274d9bf7a153e6. MIT; res/raw/hugeicons_license.txt. Stroke adapted to 1.8. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M15 6C15 6 9.00001 10.4189 9 12C8.99999 13.5812 15 18 15 18" />
 </vector>

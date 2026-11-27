@@ -1,7 +1,5 @@
 package com.mok.buylist.ui
 
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,17 +12,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mok.buylist.lentaCatalog
-import com.mok.buylist.barcodeSourceSettings
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,8 +36,6 @@ import com.mok.buylist.data.LentaProduct
 import com.mok.buylist.data.parsePriceKopecks
 import com.mok.buylist.data.validProductBarcode
 import com.mok.buylist.ui.theme.LocalPalette
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 /**
  * The same real creation form is available from the shopping list and the
@@ -63,7 +55,7 @@ internal fun CreateCustomProductAction(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Icon(painterResource(R.drawable.ic_plus), contentDescription = null, tint = p.accent)
+        Icon(painterResource(R.drawable.ic_plus), contentDescription = null, tint = p.text)
         Text("Создать свой товар", modifier = Modifier.weight(1f),
             color = p.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
     }
@@ -81,8 +73,6 @@ internal fun CustomProductCreationSheet(
     val p = LocalPalette.current
     val context = LocalContext.current
     val catalog = context.lentaCatalog
-    val sourceSettings = context.barcodeSourceSettings
-    val enabledSources by sourceSettings.enabled.collectAsStateWithLifecycle()
     val localProducts by catalog.products.collectAsStateWithLifecycle()
     val localCodes by catalog.barcodeRows.collectAsStateWithLifecycle()
     var name by remember(initialName) { mutableStateOf(initialName) }
@@ -93,26 +83,8 @@ internal fun CustomProductCreationSheet(
     var scanning by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
     val parsedPrice = if (price.isBlank()) null else parsePriceKopecks(price)
-    val scope = rememberCoroutineScope()
-    var lookupBusy by remember { mutableStateOf(false) }
-    var suggestions by remember { mutableStateOf<List<BarcodeProductSuggestion>>(emptyList()) }
-    var lookedUpCode by remember { mutableStateOf("") }
     var nameEdited by remember(initialName) { mutableStateOf(initialName.isNotBlank()) }
-    var showAllSuggestions by remember { mutableStateOf(false) }
 
-    val localSuggestions = remember(barcode, localProducts, localCodes) {
-        if (!validProductBarcode(barcode)) emptyList() else {
-            localProducts.asSequence().filter { product ->
-                product.ean == barcode || localCodes.any { row ->
-                    row.productId == product.id && row.code == barcode && !row.deleted
-                }
-            }.map { product ->
-                BarcodeProductSuggestion(product.name, "Локальная база Ленты",
-                    product.image.takeIf { it.isNotBlank() }, score = 100)
-            }.filter { BarcodeProductLookup.usefulName(it.name, barcode) }
-                .distinctBy { it.name.lowercase() }.take(3).toList()
-        }
-    }
     val matchingLenta = remember(barcode, localProducts, localCodes) {
         if (!validProductBarcode(barcode)) emptyList() else localProducts.filter { product ->
             product.ean == barcode || localCodes.any { row ->
@@ -120,53 +92,31 @@ internal fun CustomProductCreationSheet(
             }
         }.distinctBy { it.id }
     }
-    val shownSuggestions = remember(localSuggestions, matchingLenta, suggestions) {
-        (if (matchingLenta.isNotEmpty()) suggestions else localSuggestions + suggestions)
-            .distinctBy { it.name.lowercase().trim() }
-            .sortedByDescending { it.score }
-    }
-
-    LaunchedEffect(barcode, localSuggestions, matchingLenta, enabledSources) {
-        suggestions = emptyList()
-        lookedUpCode = ""
-        if (!validProductBarcode(barcode)) return@LaunchedEffect
-        showAllSuggestions = false
-        if (name.isBlank() && !nameEdited && localSuggestions.isNotEmpty())
-            name = localSuggestions.first().name
-        if (matchingLenta.isNotEmpty()) return@LaunchedEffect
-        delay(650)
-        lookupBusy = true
-        try {
-            val found = BarcodeProductLookup.lookup(barcode, sources = enabledSources)
-            suggestions = found
-            lookedUpCode = barcode
-            if (name.isBlank() && !nameEdited && found.isNotEmpty())
-                name = found.first().name
-        } finally { lookupBusy = false }
+    LaunchedEffect(barcode, matchingLenta) {
+        if (name.isBlank() && !nameEdited) matchingLenta.firstOrNull()?.let { name = it.name }
     }
 
     if (!scanning) AppSheet(
         onDismissRequest = { if (!saving && !scanning) onDismiss() },
         containerColor = p.sheet,
-        title = { SheetHeader("Свой товар") },
+        title = { SheetHeader("Свой товар") }, minBodyHeight = 480.dp,
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SheetTextField(name, { name = it; nameEdited = true; error = null }, "Название товара")
+                SheetTextField(name, { name = it; nameEdited = true; error = null }, "Название товара", placeholder = "Введите название")
                 if (name.length > 200) Text("Максимум 200 символов", color = p.error, fontSize = 12.sp)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        SheetTextField(
-                            barcode,
-                            { barcode = it.filter(Char::isDigit).take(13); error = null },
-                            "Штрихкод (необязательно)",
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        )
-                    }
-                    IconButton(onClick = { scanning = true }, enabled = !saving) {
-                        Icon(painterResource(R.drawable.ic_camera),
-                            contentDescription = "Сканировать штрихкод камерой", tint = p.accent)
-                    }
-                }
+                SheetTextField(
+                    barcode,
+                    { barcode = it.filter(Char::isDigit).take(13); error = null },
+                    "Штрихкод (необязательно)",
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    placeholder = "Введите или отсканируйте",
+                    trailingAction = {
+                        IconButton(onClick = { scanning = true }, enabled = !saving) {
+                            Icon(painterResource(R.drawable.ic_camera), "Сканировать штрихкод камерой",
+                                Modifier.size(24.dp), tint = p.text)
+                        }
+                    },
+                )
                 if (matchingLenta.isNotEmpty()) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
                         .background(p.card).padding(12.dp),
@@ -203,88 +153,12 @@ internal fun CustomProductCreationSheet(
                         }
                         if (matchingLenta.size > 4) Text("Найдено ещё несколько совпадений в Ленте",
                             color = p.textSecondary, fontSize = 12.sp)
-                        if (!lookupBusy && suggestions.isEmpty()) {
-                            TextButton(onClick = {
-                                scope.launch {
-                                    lookupBusy = true
-                                    try {
-                                        suggestions = BarcodeProductLookup.lookup(barcode,
-                                            sources = enabledSources)
-                                        lookedUpCode = barcode
-                                    } finally { lookupBusy = false }
-                                }
-                            }) { Text("Поискать в других базах", color = p.accent) }
-                        }
                         Text("Можно также создать свой товар ниже",
                             color = p.textSecondary, fontSize = 12.sp)
                     }
                 }
-                if (lookupBusy) {
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp,
-                            color = p.accent)
-                        Text("Ищем название по штрихкоду…", color = p.textSecondary, fontSize = 12.sp)
-                    }
-                }
-                if (shownSuggestions.isNotEmpty()) {
-                    Text("Найденные названия", color = p.textSecondary, fontSize = 12.sp)
-                    (if (showAllSuggestions) shownSuggestions else shownSuggestions.take(4)).forEach { suggestion ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(p.field)
-                            .clickable { name = suggestion.name; nameEdited = true }
-                            .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LentaImage(suggestion.imageUrl.orEmpty(), Modifier.size(48.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(suggestion.name, color = p.text, fontSize = 14.sp)
-                                Text(suggestion.source, color = p.textSecondary, fontSize = 11.sp)
-                            }
-                            Icon(painterResource(R.drawable.ic_plus), null,
-                                tint = p.accent, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    if (shownSuggestions.size > 4) {
-                        TextButton(onClick = { showAllSuggestions = !showAllSuggestions }) {
-                            Text(if (showAllSuggestions) "Свернуть варианты"
-                                else "Все варианты (${shownSuggestions.size})", color = p.accent)
-                        }
-                    }
-                } else if (!lookupBusy && lookedUpCode == barcode && barcode.isNotBlank()) {
-                    Text("Название не найдено — его можно ввести вручную",
-                        color = p.textSecondary, fontSize = 12.sp)
-                }
-                if (validProductBarcode(barcode) && !lookupBusy) {
-                    TextButton(onClick = {
-                        scope.launch {
-                            lookupBusy = true
-                            try {
-                                suggestions = BarcodeProductLookup.lookup(barcode, force = true,
-                                    sources = enabledSources)
-                                lookedUpCode = barcode
-                                if (name.isBlank() && !nameEdited && suggestions.isNotEmpty())
-                                    name = suggestions.first().name
-                            } finally { lookupBusy = false }
-                        }
-                    }) { Text("Повторить поиск", color = p.accent) }
-                }
-                if (validProductBarcode(barcode) && barcode.length == 13 &&
-                    BarcodeSource.DISAI in enabledSources) {
-                    TextButton(onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(
-                            "https://ru.disai.org/barcode/ean-13/$barcode"))
-                        runCatching { context.startActivity(intent) }
-                    }) {
-                        Text("Посмотреть товар в DiSAI", color = p.accent)
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(selected = !isWeighted, onClick = { isWeighted = false },
-                        label = { Text("Штучный") })
-                    FilterChip(selected = isWeighted, onClick = { isWeighted = true },
-                        label = { Text("Весовой") })
-                }
+                FreshCutSegments(listOf("Штучный", "Весовой"), if (isWeighted) 1 else 0,
+                    { isWeighted = it == 1 })
                 SheetTextField(
                     price,
                     { price = it; error = null },

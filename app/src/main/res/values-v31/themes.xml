@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.ShoppingList" parent="Theme.ShoppingList.Base">
+        <item name="android:windowSplashScreenBackground">@color/launch_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launch_placeholder</item>
+    </style>
+</resources>

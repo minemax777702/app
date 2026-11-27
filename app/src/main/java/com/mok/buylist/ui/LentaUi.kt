@@ -6,7 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.abs
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -43,7 +50,7 @@ fun LentaSettings(onDismiss: () -> Unit) {
     var address by rememberSaveable { mutableStateOf(current) }
     val p = LocalPalette.current
     AppSheet(onDismissRequest = onDismiss, containerColor = p.sheet,
-        title = { Text("Магазин Ленты", color = p.text, fontWeight = FontWeight.Bold) },
+        title = { SheetHeader("Магазин Ленты") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetTextField(address, { address = it }, "Город, улица и дом")
         } },
@@ -52,9 +59,13 @@ fun LentaSettings(onDismiss: () -> Unit) {
 }
 
 @Composable
-fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
+internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
-    onlineOnly: Boolean = false, hasOtherResults: Boolean = false) {
+    onlineOnly: Boolean = false, hasOtherResults: Boolean = false,
+    leadingResults: LazyListScope.() -> Unit = {}, footer: (@Composable () -> Unit)? = null,
+    onUserScroll: () -> Unit = {},
+    customResults: List<ProductSearchRow> = emptyList(),
+    customContent: @Composable (ProductSearchRow) -> Unit = {}) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
@@ -62,66 +73,121 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     val ready by catalog.ready.collectAsStateWithLifecycle()
     val p = LocalPalette.current
     val trimmed = query.trim()
+    val listState = rememberLazyListState()
+    val scrollCallback by rememberUpdatedState(onUserScroll)
     val scope = rememberCoroutineScope()
     val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
     val state by controller.state.collectAsStateWithLifecycle()
+    var sort by rememberSaveable { mutableStateOf(ProductSort.DEFAULT) }
+    val resultRows = remember(state.local, state.online, address, sort, customResults) {
+        sortProductRows(customResults + (state.local + state.online).distinctBy { it.id }.map {
+            ProductSearchRow.lenta(it, searchCatalogPrice(it, address))
+        }, sort)
+    }
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     LaunchedEffect(state.failed) {
         if (state.failed) activity?.notifyUser("Не удалось выполнить поиск в Ленте")
     }
     LaunchedEffect(trimmed, address, saved, barcodeRows, onlineOnly, ready) {
-        if (ready) controller.update(trimmed, address, saved, onlineOnly)
+        if (ready) controller.update(trimmed, address, saved, onlineOnly, fullSearch = sort != ProductSort.DEFAULT)
     }
-    Column(modifier.fillMaxWidth().padding(top = 12.dp)) {
-        if (trimmed.length >= 2) {
-            if (address.isBlank()) TextButton(onClick = onSettings) { Text("Указать адрес") }
-            if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
-                Text(if (state.hasMore) "Новые товары пока не найдены. Можно продолжить поиск." else "Ничего не найдено",
-                    color = p.textSecondary, fontSize = 13.sp)
-            LazyColumn(Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(state.local, key = { "local:${it.id}" }) { product ->
-                    LentaResult(product, address, onClick = { onAdd(product) })
+    LaunchedEffect(sort, ready) {
+        if (ready) controller.setFullSearch(sort != ProductSort.DEFAULT)
+    }
+    val fullSort = sort != ProductSort.DEFAULT && address.isNotBlank() && trimmed.length >= 2
+    Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
+        if (trimmed.length >= 2 || hasOtherResults || footer != null) {
+            if (trimmed.length >= 2) ProductSortMenu(sort, { selected ->
+                sort = selected
+                controller.setFullSearch(selected != ProductSort.DEFAULT)
+                scrollCallback()
+            })
+            if (fullSort && state.loading) {
+                Column(
+                    Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Загружаем все результаты · страниц: ${state.pagesLoaded}",
+                        color = p.textSecondary, fontSize = 12.sp)
+                    LinearProgressIndicator(Modifier.fillMaxWidth(), color = p.accent)
                 }
-                if (!onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
+            }
+            // Вспомогательные действия прокручиваются вместе с результатами.
+            LazyColumn(
+                Modifier.fillMaxWidth().weight(1f).pointerInput(Unit) {
+                    // Observe, never consume: the list retains its own scrolling and fling.
+                    // Also fires at either edge and when results fit without scrolling.
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        var notified = false
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            val delta = change.position - down.position
+                            if (!notified && abs(delta.y) > viewConfiguration.touchSlop && abs(delta.y) > abs(delta.x)) {
+                                notified = true
+                                scrollCallback()
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                },
+                state = listState, overscrollEffect = null, verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
+                if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
+                if (!hasOtherResults && !state.loading && state.started && !state.hasMore && !state.failed && state.local.isEmpty() && state.online.isEmpty())
+                    item { Text("Ничего не найдено", color = p.textSecondary, fontSize = 14.sp, modifier = Modifier.padding(12.dp)) }
+                leadingResults()
+                // In ranked mode avoid jumping rows and showing a provisional winner.
+                if (!fullSort || !state.loading) items(resultRows, key = { it.key }) { row ->
+                    val product = row.lenta
+                    if (product != null) LentaResult(product, row, onClick = { onAdd(product) })
+                    else customContent(row)
+                }
+                if (!fullSort && !onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
                     item { Text("Найти в Ленте", Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
                 }
-                items(state.online, key = { "online:${it.id}" }) { product ->
-                    LentaResult(product, address, onClick = { onAdd(product) })
+                if (fullSort && !state.loading && !state.complete) item {
+                    Text(if (state.stalled) "Лента возвращает повторяющиеся страницы. Результат неполный."
+                        else if (state.failed) "Не все страницы загружены. Результат неполный."
+                        else "Ожидаем загрузку всех страниц.",
+                        color = p.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
                 }
-                if (state.loading) item {
-                    val loadingSize = if (state.local.isEmpty() && state.online.isEmpty()) Modifier.fillParentMaxHeight() else Modifier.height(80.dp)
+                if (state.loading && !fullSort) item {
+                    val loadingSize = Modifier.height(56.dp)
                     Box(Modifier.fillMaxWidth().then(loadingSize),
                         contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(42.dp), strokeWidth = 4.dp, color = p.accent)
+                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = p.textSecondary)
                     }
                 }
                 if ((state.hasMore || state.failed) && !state.loading) {
-                    item { Text(if (state.failed) "Повторить" else "Показать ещё",
+                    item { Text(if (state.failed) "Повторить" else if (fullSort) "Продолжить загрузку" else "Показать ещё",
                         Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
                 }
+                if (footer != null) item(key = "search-footer") { footer() }
             }
         }
     }
 }
 
 @Composable
-private fun LentaResult(product: LentaProduct, address: String, onClick: () -> Unit) {
+private fun LentaResult(product: LentaProduct, row: ProductSearchRow, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.field).clickable(onClick = onClick).padding(10.dp)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card).clickable(onClick = onClick).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LentaImage(product.image, Modifier.size(52.dp))
             Column(Modifier.weight(1f)) {
-                Text(product.name, color = p.text, fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val price = product.price.takeIf { product.address == address && product.channel == "locc" && it.isNotBlank() && it != "null" }
-                val details = listOfNotNull(price?.let { "$it ₽" }, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
-                if (details.isNotEmpty()) Text(details, color = p.accent, fontSize = 13.sp, fontWeight = FontWeight.ExtraBold)
-                product.stock?.let { Text(if (it > 0) "В наличии: $it" else "Нет в наличии", color = p.textSecondary, fontSize = 11.sp) }
+                Text(product.name, color = p.text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                val price = row.price?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString().replace('.', ',') + " ₽" }
+                val details = listOfNotNull(price, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
+                if (details.isNotEmpty()) Text(details, color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                row.normalized?.let { Text(it.label(), color = p.textSecondary, fontSize = 12.sp) }
             }
         }
     }
 }
 
-fun lentaPrice(product: LentaProduct): String = if (product.price.isBlank() || product.price == "null") "Цена неизвестна" else
+fun lentaPrice(product: LentaProduct): String = if (product.price.isBlank() || product.price == "null") "—" else
     "${product.price} ₽"
 
 @Composable

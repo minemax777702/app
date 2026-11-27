@@ -1,0 +1,156 @@
+name: FRESH CUT APK
+
+on:
+  push:
+    branches: [beta, main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/main') && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]'))
+    concurrency:
+      group: fresh-cut-apk-${{ github.ref }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Determine version and channel
+        id: version
+        shell: bash
+        run: |
+          set -eu
+          base="$(sed -n 's/^buylist.version=//p' gradle.properties)"
+          [[ "$base" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          code=$((1000 + GITHUB_RUN_NUMBER))
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            channel=stable
+            version="$base"
+          else
+            channel=beta
+            version="$base-beta.$code"
+          fi
+          echo "BUYLIST_VERSION_CODE=$code" >> "$GITHUB_ENV"
+          echo "BUYLIST_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "tag=$channel-v$base-$code" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Install required Android SDK packages
+        shell: bash
+        run: |
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          sdkmanager="$(command -v sdkmanager || true)"
+          if [ -z "$sdkmanager" ]; then
+            sdkmanager="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          fi
+          test -x "$sdkmanager"
+          if [ ! -x "$sdk_root/cmdline-tools/latest/bin/sdkmanager" ]; then
+            "$sdkmanager" --sdk_root="$sdk_root" --install "cmdline-tools;latest"
+          fi
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          packages=()
+          [ -x "$sdk_root/platform-tools/adb" ] || packages+=("platform-tools")
+          [ -f "$sdk_root/platforms/android-37.0/android.jar" ] || packages+=("platforms;android-37.0")
+          [ -x "$sdk_root/build-tools/37.0.0/apksigner" ] || packages+=("build-tools;37.0.0")
+          if [ "${#packages[@]}" -gt 0 ]; then
+            "$sdkmanager" --sdk_root="$sdk_root" --install "${packages[@]}"
+          fi
+          test -f "$sdk_root/platforms/android-37.0/android.jar"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+      - uses: gradle/actions/setup-gradle@v5
+        with:
+          cache-read-only: false
+          cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
+      - name: Build and verify signed release APK
+        shell: bash
+        env:
+          BUYLIST_KEYSTORE_BASE64: ${{ secrets.BUYLIST_KEYSTORE_BASE64 }}
+          BUYLIST_STORE_PASSWORD: ${{ secrets.BUYLIST_STORE_PASSWORD }}
+          BUYLIST_KEY_ALIAS: ${{ secrets.BUYLIST_KEY_ALIAS }}
+          BUYLIST_KEY_PASSWORD: ${{ secrets.BUYLIST_KEY_PASSWORD }}
+        run: |
+          set -eu
+          for variable in BUYLIST_KEYSTORE_BASE64 BUYLIST_STORE_PASSWORD BUYLIST_KEY_ALIAS BUYLIST_KEY_PASSWORD; do
+            if [ -z "${!variable}" ]; then
+              echo "::error::Missing GitHub Actions secret: $variable"
+              exit 1
+            fi
+          done
+          umask 077
+          export BUYLIST_STORE_FILE="$RUNNER_TEMP/buylist-release.p12"
+          trap 'rm -f "$BUYLIST_STORE_FILE"' EXIT
+          printf '%s' "$BUYLIST_KEYSTORE_BASE64" | base64 --decode > "$BUYLIST_STORE_FILE"
+          unset BUYLIST_KEYSTORE_BASE64
+          chmod +x ./gradlew
+          ./gradlew :app:assembleRelease --stacktrace --build-cache
+          "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v6
+        with:
+          name: fresh-cut-release
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: build
+    if: ${{ needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-apk-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: fresh-cut-release
+          path: release
+      - name: Publish signed APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+          CHANNEL: ${{ needs.build.outputs.channel }}
+        shell: bash
+        run: |
+          set -eu
+          test -s release/app-release.apk
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; leaving published assets unchanged."
+            exit 0
+          fi
+          args=(--repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$VERSION" --generate-notes)
+          if [[ "$CHANNEL" == "beta" ]]; then
+            args+=(--prerelease --latest=false)
+          else
+            args+=(--latest)
+          fi
+          # Optional user-facing notes in the commit body, followed by GitHub's generated history.
+          notes="$(git log -1 --format=%b | sed -n '/^Changelog:$/,$p' | tail -n +2)"
+          if [[ -n "$notes" ]]; then
+            args+=(--notes "$notes")
+          fi
+          gh release create "$TAG" release/app-release.apk "${args[@]}"

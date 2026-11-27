@@ -55,6 +55,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -133,6 +134,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val customBarcodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
+    val plannedStores by viewModel.plannedStores.collectAsStateWithLifecycle()
+    val customStoreRequest by viewModel.customStoreRequest.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
     val progress by viewModel.progress.collectAsStateWithLifecycle()
     val totals by viewModel.totals.collectAsStateWithLifecycle()
@@ -143,6 +146,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         if (result != null && result != "Загрузка") {
             activity?.notifyUser(result)
             viewModel.priceRefresh.value = null
+        }
+    }
+    val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
+    LaunchedEffect(batch) {
+        val result = batch
+        if (result != null && !result.running) {
+            activity?.notifyUser(result.summary())
+            viewModel.batchPriceRefresh.value = null
         }
     }
     val archive by viewModel.archive.collectAsStateWithLifecycle()
@@ -162,7 +173,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             lentaProducts, customProducts, lentaBarcodes, customBarcodes)
     }
     val recordedPurchases = remember(archive, bought) { expensePurchases(archive, bought) }
-    val shopPricesByKey = remember(rows, stores, storeLinks, recordedPurchases, sharedIdentities) {
+    val shopPricesByKey = remember(rows, stores, storeLinks, recordedPurchases, sharedIdentities, lentaProducts, lentaAddress) {
         rows.orEmpty().mapNotNull { row ->
             val key = when {
                 row.item.customProductId.isNotBlank() -> "custom:${row.item.customProductId}"
@@ -170,7 +181,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 else -> return@mapNotNull null
             }
             row.item.id to productShopPrices(
-                key, stores, storeLinks, recordedPurchases, sharedIdentities)
+                key, stores, storeLinks, recordedPurchases, sharedIdentities, lentaProducts, lentaAddress)
         }.toMap()
     }
 
@@ -190,8 +201,39 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     var pendingPurchase by remember { mutableStateOf<com.mok.buylist.data.ShoppingItem?>(null) }
     var scannedCustom by remember { mutableStateOf<com.mok.buylist.data.CustomProduct?>(null) }
 
-    Box(Modifier.fillMaxSize().background(p.background)) {
-        Column(Modifier.fillMaxSize()) {
+    var showNotifications by rememberSaveable { mutableStateOf(false) }
+    val actions by viewModel.actions.collectAsStateWithLifecycle()
+    val visibleRows = remember(rows) { rows?.filter { it.state == RowState.ACTIVE } }
+    val allPurchased = progress.total > 0 && progress.bought == progress.total
+
+    fun navigate(destination: FreshCutDestination) {
+        showNotifications = false
+        showArchive = destination == FreshCutDestination.ARCHIVE
+        showStats = destination == FreshCutDestination.STATS
+        showSettings = destination == FreshCutDestination.CATALOG || destination == FreshCutDestination.PROFILE
+        if (destination == FreshCutDestination.CATALOG) settingsTab = 0
+        if (destination == FreshCutDestination.PROFILE) settingsTab = 1
+    }
+
+    val destination = when {
+        showSettings -> if (settingsTab == 0) FreshCutDestination.CATALOG else FreshCutDestination.PROFILE
+        showArchive -> FreshCutDestination.ARCHIVE
+        showStats -> FreshCutDestination.STATS
+        else -> FreshCutDestination.LIST
+    }
+    val screenStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    Column(Modifier.fillMaxSize().background(p.background)) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when (destination) {
+                FreshCutDestination.LIST -> screenStates.SaveableStateProvider("list") {
+        if (showNotifications) {
+            BackHandler { showNotifications = false }
+            val availableUndoIds by viewModel.availableUndoIds.collectAsStateWithLifecycle()
+            NotificationsScreen(actions, availableUndoIds, onBack = { showNotifications = false },
+                onUndo = viewModel::undoAction, onClear = viewModel::clearNotifications,
+                onClearAll = viewModel::clearAllNotifications)
+        } else Column(Modifier.fillMaxSize()) {
+            val shoppingListState = rememberLazyListState()
             Header(
                 progress = progress,
                 totals = totals,
@@ -203,35 +245,53 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     themeSettings.setWidget(next)
                     scope.launch { ShoppingWidget().updateAll(context) }
                 },
-                onOpenThemeSettings = { showTheme = true },
+                onNotifications = { showNotifications = true },
+                canFinish = canFinish && finishEnabled,
+                onFinish = viewModel::finishTrip,
+
             )
             // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
             Crossfade(
-                targetState = rows?.isEmpty(),
+                targetState = visibleRows?.isEmpty(),
                 modifier = Modifier.weight(1f),
                 animationSpec = Motion.smooth(),
                 label = "list-or-empty",
             ) { empty ->
-                val list = rows
+                val list = visibleRows
                 when {
-                    empty == null || list == null -> Unit
+                    empty == null || list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = p.textSecondary) }
+                    empty && allPurchased -> Column(
+                        Modifier.fillMaxSize().padding(horizontal = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
+                    ) {
+                        Box(Modifier.size(64.dp).background(p.field, RoundedCornerShape(22.dp)),
+                            contentAlignment = Alignment.Center) {
+                            Icon(painterResource(R.drawable.ic_check), contentDescription = null,
+                                tint = p.text, modifier = Modifier.size(24.dp))
+                        }
+                        Text("Все товары куплены", color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                        Text("В активном списке ничего не осталось.", color = p.textSecondary, fontSize = 14.sp)
+                    }
                     empty -> EmptyState(Modifier.fillMaxSize())
                     else -> LazyColumn(
                         Modifier.fillMaxSize(),
+                        state = shoppingListState,
+                        overscrollEffect = null,
                         contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 16.dp,
-                            // Место под кнопку «+», чтобы последний товар можно было прокрутить выше неё.
-                            bottom = 108.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                            start = 20.dp,
+                            end = 20.dp,
+                            top = 8.dp,
+                            bottom = 8.dp,
                         ),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         items(list, key = { it.item.id }, contentType = { "row" }) { row ->
                             ItemRow(
                                 row = row,
                                 product = lentaById[row.item.productId],
                                 shopPrices = shopPricesByKey[row.item.id].orEmpty(),
+                                plannedStoreId = plannedStores[row.item.id],
                                 ownEstimate = customProducts.firstOrNull { it.id == row.item.customProductId }?.estimatedPriceKopecks,
                                 address = lentaAddress,
                                 onQuantity = { viewModel.setQuantity(row.item, it) },
@@ -243,10 +303,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                                 onUndo = { viewModel.restore(row.item) },
                                 onRemove = { viewModel.remove(row.item) },
                                 onDetails = { detailsRow = row },
-                                // Новые строки проявляются, ушедшие гаснут, остальные плавно сдвигаются на их место.
+                                // Animate visibility, not placement: keep the scroll anchor stable.
                                 modifier = Modifier.animateItem(
                                     fadeInSpec = Motion.smooth(),
-                                    placementSpec = Motion.settle(),
+                                    placementSpec = null,
                                     fadeOutSpec = Motion.smooth(Motion.Quick),
                                 ),
                             )
@@ -254,59 +314,22 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                     }
                 }
             }
-        }
 
-        // Все действия находятся в одном ряду; между группой и добавлением остаётся свободное место.
-        Row(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Row(
-                Modifier.shadow(6.dp, CircleShape).clip(CircleShape).background(p.card),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                BottomAction(R.drawable.ic_settings, "Настройки") { showSettings = true }
-                BottomAction(R.drawable.ic_camera, "Отметить покупку по штрихкоду") { scanPurchase = true }
-                AnimatedVisibility(
-                    visible = archive.isNotEmpty(),
-                    enter = fadeIn(Motion.smooth()) + scaleIn(Motion.smooth(), initialScale = 0.8f),
-                    exit = fadeOut(Motion.smooth(Motion.Quick)) + scaleOut(Motion.smooth(Motion.Quick), targetScale = 0.8f),
-                ) {
-                    BottomAction(R.drawable.ic_history, stringResource(R.string.archive_open)) { showArchive = true }
-                }
-                AnimatedVisibility(
-                    visible = canFinish,
-                    enter = fadeIn(Motion.smooth()) + scaleIn(Motion.smooth(), initialScale = 0.8f),
-                    exit = fadeOut(Motion.smooth(Motion.Quick)) + scaleOut(Motion.smooth(Motion.Quick), targetScale = 0.8f),
-                ) {
-                    val label = stringResource(R.string.finish_list)
-                    Box(
-                        Modifier.size(48.dp).clip(CircleShape)
-                            .clickable(enabled = finishEnabled, role = Role.Button, onClickLabel = label, onClick = viewModel::finishTrip),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painterResource(R.drawable.ic_check), contentDescription = label,
-                            modifier = Modifier.size(24.dp), tint = (if (p.isDark) p.error else p.danger).copy(alpha = if (finishEnabled) 1f else 0.35f),
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            AddButton(onClick = { showAdd = true })
+            ShoppingQuickActions(
+                allPurchased = allPurchased,
+                finishEnabled = finishEnabled,
+                onFinish = viewModel::finishTrip,
+                onAdd = { showAdd = true },
+                onScan = { scanPurchase = true },
+            )
         }
-
-        AnimatedVisibility(
-            visible = showArchive,
-            enter = slideInHorizontally(Motion.smooth()) { it / 6 } + fadeIn(Motion.smooth()),
-            exit = slideOutHorizontally(Motion.smooth(Motion.Quick)) { it / 6 } + fadeOut(Motion.smooth(Motion.Quick)),
-        ) {
+                }
+                FreshCutDestination.ARCHIVE -> screenStates.SaveableStateProvider("archive") {
             BackHandler { showArchive = false }
             ArchiveScreen(
                 archive = archive,
                 onBack = { showArchive = false },
-                onOpenStats = { showStats = true },
+                onOpenStats = { navigate(FreshCutDestination.STATS) },
                 onRepeat = { names, quantities, events ->
                     viewModel.repeatArchived(names, quantities, events) { result ->
                         showArchive = false
@@ -323,11 +346,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             )
         }
 
-        AnimatedVisibility(
-            visible = showSettings,
-            enter = slideInHorizontally(Motion.smooth()) { it / 6 } + fadeIn(Motion.smooth()),
-            exit = slideOutHorizontally(Motion.smooth(Motion.Quick)) { it / 6 } + fadeOut(Motion.smooth(Motion.Quick)),
-        ) {
+                FreshCutDestination.CATALOG, FreshCutDestination.PROFILE -> screenStates.SaveableStateProvider(destination.name) {
             BackHandler { showSettings = false }
             SettingsScreen(
                 tab = settingsTab,
@@ -335,6 +354,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 onBack = { showSettings = false },
                 profile = profile,
                 onRename = { renaming = true },
+                onOpenTheme = { showTheme = true },
                 addressRequest = addressRequest,
                 onAdd = { product -> viewModel.addProduct(product) { added -> activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке") } },
                 viewModel = viewModel,
@@ -344,11 +364,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             )
         }
 
-        AnimatedVisibility(
-            visible = showStats,
-            enter = slideInHorizontally(Motion.smooth()) { it / 6 } + fadeIn(Motion.smooth()),
-            exit = slideOutHorizontally(Motion.smooth(Motion.Quick)) { it / 6 } + fadeOut(Motion.smooth(Motion.Quick)),
-        ) {
+                FreshCutDestination.STATS -> screenStates.SaveableStateProvider("stats") {
             BackHandler { showStats = false }
             StatsScreen(
                 archive = archive,
@@ -359,7 +375,10 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 viewModel = viewModel,
             )
         }
-
+            }
+        }
+        FreshCutNavigation(destination, ::navigate,
+            Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp))
     }
 
     // Первый запуск: без имени дальше не пускаем — нужен идентификатор, которым подписываются все действия.
@@ -386,14 +405,30 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onAddCustom = viewModel::addCustomProduct,
             onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
-            onAddressSettings = { showAdd = false; settingsTab = 1; addressRequest++; showSettings = true },
+            onAddressSettings = { showAdd = false; navigate(FreshCutDestination.PROFILE); addressRequest++ },
         )
+    }
+    customStoreRequest?.let { request ->
+        AppSheet(onDismissRequest = viewModel::cancelCustomStore, containerColor = p.sheet,
+            title = { SheetHeader("Выбрать магазин") }, text = {
+                Text(request.product.name, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    request.prices.forEach { option ->
+                        FreshCutListRow(R.drawable.ic_store, option.storeName,
+                            value = option.priceKopecks?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" } ?: "—",
+                            showChevron = false, onClick = { viewModel.confirmCustomStore(option.storeId) })
+                    }
+                }
+            }, confirmButton = {
+                SheetActionButton(onClick = { viewModel.confirmCustomStore(null) }) { Text("Без выбора магазина") }
+            })
     }
     pendingPurchase?.let { item ->
         val ownProduct = customProducts.firstOrNull { it.id == item.customProductId }
-        val suggestedPrice = if (item.productId > 0)
-            lentaById[item.productId]?.price?.let { com.mok.buylist.data.parsePriceKopecks(it) }
-        else ownProduct?.estimatedPriceKopecks
+        val preferred = displayShopPrice(
+            if (item.productId > 0) "lenta:${item.productId}" else "custom:${item.customProductId}",
+            shopPricesByKey[item.id].orEmpty(), plannedStores[item.id])
+        val suggestedPrice = preferred?.priceKopecks ?: ownProduct?.estimatedPriceKopecks
         val isLenta = item.productId > 0
         val isWeighted = ownProduct?.isWeighted == true || item.weightGrams != null
         var price by remember(item.id) {
@@ -401,7 +436,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
                 java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString()
             }.orEmpty())
         }
-        var selectedStore by remember(item.id) { mutableStateOf<com.mok.buylist.data.ShoppingStore?>(null) }
+        var selectedStore by remember(item.id) { mutableStateOf(stores.firstOrNull { it.id == preferred?.storeId }) }
         var priceRevision by remember(item.id) { mutableIntStateOf(0) }
         var weightText by remember(item.id) {
             mutableStateOf(java.math.BigDecimal.valueOf(
@@ -414,27 +449,20 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             onDismissRequest = { pendingPurchase = null },
             containerColor = p.sheet,
             title = { SheetHeader("Отметить покупку") },
+            minBodyHeight = 430.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(item.name, color = p.text, fontWeight = FontWeight.SemiBold)
+                    Text(item.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     if (isWeighted) SheetTextField(
                         weightText, { weightText = it }, "Вес, кг",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     SheetTextField(price, { price = it; priceRevision++ },
-                        if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                        if (isWeighted) "Цена за кг, ₽" else "Цена за единицу, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     if (isLenta) {
-                        Row(Modifier.fillMaxWidth()
-                            .background(p.field, RoundedCornerShape(18.dp))
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(painterResource(R.drawable.ic_store), contentDescription = null,
-                                tint = p.accent, modifier = Modifier.size(22.dp))
-                            Text("Лента", color = p.text, fontWeight = FontWeight.SemiBold)
-                        }
+                        SheetFixedValue("Магазин", "Лента")
                     } else StoreSelectField(stores, selectedStore, onSelected = { store ->
                         selectedStore = store
                         price = suggestedPrice?.let {
@@ -470,13 +498,22 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         var text by remember(item.id) { mutableStateOf(item.weightGrams?.let {
             java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()
         }.orEmpty()) }
+        var byWeight by remember(item.id) { mutableStateOf(true) }
         val grams = com.mok.buylist.data.parseWeightGrams(text)
         AppSheet(onDismissRequest = { weightItem = null }, containerColor = p.sheet,
-            title = { Text(item.name, color = p.text, fontWeight = FontWeight.Bold) },
-            text = { SheetTextField(text, { text = it }, "Вес, кг", keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)) },
-            confirmButton = { SheetActionButton(enabled = grams != null, onClick = { viewModel.setWeight(item, grams); weightItem = null }) { Text("Сохранить") } },
-            showSecondaryAction = item.weightGrams != null,
-            dismissButton = { SheetActionButton(onClick = { viewModel.setWeight(item, null); weightItem = null }) { Text("Штуки") } })
+            title = { SheetHeader("Количество") }, minBodyHeight = 320.dp,
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(item.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    FreshCutSegments(listOf("Килограммы", "Штуки"), if (byWeight) 0 else 1, { byWeight = it == 0 })
+                    if (byWeight) SheetTextField(text, { text = it }, "Вес, кг",
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
+                    else Text("Количество можно изменить кнопками в списке.", color = p.textSecondary, fontSize = 14.sp)
+                }
+            },
+            confirmButton = { SheetActionButton(enabled = !byWeight || grams != null, onClick = {
+                viewModel.setWeight(item, if (byWeight) grams else null); weightItem = null
+            }) { Text("Сохранить") } })
     }
     if (scanPurchase) BarcodeScannerSheet(onDismiss = { scanPurchase = false }, onCode = { code ->
         scanPurchase = false
@@ -514,15 +551,16 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             com.mok.buylist.data.parseWeightGrams(weightText) else null
         val priceValue = com.mok.buylist.data.parsePriceKopecks(price)
         AppSheet(onDismissRequest = { scannedCustom = null }, containerColor = p.sheet,
-            title = { SheetHeader(product.name) },
+            title = { SheetHeader("Отметить покупку") }, minBodyHeight = 430.dp,
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(product.name, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     if (product.isWeighted) SheetTextField(
                         weightText, { weightText = it }, "Вес, кг",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     SheetTextField(price, { price = it; priceRevision++ },
-                        if (product.isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                        if (product.isWeighted) "Цена за кг, ₽" else "Цена за единицу, ₽",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
                     StoreSelectField(stores, selectedStore, onSelected = { store ->
@@ -552,14 +590,13 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
     scanLookup?.let { code ->
         var lookupQuery by remember(code) { mutableStateOf(code) }
-        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
+        AppModalSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
             dragHandle = { SheetDragHandle { scanLookup = null } }) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(horizontal = 20.dp)) {
-                NoticeInSheet()
                 SheetHeader("Выберите товар")
                 ProductSearch(lookupQuery, { lookupQuery = it })
                 LentaSuggestions(lookupQuery, Modifier.weight(1f), onSettings = {
-                    scanLookup = null; settingsTab = 1; addressRequest++; showSettings = true
+                    scanLookup = null; navigate(FreshCutDestination.PROFILE); addressRequest++
                 }, onAdd = { product ->
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
@@ -607,6 +644,12 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             stores = stores,
             archive = archive,
             bought = bought,
+            prices = shopPricesByKey[selected.item.id].orEmpty(),
+            lentaCodes = lentaBarcodes.filter { it.productId == selected.item.productId && !it.deleted }.map { it.code },
+            onSaveManualPrice = { amount, done ->
+                val key = if (selected.item.productId > 0) "lenta:${selected.item.productId}" else "custom:${selected.item.customProductId}"
+                viewModel.saveStoreProduct(com.mok.buylist.data.lentaStoreId(), key, amount, done)
+            },
         ) { detailsRow = null }
     }
     if (showTheme) {
@@ -623,56 +666,115 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
     }
 }
 
+/** Основные действия в нижней правой зоне: доступны большим пальцем и не перекрывают список. */
+@Composable
+private fun ShoppingQuickActions(
+    allPurchased: Boolean,
+    finishEnabled: Boolean,
+    onFinish: () -> Unit,
+    onAdd: () -> Unit,
+    onScan: () -> Unit,
+) {
+    val p = LocalPalette.current
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (allPurchased) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp))
+                    .background(if (finishEnabled) p.card else p.field)
+                    .border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .clickable(enabled = finishEnabled, role = Role.Button, onClick = onFinish)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(20.dp),
+                    tint = if (finishEnabled) p.text else p.textSecondary)
+                Text("Завершить покупки", color = if (finishEnabled) p.text else p.textSecondary,
+                    fontSize = 13.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold)
+            }
+        } else Spacer(Modifier.weight(1f))
+
+        Box(
+            Modifier.size(54.dp).clip(RoundedCornerShape(16.dp))
+                .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+                .clickable(role = Role.Button, onClickLabel = "Отметить покупку по штрихкоду", onClick = onScan),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_scan_barcode), "Сканер штрихкодов",
+                Modifier.size(26.dp), tint = p.text)
+        }
+        Row(
+            Modifier.height(54.dp).then(if (allPurchased) Modifier.width(54.dp) else Modifier)
+                .clip(RoundedCornerShape(16.dp)).background(p.actionFill)
+                .clickable(role = Role.Button, onClickLabel = "Добавить товар", onClick = onAdd)
+                .padding(horizontal = if (allPurchased) 0.dp else 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = if (allPurchased) Arrangement.Center else Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(painterResource(R.drawable.ic_plus), if (allPurchased) "Добавить товар" else null,
+                Modifier.size(26.dp), tint = p.actionInk)
+            if (!allPurchased) Text("Добавить", color = p.actionInk,
+                fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
 @Composable
 private fun Header(
     progress: Progress,
     totals: com.mok.buylist.data.ShoppingTotals,
     themeEnabled: Boolean,
     onToggleTheme: () -> Unit,
-    onOpenThemeSettings: () -> Unit,
+    onNotifications: () -> Unit,
+    canFinish: Boolean,
+    onFinish: () -> Unit,
 ) {
     val p = LocalPalette.current
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 36.dp, bottomEnd = 36.dp))
-            .background(p.header)
-            .drawBehind {
-                // Мягкий блик в углу, как на иконке приложения.
-                drawCircle(
-                    color = Color.White.copy(alpha = if (p.isDark) 0.07f else 0.1f),
-                    radius = 110.dp.toPx(),
-                    center = Offset(size.width - 50.dp.toPx(), 20.dp.toPx()),
-                )
+    var expanded by remember { mutableStateOf(false) }
+    val fraction by animateFloatAsState(
+        if (progress.total > 0) (progress.bought.toFloat() / progress.total).coerceIn(0f, 1f) else 0f,
+        animationSpec = Motion.smooth(Motion.Slow), label = "fresh-cut-progress",
+    )
+    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Покупки", Modifier.weight(1f), color = p.text, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
+            FreshCutToolbarAction(R.drawable.ic_bell, "Уведомления", onNotifications)
+            Box {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
+                    .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
+                    .semantics { contentDescription = "Действия со списком" },
+                    contentAlignment = Alignment.Center) {
+                    Icon(painterResource(R.drawable.ic_more), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
+                }
+                AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    AppDropdownMenuItem(text = { Text("Переключить тему") },
+                        onClick = { expanded = false; onToggleTheme() })
+                    AppDropdownMenuItem(text = { Text("Завершить список") },
+                        enabled = canFinish, onClick = { expanded = false; onFinish() })
+                }
             }
-            .statusBarsPadding()
-            .padding(start = 24.dp, end = 16.dp, top = 8.dp, bottom = 28.dp),
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Text(
-                stringResource(R.string.app_name),
-                Modifier.weight(1f).padding(top = 10.dp, end = 8.dp),
-                color = p.onHeader,
-                fontSize = 30.sp,
-                lineHeight = 36.sp,
-                fontWeight = FontWeight.ExtraBold,
-                letterSpacing = (-0.4).sp,
-            )
-            ThemeToggle(dark = p.isDark, enabled = themeEnabled, onToggle = onToggleTheme, onOpenSettings = onOpenThemeSettings)
         }
-        // Полоса появляется, когда в списке что-то есть, и уезжает, когда он опустел. Пока она уходит, показываем
-        // последние цифры, а не «0 из 0».
-        run {
-            Column {
-                Spacer(Modifier.height(10.dp))
-                ProgressRow(progress, Modifier.padding(end = 8.dp))
-                Spacer(Modifier.height(8.dp))
-                if (progress.total > 0) androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.onHeader)
-                    SummaryAmount(R.drawable.ic_tag, "Осталось", totals.remaining, p.onHeader)
+        if (progress.total > 0) {
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Куплено ${progress.bought} из ${progress.total}", Modifier.weight(1f),
+                        color = p.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${(fraction * 100).roundToInt()}%", color = p.textSecondary, fontSize = 12.sp)
+                }
+                Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.field)
+                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }) {
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(2.dp)).background(p.headerFill))
+                }
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.text)
+                    SummaryAmount(R.drawable.ic_tag, "Осталось", totals.remaining, p.text)
                 }
             }
         }
@@ -690,7 +792,7 @@ internal fun SummaryAmount(icon: Int, label: String, amount: PartialAmount?, col
     Row(Modifier.semantics { contentDescription = "$label, $detail" }, verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(16.dp), tint = color)
-        Text(value, Modifier.clearAndSetSemantics {}, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("$label · $value", Modifier.clearAndSetSemantics {}, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -814,6 +916,7 @@ private fun ItemRow(
     row: ListRow,
     product: LentaProduct?,
     shopPrices: List<ProductShopPrice>,
+    plannedStoreId: String?,
     ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
@@ -826,8 +929,8 @@ private fun ItemRow(
 ) {
     // Обёртка свайпа есть всегда (просто выключается), чтобы строка не пересоздавалась и её цвет и значок
     // плавно перетекали из «в списке» в «куплено».
-    SwipeToRemove(enabled = row.state == RowState.ACTIVE, onRemove = onRemove, modifier = modifier) {
-        ItemRowContent(row, onBuy, onUndo, product, shopPrices, ownEstimate,
+    SwipeToRemove(enabled = row.state == RowState.ACTIVE, onRemove = onRemove, onBuy = onBuy, modifier = modifier) {
+        ItemRowContent(row, onBuy, onUndo, product, shopPrices, plannedStoreId, ownEstimate,
             address, onQuantity, onWeight, onDetails, onRemove)
     }
 }
@@ -848,6 +951,7 @@ private fun ItemRow(
 private fun SwipeToRemove(
     enabled: Boolean,
     onRemove: () -> Unit,
+    onBuy: () -> Unit,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
@@ -862,16 +966,18 @@ private fun SwipeToRemove(
             appear.animateTo(1f, Motion.smooth())
         }
     }
-    val swiping by remember { derivedStateOf { offset.value < 0f } }
+    val swiping by remember { derivedStateOf { offset.value != 0f } }
+    val buyAction = androidx.compose.runtime.rememberUpdatedState(onBuy)
+    val removeAction = androidx.compose.runtime.rememberUpdatedState(onRemove)
     val removeLabel = stringResource(R.string.swipe_delete)
 
     Box(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 96.dp)
+            .heightIn(min = 64.dp)
             .then(
                 if (enabled) {
-                    Modifier.semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }) }
+                    Modifier.semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }, CustomAccessibilityAction("Отметить покупку") { onBuy(); true }) }
                 } else {
                     Modifier
                 },
@@ -890,14 +996,17 @@ private fun SwipeToRemove(
                     detectHorizontalDragGestures(
                         onHorizontalDrag = { change, delta ->
                             change.consume()
-                            scope.launch { offset.snapTo((offset.value + delta).coerceIn(-size.width.toFloat(), 0f)) }
+                            scope.launch { offset.snapTo((offset.value + delta).coerceIn(-size.width.toFloat(), size.width.toFloat())) }
                         },
                         onDragEnd = {
                             scope.launch {
                                 if (offset.value <= -size.width * SWIPE_REMOVE_FRACTION) {
                                     // Строка уезжает за край и остаётся там, пока на её месте не появится «Удалено».
                                     offset.animateTo(-size.width.toFloat(), tween(150))
-                                    onRemove()
+                                    removeAction.value()
+                                } else if (offset.value >= size.width * SWIPE_REMOVE_FRACTION) {
+                                    offset.snapTo(0f)
+                                    buyAction.value()
                                 } else {
                                     offset.animateTo(0f, spring())
                                 }
@@ -919,8 +1028,9 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
     var width by remember { mutableIntStateOf(0) }
     val threshold = width * SWIPE_REMOVE_FRACTION
     val progress = remember(threshold) {
-        derivedStateOf { if (threshold > 0f) (-offset.value / threshold).coerceIn(0f, 1f) else 0f }
+        derivedStateOf { if (threshold > 0f) (kotlin.math.abs(offset.value) / threshold).coerceIn(0f, 1f) else 0f }
     }
+    val buying by remember { derivedStateOf { offset.value > 0f } }
     val armed by remember(threshold) { derivedStateOf { progress.value >= 1f } }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(armed) {
@@ -931,7 +1041,7 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
             .onSizeChanged { width = it.width }
             .drawBehind {
                 drawRoundRect(
-                    color = p.danger.copy(alpha = 0.3f + 0.7f * progress.value),
+                    color = (if (buying) p.actionFill else p.danger).copy(alpha = 0.3f + 0.7f * progress.value),
                     cornerRadius = CornerRadius(20.dp.toPx()),
                 )
             },
@@ -940,28 +1050,25 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
             Modifier
                 .matchParentSize()
                 .graphicsLayer { alpha = progress.value }
-                .padding(end = 22.dp),
-            horizontalArrangement = Arrangement.End,
+                .padding(horizontal = 22.dp),
+            horizontalArrangement = if (buying) Arrangement.Start else Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                stringResource(if (armed) R.string.swipe_release else R.string.swipe_delete),
-                color = p.onDanger,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.ExtraBold,
-            )
-            Spacer(Modifier.width(10.dp))
-            Icon(
-                painterResource(R.drawable.ic_trash),
-                contentDescription = null,
-                Modifier.size(if (armed) 28.dp else 24.dp),
-                tint = p.onDanger,
-            )
+            if (buying) {
+                Icon(painterResource(R.drawable.ic_check), null, Modifier.size(24.dp), tint = p.actionInk)
+                Spacer(Modifier.width(10.dp))
+                Text(if (armed) "Отпустите" else "Куплено", color = p.actionInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            } else {
+                Text(stringResource(if (armed) R.string.swipe_release else R.string.swipe_delete),
+                    color = p.onDanger, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.width(10.dp))
+                Icon(painterResource(R.drawable.ic_trash), null, Modifier.size(24.dp), tint = p.onDanger)
+            }
         }
     }
 }
 
-private val RowShape = RoundedCornerShape(20.dp)
+private val RowShape = RoundedCornerShape(16.dp)
 
 /**
  * Строка товара. Все её переходы («в списке» → «куплено»/«удалено») ведёт одно число [done] от 0 до 1:
@@ -976,6 +1083,7 @@ private fun ItemRowContent(
     onUndo: () -> Unit,
     product: LentaProduct?,
     shopPrices: List<ProductShopPrice>,
+    plannedStoreId: String?,
     ownEstimate: Long?,
     address: String,
     onQuantity: (Int) -> Unit,
@@ -987,29 +1095,65 @@ private fun ItemRowContent(
     val p = LocalPalette.current
     val state = row.state
     val finished = state != RowState.ACTIVE
-    val done = animateFloatAsState(if (finished) 1f else 0f, Motion.smooth(), label = "row-done")
-    // Пока строка возвращается в список, значок и цвет «куплено»/«удалено» ещё нужны.
-    var lastFinished by remember { mutableStateOf(if (finished) state else RowState.BOUGHT) }
-    if (finished) lastFinished = state
-    val removed = lastFinished == RowState.REMOVED
-    val doneColor = if (removed) p.field else p.boughtBg
+    val done by animateFloatAsState(if (finished) 1f else 0f, Motion.smooth(), label = "row-done")
+    var actionsExpanded by remember(row.item.id) { mutableStateOf(false) }
+    val weight = row.item.weightGrams
     val buyLabel = stringResource(R.string.buy_action)
-    Column(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 96.dp)
-            .clip(RowShape)
-            .drawBehind { drawRect(lerp(p.card, doneColor, done.value)) }
-            .then(
-                if (finished) Modifier
-                else Modifier.clickable(role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
-            )
-            .semantics { stateDescription = when (state) { RowState.ACTIVE -> "Не куплено"; RowState.BOUGHT -> "Куплено"; RowState.REMOVED -> "Удалено" } }
-            .padding(start = 12.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+    val shown = product?.takeIf {
+        address.isNotBlank() && it.address == address && it.channel == "locc" &&
+            it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null
+    }
+    val lowest = displayShopPrice(if (row.item.productId > 0) "lenta:${row.item.productId}" else "custom:${row.item.customProductId}", shopPrices, plannedStoreId)
+    val ownPrice = lowest?.priceKopecks ?: ownEstimate
+    val subtitle = when {
+        ownPrice != null -> {
+            val price = java.math.BigDecimal.valueOf(ownPrice, 2).stripTrailingZeros().toPlainString() + " ₽"
+            if (lowest != null) "${lowest.storeName} · $price" else price
+        }
+        row.item.customProductId.isNotBlank() && shopPrices.isNotEmpty() ->
+            shopPrices.take(2).joinToString(" · ") { it.storeName }
+        else -> null
+    }
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RowShape)
+            .background(lerp(p.card, p.boughtBg, done))
+            .semantics {
+                stateDescription = when (state) {
+                    RowState.ACTIVE -> "Не куплено"
+                    RowState.BOUGHT -> "Куплено"
+                    RowState.REMOVED -> "Удалено"
+                }
+                customActions = if (finished) listOf(
+                    CustomAccessibilityAction("Информация о товаре") { onDetails(); true },
+                    CustomAccessibilityAction("Вернуть товар") { onUndo(); true },
+                ) else listOf(
+                    CustomAccessibilityAction("Информация о товаре") { onDetails(); true },
+                    CustomAccessibilityAction("Изменить вес") { onWeight(); true },
+                    CustomAccessibilityAction("Удалить товар") { onRemove(); true },
+                )
+            }
+            .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.fillMaxWidth().semantics {
-            customActions = listOf(CustomAccessibilityAction("Информация о товаре") { onDetails(); true })
-        }.pointerInput(row.item) {
+        Box(
+            Modifier.size(40.dp, 48.dp)
+                .clickable(enabled = !finished, role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
+                    .background(if (finished) p.actionFill else p.card)
+                    .border(1.dp, if (finished) p.actionFill else p.ring, RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (state == RowState.BOUGHT) Icon(painterResource(R.drawable.ic_check),
+                    contentDescription = null, tint = p.actionInk, modifier = Modifier.size(16.dp))
+                if (state == RowState.REMOVED) Text("−", color = p.actionInk, fontSize = 16.sp)
+            }
+        }
+        Column(
+            Modifier.weight(1f).padding(start = 4.dp, end = 6.dp)
+                .pointerInput(row.item) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                 val held = withTimeoutOrNull(3001L) {
@@ -1030,91 +1174,76 @@ private fun ItemRowContent(
                     } while (event.changes.any { it.pressed })
                 }
             }
-        }, verticalAlignment = Alignment.CenterVertically) {
-        if (row.item.customProductId.isNotBlank())
-            CustomProductImage(row.item.customProductId, Modifier.size(48.dp))
-        else LentaImage(product?.image.orEmpty(), Modifier.size(48.dp))
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f).padding(end = 8.dp)) {
-        Text(
-            row.item.name,
-            Modifier.fillMaxWidth(),
-            color = lerp(p.text, p.textSecondary, done.value),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            textDecoration = if (finished) TextDecoration.LineThrough else null,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        val shown = product?.takeIf { address.isNotBlank() && it.address == address && it.channel == "locc" && it.priceType == "card" && com.mok.buylist.data.parsePriceKopecks(it.price) != null }
-        if (shown != null) Text("${shown.price} ₽", color = p.textSecondary, fontSize = 12.sp)
-        if (row.item.customProductId.isNotBlank()) {
-            val lowest = cheapestShopPrice(shopPrices)
-            val amount = lowest?.priceKopecks ?: ownEstimate
-            if (amount != null) {
-                val priceText = java.math.BigDecimal.valueOf(amount, 2)
-                    .stripTrailingZeros().toPlainString() + " ₽"
-                val label = if (lowest != null) "$priceText · ${lowest.storeName}"
-                    else "Ориентир: $priceText"
-                Text(label, color = p.accent, fontSize = 13.sp,
+        }
+                .clickable(role = Role.Button, onClickLabel = "Информация о товаре", onClick = onDetails),
+            verticalArrangement = Arrangement.spacedBy(3.dp),
+        ) {
+            Text(row.item.name, color = if (finished) p.textSecondary else p.text,
+                fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
+                textDecoration = if (finished) TextDecoration.LineThrough else null,
+                maxLines = 2, overflow = TextOverflow.Ellipsis)
+            subtitle?.let {
+                Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 15.sp,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-            } else if (shopPrices.isNotEmpty()) {
-                Text(shopPrices.take(2).joinToString(" · ") { it.storeName },
-                    color = p.textSecondary, fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        }
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-        if (!finished) {
-            androidx.compose.material3.IconButton(onClick = onDetails, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_info), contentDescription = "Информация о товаре", tint = p.iconMuted)
+        if (finished) {
+            androidx.compose.material3.TextButton(onClick = onUndo) {
+                Text(stringResource(R.string.undo), color = p.accent, fontSize = 13.sp)
             }
-            androidx.compose.material3.IconButton(onClick = onRemove, modifier = Modifier.size(48.dp)) {
-                Icon(painterResource(R.drawable.ic_trash), contentDescription = "Удалить", tint = p.iconMuted)
-            }
-            Spacer(Modifier.weight(1f))
-            androidx.compose.material3.TextButton(onClick = onWeight) {
-                Text(row.item.weightGrams?.let { "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг" } ?: "Вес", maxLines = 1)
-            }
-            if (row.item.weightGrams == null) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = "Уменьшить количество" }.clickable(enabled = row.item.quantity > 1, role = Role.Button) { onQuantity(row.item.quantity - 1) }, contentAlignment = Alignment.Center) {
-                    Text("−", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
-                Text(row.item.quantity.toString(), Modifier.semantics { contentDescription = "Количество: ${row.item.quantity}" }, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Box(Modifier.size(48.dp).clip(CircleShape).semantics { contentDescription = "Увеличить количество" }.clickable(enabled = row.item.quantity < 999, role = Role.Button) { onQuantity(row.item.quantity + 1) }, contentAlignment = Alignment.Center) {
-                    Text("+", color = p.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            }
-        }
-        if (done.value > 0f) {
-            Box(
-                Modifier
-                    .graphicsLayer {
-                        val scale = 0.9f + 0.1f * done.value
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = done.value
-                    }
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(p.card)
-                    .clickable(enabled = finished, role = Role.Button, onClick = onUndo)
-                    .padding(horizontal = 16.dp),
-                contentAlignment = Alignment.Center,
+        } else {
+            Row(
+                Modifier.clip(RoundedCornerShape(12.dp)).background(p.field),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(
-                    stringResource(R.string.undo),
-                    color = p.chipText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
+                if (weight == null) {
+                    FreshCutQuantityButton("−", "Уменьшить количество", row.item.quantity > 1) {
+                        onQuantity(row.item.quantity - 1)
+                    }
+                }
+                Box {
+                    val amount = weight?.let {
+                        "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг"
+                    } ?: row.item.quantity.toString()
+                    Box(
+                        Modifier.height(48.dp).clickable(role = Role.Button) { actionsExpanded = true }
+                            .semantics { contentDescription = "Количество: $amount. Действия с товаром" }
+                            .padding(horizontal = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(amount, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    AppDropdownMenu(
+                        expanded = actionsExpanded, onDismissRequest = { actionsExpanded = false },
+                    ) {
+                        AppDropdownMenuItem(text = { Text("Изменить вес") },
+                            onClick = { actionsExpanded = false; onWeight() })
+                        AppDropdownMenuItem(text = { Text("Информация о товаре") },
+                            onClick = { actionsExpanded = false; onDetails() })
+                        AppDropdownMenuItem(text = { Text("Удалить") },
+                            onClick = { actionsExpanded = false; onRemove() })
+                    }
+                }
+                if (weight == null) {
+                    FreshCutQuantityButton("+", "Увеличить количество", row.item.quantity < 999) {
+                        onQuantity(row.item.quantity + 1)
+                    }
+                }
             }
         }
-        }
+    }
+}
+
+@Composable
+private fun FreshCutQuantityButton(symbol: String, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val p = LocalPalette.current
+    Box(
+        Modifier.size(40.dp, 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, color = if (enabled) p.text else p.textSecondary.copy(alpha = 0.55f),
+            fontSize = 20.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -1127,33 +1256,45 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
     ) {
         Box(
-            Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
+            Modifier.padding(bottom = 12.dp).size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.field),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_empty_list), contentDescription = null, Modifier.size(76.dp), tint = p.accent)
+            Icon(painterResource(R.drawable.ic_list_check), contentDescription = null, Modifier.size(24.dp), tint = p.text)
         }
         Text(
             stringResource(R.string.empty_title),
             color = p.text,
-            fontSize = 22.sp,
+            fontSize = 23.sp,
             lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.SemiBold,
         )
+        Text("Все покупки будут здесь.", color = p.textSecondary, fontSize = 14.sp)
     }
 }
 
 /** Кнопка внутри общей панели: отдельная область нажатия и подпись для TalkBack. */
 @Composable
-private fun BottomAction(icon: Int, label: String, onClick: () -> Unit) {
+private fun FreshCutTab(
+    icon: Int,
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
     val p = LocalPalette.current
-    Box(
-        Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick),
-        contentAlignment = Alignment.Center,
+    val color = if (selected) p.text else p.textSecondary
+    Column(
+        modifier.height(56.dp).clip(RoundedCornerShape(12.dp))
+            .clickable(role = Role.Tab, onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
     ) {
-        Icon(painterResource(icon), contentDescription = label, Modifier.size(24.dp), tint = p.accent)
+        Box(Modifier.size(width = 24.dp, height = 3.dp).clip(RoundedCornerShape(2.dp))
+            .background(if (selected) p.text else Color.Transparent))
+        Spacer(Modifier.height(4.dp))
+        Icon(painterResource(icon), contentDescription = null, Modifier.size(24.dp), tint = color)
+        Text(label, color = color, fontSize = 10.sp, maxLines = 1,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium)
     }
 }
 
