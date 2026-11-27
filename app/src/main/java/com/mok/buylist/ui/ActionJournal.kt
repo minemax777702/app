@@ -129,7 +129,8 @@ internal fun ListAction.group(): NotificationGroup {
     return when {
         normalized.startsWith("список завершен") -> NotificationGroup.COMPLETED
         normalized.contains("цен") || normalized.startsWith("не обновлено:") ||
-            normalized.startsWith("данные товара обновлены") || normalized.startsWith("данные каталога обновлены") -> NotificationGroup.PRICES
+            normalized.startsWith("данные товара обновлены") || normalized.startsWith("данные каталога обновлены") ||
+            normalized.startsWith("обновление остановлено") -> NotificationGroup.PRICES
         before != null || after != null || normalized in setOf("добавлен товар", "товар добавлен", "создан товар",
             "покупка отмечена", "товар удален", "количество изменено", "вес изменен", "добавлено в список",
             "уже в списке", "добавлен товар ленты") -> NotificationGroup.ACTIONS

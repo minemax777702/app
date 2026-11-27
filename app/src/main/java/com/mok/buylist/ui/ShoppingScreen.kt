@@ -148,6 +148,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             viewModel.priceRefresh.value = null
         }
     }
+    val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
+    LaunchedEffect(batch) {
+        val result = batch
+        if (result != null && !result.running) {
+            activity?.notifyUser(result.summary())
+            viewModel.batchPriceRefresh.value = null
+        }
+    }
     val archive by viewModel.archive.collectAsStateWithLifecycle()
     val bought by viewModel.bought.collectAsStateWithLifecycle()
     val canFinish by viewModel.canFinish.collectAsStateWithLifecycle()
@@ -360,7 +368,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
         }
             }
         }
-        NoticeInMainScreen()
         FreshCutNavigation(destination, ::navigate,
             Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp))
     }

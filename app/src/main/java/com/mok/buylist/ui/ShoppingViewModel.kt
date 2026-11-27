@@ -51,8 +51,24 @@ data class ListRow(val item: ShoppingItem, val state: RowState)
 /** Сколько куплено из всего текущего списка. */
 data class Progress(val bought: Int, val total: Int)
 
-data class BatchPriceRefresh(val completed: Int, val total: Int, val failed: Int, val running: Boolean,
-    val missingBarcodes: Int = 0, val missingPrices: Int = 0)
+data class BatchPriceRefresh(
+    val completed: Int, val total: Int, val failed: Int, val running: Boolean,
+    val missingBarcodes: Int = 0, val missingPrices: Int = 0,
+    val stopping: Boolean = false, val stopped: Boolean = false,
+    val addressChanged: Boolean = false,
+) {
+    internal fun summary(): String = buildList {
+        val updated = (completed - failed).coerceAtLeast(0)
+        add(when {
+            addressChanged -> "Обновление остановлено: адрес магазина изменился"
+            stopped -> "Обновление остановлено"
+            else -> "Данные каталога обновлены"
+        } + ": $updated из $total")
+        if (failed > 0) add("ошибок: $failed")
+        if (missingBarcodes > 0) add("без штрихкода: $missingBarcodes")
+        if (missingPrices > 0) add("без новой цены: $missingPrices")
+    }.joinToString(" · ")
+}
 
 /** Сколько миллисекунд после покупки или удаления на строке остаётся кнопка «Отменить». */
 private const val UNDO_WINDOW_MS = 1_500L
@@ -187,7 +203,7 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         if (ids.isEmpty()) return
         val address = lenta.address.value
         if (address.isBlank()) {
-            batchPriceRefresh.value = BatchPriceRefresh(0, ids.size, ids.size, false)
+            batchPriceRefresh.value = BatchPriceRefresh(ids.size, ids.size, ids.size, false)
             return
         }
         batchPriceRefresh.value = BatchPriceRefresh(0, ids.size, 0, true)
@@ -196,8 +212,10 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
             var completed = 0
             var missingBarcodes = 0
             var missingPrices = 0
+            var addressChanged = false
             for (id in ids) {
-                if (lenta.address.value != address) { failed += ids.size - completed; break }
+                if (batchPriceRefresh.value?.stopping == true) break
+                if (lenta.address.value != address) { addressChanged = true; break }
                 try {
                     val result = lenta.refreshProduct(id)
                     if (!result.hasBarcode) missingBarcodes++
@@ -206,10 +224,19 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
                     throw e
                 } catch (_: Exception) { failed++ }
                 completed++
-                batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, true, missingBarcodes, missingPrices)
+                batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, true,
+                    missingBarcodes, missingPrices, stopping = batchPriceRefresh.value?.stopping == true)
             }
-            batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, false, missingBarcodes, missingPrices)
+            val stopped = completed < ids.size && (addressChanged || batchPriceRefresh.value?.stopping == true)
+            batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, false,
+                missingBarcodes, missingPrices, stopped = stopped, addressChanged = addressChanged)
         }
+    }
+
+    /** Заканчиваем уже начатый запрос и не запускаем следующий. Сохранённые данные не откатываются. */
+    fun stopBatchRefresh() {
+        val current = batchPriceRefresh.value ?: return
+        if (current.running && !current.stopping) batchPriceRefresh.value = current.copy(stopping = true)
     }
 
     fun refreshPrice(id: Long) {

@@ -1,6 +1,15 @@
 package com.mok.buylist.ui
 
 import androidx.activity.compose.LocalActivity
+import android.view.WindowManager
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -32,6 +41,7 @@ internal enum class NoticeStyle(val durationMillis: Long) {
 internal fun noticeStyle(message: String): NoticeStyle {
     val text = message.lowercase().replace('ё', 'е')
     return when {
+        text.startsWith("обновление остановлено") -> NoticeStyle.INFO
         listOf("не удалось", "ошиб", "некоррект", "недоступ", "не обновлено",
             "без штрихкода:", "без новой цены:", "штрихкод отсутствует",
             "поврежден", "не найден", "не найдена", "истек", "не хватает",
@@ -44,13 +54,6 @@ internal fun noticeStyle(message: String): NoticeStyle {
     }
 }
 
-@Composable
-internal fun NoticeInMainScreen() {
-    val activity = LocalActivity.current as? MainActivity ?: return
-    val notice = activity.notice
-    if (notice != null && activity.noticeOwner == null) NoticeBanner(notice.second)
-}
-
 /** Регистрируется единожды в общей оболочке панели, включая вложенные панели. */
 @Composable
 internal fun NoticeInSheet() {
@@ -61,10 +64,40 @@ internal fun NoticeInSheet() {
         onDispose { activity.unregisterNoticeSheet(owner) }
     }
     val notice = activity.notice
-    if (notice != null && activity.noticeOwner === owner) NoticeBanner(notice.second)
+    if (notice != null && activity.noticeOwner === owner) NoticeOverlay(notice.second)
 }
 
-/** Встроенный статус: не создаёт отдельного окна и не перехватывает нажатия. */
+/** Один экранный якорь для Activity и любых нижних панелей. Popup не занимает место в layout. */
+@Composable
+internal fun NoticeOverlay(message: String) {
+    val density = LocalDensity.current
+    val top = WindowInsets.statusBars.getTop(density) + with(density) { 8.dp.roundToPx() }
+    val position = remember(top) {
+        object : PopupPositionProvider {
+            override fun calculatePosition(
+                anchorBounds: IntRect,
+                windowSize: IntSize,
+                layoutDirection: LayoutDirection,
+                popupContentSize: IntSize,
+            ): IntOffset = IntOffset((windowSize.width - popupContentSize.width) / 2, top)
+        }
+    }
+    Popup(
+        popupPositionProvider = position,
+        properties = PopupProperties(
+            flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false,
+            excludeFromSystemGesture = false,
+        ),
+    ) {
+        NoticeBanner(message)
+    }
+}
+
+/** Только визуальное сообщение: не меняет размеры экрана и не принимает ввод. */
 @Composable
 private fun NoticeBanner(message: String) {
     val p = LocalPalette.current

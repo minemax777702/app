@@ -74,6 +74,7 @@ class MainActivity : ComponentActivity() {
                     val current = notice
                     val accessibility = LocalAccessibilityManager.current
                     if (current != null) {
+                        if (noticeOwner == null) NoticeOverlay(current.second)
                         LaunchedEffect(current.first) {
                             val duration = noticeStyle(current.second).durationMillis
                             delay(accessibility?.calculateRecommendedTimeoutMillis(

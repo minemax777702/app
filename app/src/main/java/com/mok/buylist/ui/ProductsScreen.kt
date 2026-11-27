@@ -81,18 +81,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
-    androidx.compose.runtime.LaunchedEffect(batch) {
-        val result = batch
-        if (result != null && !result.running) {
-            activity?.notifyUser(buildList {
-                add("Данные каталога обновлены: ${result.total - result.failed} из ${result.total}")
-                if (result.failed > 0) add("ошибок: ${result.failed}")
-                if (result.missingBarcodes > 0) add("без штрихкода: ${result.missingBarcodes}")
-                if (result.missingPrices > 0) add("без новой цены: ${result.missingPrices}")
-            }.joinToString(" · "))
-            viewModel.batchPriceRefresh.value = null
-        }
-    }
     var query by rememberSaveable { mutableStateOf("") }
     var catalogMenu by remember { mutableStateOf(false) }
     var onlineQuery by rememberSaveable { mutableStateOf("") }
@@ -147,9 +135,20 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         if (products.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("${ownRows.size + rows.size} товаров", color = p.textSecondary, fontSize = 12.sp)
-            TextButton(onClick = viewModel::refreshAllPrices, enabled = batch?.running != true) {
-                Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(18.dp), tint = p.text)
-                Text(if (batch?.running == true) "  ${batch!!.completed}/${batch!!.total}" else "  Обновить данные", color = p.text)
+            val running = batch?.takeIf { it.running }
+            if (running != null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${running.completed}/${running.total}", color = p.textSecondary, fontSize = 12.sp)
+                    TextButton(onClick = viewModel::stopBatchRefresh, enabled = !running.stopping) {
+                        Text(if (running.stopping) "Остановка…" else "Остановить",
+                            color = if (running.stopping) p.textSecondary else p.error)
+                    }
+                }
+            } else {
+                TextButton(onClick = viewModel::refreshAllPrices) {
+                    Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(18.dp), tint = p.text)
+                    Text("  Обновить данные", color = p.text)
+                }
             }
         }
         if (rows.isEmpty() && ownRows.isEmpty()) {
