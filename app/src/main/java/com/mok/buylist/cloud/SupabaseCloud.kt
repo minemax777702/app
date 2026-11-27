@@ -232,6 +232,12 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         const val PERSONAL_LIST_NAME = "Личный список"
     }
 
+    suspend fun signOutOtherSessions() {
+        withTimeout(15_000L) {
+            api().auth.signOut(io.github.jan.supabase.auth.SignOutScope.OTHERS)
+        }
+    }
+
     suspend fun signOut() {
         // Do not wait for connectivity to leave an account on this device.
         mutex.withLock {

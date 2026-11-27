@@ -161,7 +161,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
         }},enabled=!busy)
     }
 
-    if(passkeySheet && !adminOnly && activity!=null) PasskeySettingsSheet(cloud.passkeys,activity,{passkeySheet=false},::notify)
+    if(passkeySheet && !adminOnly && activity!=null) PasskeySettingsSheet(cloud.passkeys,activity,{passkeySheet=false},::notify,cloud::signOutOtherSessions)
 
     if(editName) {
         var title by remember { mutableStateOf(me.name) }

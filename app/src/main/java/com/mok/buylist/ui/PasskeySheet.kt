@@ -61,7 +61,7 @@ internal fun PasskeyAction(stage: PasskeyStage, registration: Boolean, enabled: 
 }
 
 @Composable
-internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClose: () -> Unit, notify: (String)->Unit) {
+internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClose: () -> Unit, notify: (String)->Unit, signOutOthers: suspend () -> Unit) {
     val p=LocalPalette.current
     val scope=rememberCoroutineScope()
     var entries by remember { mutableStateOf(emptyList<CloudPasskey>()) }
@@ -70,6 +70,8 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
     var error by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf<CloudPasskey?>(null) }
     var deleting by remember { mutableStateOf(false) }
+    var confirmSessions by remember { mutableStateOf(false) }
+    var revoking by remember { mutableStateOf(false) }
     suspend fun refresh() {
         loading=true;error=null
         try { entries=api.list() }
@@ -78,7 +80,7 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
         finally{loading=false}
     }
     LaunchedEffect(Unit){refresh()}
-    val busy=loading || deleting || stage!=PasskeyStage.IDLE
+    val busy=loading || deleting || revoking || stage!=PasskeyStage.IDLE
     AppSheet(onDismissRequest={if(!busy)onClose()},containerColor=p.sheet,title={SheetHeader("Безопасность")},text={
         Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp)) {
@@ -91,6 +93,10 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
                         textAlign=androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
+            FreshCutSectionTitle("Сеансы")
+            FreshCutListRow(R.drawable.ic_shield,"Завершить другие сеансы",
+                "Текущий сеанс останется активным",showChevron=true,
+                onClick={if(!busy)confirmSessions=true})
             if(error!=null) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
                     Text(error.orEmpty(),Modifier.weight(1f),color=p.textSecondary,fontSize=13.sp)
@@ -115,6 +121,21 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
             }
         }
     },confirmButton={})
+    if(confirmSessions) {
+        AppSheet(onDismissRequest={if(!revoking)confirmSessions=false},containerColor=p.sheet,
+            title={SheetHeader("Завершить другие сеансы?")},text={
+                Text("На других устройствах потребуется повторный вход. Уже выданные токены могут действовать до истечения срока.",color=p.textSecondary,fontSize=14.sp)
+            },confirmButton={SheetActionButton(onClick={
+                revoking=true
+                scope.launch {
+                    try { signOutOthers();confirmSessions=false;notify("Другие сеансы завершены") }
+                    catch(e:kotlinx.coroutines.TimeoutCancellationException){notify("Не удалось подтвердить завершение сеансов")}
+                    catch(e:CancellationException){throw e}
+                    catch(e:Exception){notify("Не удалось завершить сеансы. Повторите попытку.")}
+                    finally{revoking=false}
+                }
+            },enabled=!revoking,destructive=true){Text(if(revoking)"Завершение…" else "Завершить")}})
+    }
     removing?.let { key ->
         AppSheet(onDismissRequest={if(!deleting)removing=null},containerColor=p.sheet,title={SheetHeader("Удалить ключ доступа?")},text={
             Text("С этим ключом больше нельзя будет войти. Вход с паролем останется доступен.",color=p.textSecondary,fontSize=14.sp)
