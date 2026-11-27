@@ -69,7 +69,32 @@ internal class SignedCloudManifest private constructor(
         return manifest
     }
 
+    fun encode(): ByteArray = CloudWire.bytes {
+        writeInt(CloudWire.MANIFEST_MAGIC)
+        CloudWire.writeSpace(this, manifest.space)
+        writeLong(manifest.epoch)
+        writeLong(manifest.revision)
+        writeInt(manifest.grants.size)
+        manifest.grants.sortedBy { it.deviceId }.forEach {
+            writeUTF(it.userId)
+            writeUTF(it.publicKey)
+            writeByte(it.role.wire)
+        }
+        CloudWire.writeBlob(this, signature, 80)
+    }
+
     companion object {
+        fun decode(bytes: ByteArray): SignedCloudManifest = CloudWire.read(bytes, 32_768) {
+            require(readInt() == CloudWire.MANIFEST_MAGIC)
+            val space = CloudWire.readSpace(this)
+            val epoch = readLong()
+            val revision = readLong()
+            val count = readInt()
+            require(count in 1..CloudUserRegistry.MAX_DEVICES)
+            val grants = List(count) { CloudGrant(readUTF(), readUTF(), CloudGroupRole.fromWire(readUnsignedByte())) }
+            SignedCloudManifest(CloudManifest(space, epoch, revision, grants), CloudWire.readBlob(this, 80))
+        }
+
         fun sign(manifest: CloudManifest, adminKey: PrivateKey): SignedCloudManifest {
             // Defensive copies: callers must not mutate a previously signed grant list.
             val immutable = manifest.copy(grants = manifest.grants.toList())
@@ -138,8 +163,31 @@ internal class CloudSignedEvent private constructor(
         } finally { plain.fill(0) }
     }
 
+    fun encode(): ByteArray = CloudWire.bytes {
+        writeInt(CloudWire.EVENT_MAGIC)
+        CloudWire.writeSpace(this, header.space)
+        writeLong(header.epoch)
+        writeLong(header.manifestRevision)
+        writeUTF(header.deviceId)
+        writeLong(header.sequence)
+        writeUTF(header.previousHash)
+        write(iv)
+        CloudWire.writeBlob(this, encrypted, MAX_DELTA_BYTES + 16)
+        CloudWire.writeBlob(this, signature, 80)
+    }
+
     companion object {
         const val MAX_DELTA_BYTES = 512 * 1024
+
+        fun decode(bytes: ByteArray): CloudSignedEvent = CloudWire.read(bytes, MAX_DELTA_BYTES + 1024) {
+            require(readInt() == CloudWire.EVENT_MAGIC)
+            val header = CloudEventHeader(CloudWire.readSpace(this), readLong(), readLong(), readUTF(), readLong(), readUTF())
+            val iv = ByteArray(12).also { readFully(it) }
+            val encrypted = CloudWire.readBlob(this, MAX_DELTA_BYTES + 16)
+            require(encrypted.size >= 16)
+            val signature = CloudWire.readBlob(this, 80)
+            CloudSignedEvent(header, iv, encrypted, signature)
+        }
 
         fun seal(header: CloudEventHeader, delta: Snapshot, key: SecretKey, devicePrivateKey: PrivateKey): CloudSignedEvent {
             val plain = SyncCodec.encode(delta)
