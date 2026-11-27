@@ -2,21 +2,9 @@ package com.mok.buylist.ui
 
 import com.mok.buylist.data.ShoppingRepository
 import com.mok.buylist.data.SyncSummary
-import com.mok.buylist.sync.ArchiveStamp
 import com.mok.buylist.sync.BackupContents
 import com.mok.buylist.sync.BackupCodec
-import com.mok.buylist.sync.FRAME_INTERVAL_MS
-import com.mok.buylist.sync.Hello
-import com.mok.buylist.sync.QrEncoder
-import com.mok.buylist.sync.QrMatrix
-import com.mok.buylist.sync.ReceiveProgress
-import com.mok.buylist.sync.SnapshotSection
-import com.mok.buylist.sync.selectSection
-import com.mok.buylist.sync.Snapshot
 import com.mok.buylist.sync.SyncFormatException
-import com.mok.buylist.sync.SyncMerge
-import com.mok.buylist.sync.SyncReceiver
-import com.mok.buylist.sync.SyncSender
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job

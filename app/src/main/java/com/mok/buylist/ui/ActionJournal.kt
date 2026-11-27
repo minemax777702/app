@@ -108,7 +108,8 @@ internal class ActionJournal private constructor(context: Context, namespace: St
         private val instances = mutableMapOf<String, ActionJournal>()
         @Synchronized fun get(context: Context): ActionJournal {
             val app = context.applicationContext as com.mok.buylist.ShoppingApp
-            return instances.getOrPut(app.workspaceNamespace) { ActionJournal(app, app.workspaceNamespace) }
+            val namespace = app.workspaceNamespace
+            return instances.getOrPut(namespace) { ActionJournal(app, namespace) }
         }
     }
 }

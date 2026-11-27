@@ -87,13 +87,19 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
                     is SessionStatus.Authenticated -> {
                         val id = client.auth.currentUserOrNull()?.id ?: return@collect
                         mutex.withLock {
-                            if (account != id) { resetWorkspace(); _directory.value = CloudDirectory(); account = id }
+                            if (account != id) {
+                                resetWorkspace()
+                                account = id
+                                _directory.value = CloudDirectory()
+                                restoreDirectory(id)
+                            }
                             _signedIn.value = true
                         }
                         signal()
                     }
                     is SessionStatus.NotAuthenticated -> mutex.withLock {
                         resetWorkspace(); account = null; _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
+                        updateWidget()
                     }
                     is SessionStatus.RefreshFailure -> _status.value = "Офлайн"
                     else -> Unit
@@ -147,38 +153,97 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
         api().auth.signOut()
         mutex.withLock {
             resetWorkspace(); account = null; _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
+            updateWidget()
         }
     }
     private fun resetWorkspace() {
         _workspace.value = null
-        caches.values.forEach { it.job.cancel() }
-        // Old UI coroutines can still be unwinding; do not close a live Room database here.
+        caches.values.forEach { closeLater(it) }
         caches.clear()
+    }
+
+    private fun closeLater(cache: CloudWorkspace) {
+        cache.job.cancel()
+        scope.launch(Dispatchers.IO) {
+            cache.job.join()
+            delay(1500)
+            cache.db.close()
+        }
+    }
+
+    private fun rememberDirectory(uid: String, profiles: List<JsonObject>, groups: List<JsonObject>,
+                                  lists: List<JsonObject>, members: List<JsonObject>) {
+        val data = buildJsonObject {
+            put("profiles", JsonArray(profiles)); put("groups", JsonArray(groups))
+            put("lists", JsonArray(lists)); put("members", JsonArray(members))
+        }
+        prefs.edit().putString("directory_$uid", data.toString()).apply()
+    }
+
+    private fun decodeDirectory(uid: String, profiles: List<JsonObject>, groups: List<JsonObject>,
+                                lists: List<JsonObject>, members: List<JsonObject>): CloudDirectory {
+        val people = profiles.map { it.person() }
+        val me = people.firstOrNull { it.id == uid && it.active }
+        return CloudDirectory(me, people.sortedBy { it.name },
+            groups.filterNot { it.flag("archived") }.map { it.group() }.sortedBy { it.name },
+            lists.filterNot { it.flag("archived") }.map { it.list() }.sortedBy { it.name },
+            members.filter { it.flag("active") }.map { CloudMember(it.string("group_id")!!, it.string("user_id")!!) })
+    }
+
+    private suspend fun restoreDirectory(uid: String) {
+        val saved = prefs.getString("directory_$uid", null) ?: return
+        try {
+            val json = Json.parseToJsonElement(saved).jsonObject
+            fun get(key: String) = json.getValue(key).jsonArray.map { it.jsonObject }
+            val directory = decodeDirectory(uid, get("profiles"),get("groups"),get("lists"),get("members"))
+            val me = directory.me ?: return
+            _directory.value = directory
+            val id = prefs.getString("selected_$uid", null)
+            val selected = if (id == "local") null else directory.lists.firstOrNull { it.id == id }
+                ?: directory.lists.firstOrNull { it.owner == uid }
+            if (selected != null && context.getDatabasePath("cloud-${uid}-${selected.id}.db").exists()) {
+                _workspace.value = open(me, selected, cachedOnly = true)
+                _status.value = "Офлайн"
+                updateWidget()
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { _directory.value = CloudDirectory() }
     }
 
     private suspend fun rows(table: String) = api().from(table).select().decodeList<JsonObject>()
     suspend fun refresh() = mutex.withLock {
         val uid = account ?: return@withLock
         try {
-            val people = rows("profiles").map { it.person() }
-            val me = people.firstOrNull { it.id == uid && it.active }
-            if (me == null) {
+            val profiles = rows("profiles")
+            if (profiles.none { it.string("id") == uid && it.flag("active") }) {
+                prefs.edit().remove("directory_$uid").apply()
                 resetWorkspace(); _directory.value = CloudDirectory(); _status.value = "Доступ отключён"
+                updateWidget()
                 return@withLock
             }
-            val groups = rows("groups").filterNot { it.flag("archived") }.map { it.group() }.sortedBy { it.name }
-            val lists = rows("shopping_lists").filterNot { it.flag("archived") }.map { it.list() }.sortedBy { it.name }
-            val members = rows("group_members").filter { it.flag("active") }.map { CloudMember(it.string("group_id")!!, it.string("user_id")!!) }
-            _directory.value = CloudDirectory(me, people.sortedBy { it.name }, groups, lists, members)
+            val groups = rows("groups")
+            val listRows = rows("shopping_lists")
+            val members = rows("group_members")
+            val directory = decodeDirectory(uid, profiles, groups, listRows, members)
+            val me = requireNotNull(directory.me)
+            val lists = directory.lists
+            rememberDirectory(uid, profiles, groups, listRows, members)
+            _directory.value = directory
             val preferred = prefs.getString("selected_$uid", null)
             val selected = if (preferred == "local") null else lists.firstOrNull { it.id == preferred }
                 ?: lists.firstOrNull { it.owner == uid }
+            val allowed = lists.mapTo(HashSet()) { it.id }
+            if (_workspace.value?.listId?.let { it !in allowed } == true) {
+                _workspace.value = null
+                updateWidget()
+            }
+            caches.values.filter { it.userId != uid || it.listId !in allowed }.forEach {
+                closeLater(it); caches.remove(it.namespace)
+            }
             if (_workspace.value?.listId != selected?.id) {
                 _workspace.value = if (selected == null) null else open(me, selected)
                 updateWidget()
             }
-            val allowed = lists.mapTo(HashSet()) { it.id }
-            caches.values.filter { it.userId != uid || it.listId !in allowed }.forEach { it.job.cancel(); caches.remove(it.namespace) }
             var ok = true
             for (cache in caches.values.toList()) {
                 try {
@@ -192,7 +257,7 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
         catch (_: Exception) { _status.value = "Офлайн" }
     }
 
-    private suspend fun open(me: CloudPerson, list: CloudList): CloudWorkspace {
+    private suspend fun open(me: CloudPerson, list: CloudList, cachedOnly: Boolean = false): CloudWorkspace {
         val namespace = "cloud-${me.id}-${list.id}"
         caches[namespace]?.let { return it }
         val db = AppDatabase.create(context, "$namespace.db")
@@ -204,7 +269,7 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
         val value = CloudWorkspace(namespace, me.id, list.id, db, profile, repository, catalog, job)
         try {
             // Pull before making a new list editable. Never treat a missing remote row as an empty list.
-            sync(value)
+            if (!cachedOnly) sync(value)
             repository.saveProfile(me.name)
             caches[namespace] = value
             cacheScope.launch {
@@ -221,7 +286,11 @@ internal class SupabaseCloud(private val context: Context, private val scope: Co
 
     suspend fun select(listId: String?) = mutex.withLock {
         val me = requireNotNull(_directory.value.me)
-        val next = if (listId == null) null else open(me, _directory.value.lists.single { it.id == listId })
+        val next = if (listId == null) null else {
+            val list = _directory.value.lists.single { it.id == listId }
+            val exists = context.getDatabasePath("cloud-${me.id}-${list.id}.db").exists()
+            if (exists && status.value == "Офлайн") open(me, list, cachedOnly = true) else open(me, list)
+        }
         check(prefs.edit().putString("selected_${me.id}", listId ?: "local").commit())
         _workspace.value = next
         updateWidget()

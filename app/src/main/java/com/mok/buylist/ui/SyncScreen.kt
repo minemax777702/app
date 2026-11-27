@@ -89,10 +89,11 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val p = LocalPalette.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val controller = remember { SyncController(context.repository, scope) }
+    val app = context.applicationContext as com.mok.buylist.ShoppingApp
+    val workspace by app.cloud.workspace.collectAsStateWithLifecycle()
+    val controller = remember { SyncController(app.localRepository, scope) }
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as? MainActivity
-    var confirmUndo by rememberSaveable { mutableStateOf(false) }
     var showAddress by rememberSaveable { mutableStateOf(false) }
     val address by context.lentaCatalog.address.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
@@ -176,7 +177,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                         "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
                     ProfileMenuRow(R.drawable.ic_sync, "Облако", "Пользователи, списки и группы", { page = "cloud" })
-                    ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
+                    if (workspace == null) ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }
             }
         }
@@ -200,24 +201,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     )
 
     if (showAddress) LentaSettings { showAddress = false }
-    if (confirmUndo) {
-        AppSheet(
-            onDismissRequest = { confirmUndo = false },
-            containerColor = p.sheet,
-            title = { Text(stringResource(R.string.sync_undo_title), color = p.text, fontWeight = FontWeight.ExtraBold) },
-            text = { Text(stringResource(R.string.sync_undo_text), color = p.textSecondary) },
-            confirmButton = {
-                SheetActionButton(onClick = { confirmUndo = false; controller.undo() }, destructive = true) {
-                    Text(stringResource(R.string.sync_undo), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            },
-            dismissButton = {
-                SheetActionButton(onClick = { confirmUndo = false }) {
-                    Text(stringResource(R.string.sync_undo_keep), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
-                }
-            },
-        )
-    }
     state.pendingRestoreOwner?.let { owner ->
         AppSheet(
             onDismissRequest = controller::cancelRestore,

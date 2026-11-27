@@ -55,20 +55,22 @@ import com.mok.buylist.ui.theme.ThemeMode
 
 class ShoppingWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val repository = context.repository
+        val app = context.applicationContext as com.mok.buylist.ShoppingApp
         val themeSettings = context.themeSettings
-        val initial = repository.getItems()
         provideContent {
-            // Пока сессия открыта, список и тема живут за счёт подписок: одиночные updateAll,
-            // пришедшие во время открытой сессии, иначе теряются и виджет показывает старое.
-            val items by repository.observeItems().collectAsState(initial)
+            val workspace by app.cloud.workspace.collectAsState()
+            val repository = workspace?.repository ?: app.localRepository
             val mode by themeSettings.widget.collectAsState()
-            WidgetContent(items, mode)
+            androidx.compose.runtime.key(workspace?.namespace) {
+                val items by repository.observeItems().collectAsState(emptyList())
+                WidgetContent(items, mode, workspace?.namespace.orEmpty())
+            }
         }
     }
 }
 
 private val ItemIdKey = ActionParameters.Key<String>("item_id")
+private val WorkspaceKey = ActionParameters.Key<String>("workspace")
 
 /** Цвет из палитры дизайна: «Авто» следует теме телефона, «Светлая»/«Тёмная» фиксируют цвет. */
 private fun color(mode: ThemeMode, pick: (ShoppingPalette) -> Color): ColorProvider = when (mode) {
@@ -78,7 +80,7 @@ private fun color(mode: ThemeMode, pick: (ShoppingPalette) -> Color): ColorProvi
 }
 
 @Composable
-private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode) {
+private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, namespace: String) {
     val context = LocalContext.current
     val openApp = actionStartActivity(Intent(context, MainActivity::class.java))
     Column(
@@ -185,7 +187,7 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode) {
                         GlanceModifier
                             .fillMaxWidth()
                             .clickable(
-                                actionRunCallback<BuyItemAction>(actionParametersOf(ItemIdKey to item.id)),
+                                actionRunCallback<BuyItemAction>(actionParametersOf(ItemIdKey to item.id, WorkspaceKey to namespace)),
                             )
                             .padding(horizontal = 10.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -216,9 +218,11 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode) {
 class BuyItemAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val id = parameters[ItemIdKey] ?: return
-        // repository.buy сам обновляет виджет.
-        context.repository.buy(id)
-        // Купили последнее — список завершён: в приложении будет не «3 из 3», а чистый экран и запись в архиве.
-        context.repository.finishTripIfDone()
+        val app = context.applicationContext as com.mok.buylist.ShoppingApp
+        val workspace = app.cloud.workspace.value
+        if (parameters[WorkspaceKey] != workspace?.namespace.orEmpty()) return
+        val repository = workspace?.repository ?: app.localRepository
+        repository.buy(id)
+        repository.finishTripIfDone()
     }
 }
