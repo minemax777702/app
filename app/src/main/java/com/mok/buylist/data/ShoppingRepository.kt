@@ -96,17 +96,17 @@ class ShoppingRepository(
     suspend fun latestStorePrice(productKey: String, storeId: String,
         excludedEventId: String? = null): Long? {
         if (productKey.isBlank() || storeId.isBlank()) return null
+        val lentaProducts = dao.getLentaProducts().map { it.toProduct() }
         val aliases = sharedCatalogIdentities(
-            dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+            lentaProducts, dao.getCustomProducts(),
             dao.getProductBarcodes(), dao.getCustomProductBarcodes())
         val canonical = aliases[productKey] ?: productKey
-        val configured = dao.getStoreProducts().filter { !it.deleted &&
-            it.storeId == storeId && it.priceKopecks != null &&
+        val configured = dao.getPricedStoreProducts(storeId).filter {
             (aliases[it.productKey] ?: it.productKey) == canonical }
             .maxByOrNull { it.updatedAt }?.priceKopecks
         if (configured != null) return configured
         if (storeId == lentaStoreId()) {
-            dao.getLentaProducts().map { it.toProduct() }.firstOrNull {
+            lentaProducts.firstOrNull {
                 (aliases["lenta:${it.id}"] ?: "lenta:${it.id}") == canonical &&
                     it.address == context.lentaCatalog.address.value && it.address.isNotBlank() && it.channel == "locc"
             }?.price?.let(::parsePriceKopecks)?.let { return it }

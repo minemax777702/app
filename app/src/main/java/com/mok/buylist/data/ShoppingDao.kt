@@ -15,6 +15,9 @@ interface ShoppingDao {
     @Query("SELECT * FROM store_products ORDER BY storeId, productKey")
     suspend fun getStoreProducts(): List<StoreProduct>
 
+    @Query("SELECT * FROM store_products WHERE storeId = :storeId AND deleted = 0 AND priceKopecks IS NOT NULL")
+    suspend fun getPricedStoreProducts(storeId: String): List<StoreProduct>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertStoreProduct(row: StoreProduct)
 
