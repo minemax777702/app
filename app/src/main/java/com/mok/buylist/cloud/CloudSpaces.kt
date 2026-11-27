@@ -51,6 +51,63 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     private var foregroundJob: Job? = null
     private val syncAllMutex = Mutex()
     val widgetKey = MutableStateFlow(prefs.getString("widget_workspace", null))
+    val selectedWorkspace = MutableStateFlow(prefs.getString("selected_workspace", null))
+    val connectionCode = MutableStateFlow(prefs.getString("connection_code", null)
+        ?: prefs.getString("admin", null)?.let { CloudDeviceProtocol.fingerprint(it) })
+    private val _connecting = MutableStateFlow(false)
+    val connecting: StateFlow<Boolean> = _connecting
+
+    fun selectWorkspace(session: CloudSpaceSession?) {
+        val key = session?.localKey
+        prefs.edit().putString("selected_workspace", key).apply()
+        selectedWorkspace.value = key
+    }
+
+    suspend fun connect(code: String) = withContext(Dispatchers.IO) {
+        awaitReady()
+        val fingerprint = code.filterNot(Char::isWhitespace).lowercase(java.util.Locale.ROOT)
+        require(fingerprint.matches(Regex("[0-9a-f]{64}"))) { "Некорректный код подключения" }
+        val pinned = prefs.getString("admin", null)
+        require(pinned == null || CloudDeviceProtocol.fingerprint(pinned) == fingerprint) {
+            "Подключение к другому администратору запрещено"
+        }
+        check(prefs.edit().putString("connection_code", fingerprint).commit())
+        connectionCode.value = fingerprint
+        _issue.value = null
+        CloudSyncWork.schedule(context)
+        CloudSyncWork.enqueue(context)
+    }
+
+    fun refreshConnection() {
+        if (connectionCode.value != null) CloudSyncWork.enqueue(context)
+    }
+
+    private suspend fun discoverAccess(): Boolean {
+        val fingerprint = connectionCode.value ?: return true
+        _connecting.value = true
+        return try {
+            val device = CloudDeviceIdentity.fingerprint()
+            val directory = File(context.noBackupFilesDir, "cloud-access-git-v1")
+            val grants = FileRepositoryBuilder().setGitDir(directory).setBare().build().use { git ->
+                if (!git.objectDatabase.exists()) git.create(true)
+                CloudGitEvents(git, CloudGitSsh.REMOTE, CloudGitSsh.configure).readAccess(device, fingerprint)
+            }
+            for (grant in grants) {
+                val current = _sessions.value.firstOrNull { it.space == grant.space && it.epoch == grant.signed.manifest.epoch }
+                if (current == null) importInvitation(grant.encode(), fingerprint)
+            }
+            _issue.value = if (grants.isEmpty() && _sessions.value.none { !it.historical }) "Нет доступных списков" else null
+            true
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            val cause = generateSequence<Throwable>(e) { it.cause }.take(12).filterIsInstance<CloudAdminException>().firstOrNull()
+            _issue.value = cause?.message ?: "Не удалось обновить подключение"
+            false
+        } catch (_: LinkageError) {
+            _issue.value = "Облачный модуль недоступен"
+            false
+        } finally { _connecting.value = false }
+    }
 
     fun selectWidget(session: CloudSpaceSession?) {
         val key = session?.localKey
@@ -83,7 +140,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 }
             }
             ready.complete(Unit)
-            if (_sessions.value.any { !it.historical }) CloudSyncWork.schedule(context)
+            if (connectionCode.value != null || _sessions.value.any { !it.historical }) CloudSyncWork.schedule(context)
         }
     }
 
@@ -92,7 +149,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     @Synchronized fun foreground(active: Boolean) {
         if (!active) {
             foregroundJob?.cancel(); foregroundJob = null
-            if (_sessions.value.any { !it.historical }) CloudSyncWork.enqueue(context)
+            if (connectionCode.value != null || _sessions.value.any { !it.historical }) CloudSyncWork.enqueue(context)
             return
         }
         if (foregroundJob?.isActive == true) return
@@ -105,7 +162,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     suspend fun syncAll(): Boolean = withContext(Dispatchers.IO) {
         awaitReady()
         syncAllMutex.withLock {
-            var ok = true
+            var ok = discoverAccess()
             for (session in _sessions.value.filterNot { it.historical }) {
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 sync(session)
@@ -135,7 +192,8 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 require(java.security.MessageDigest.isEqual(existing.invitation.open(id, privateKey).encoded, invitation.open(id, privateKey).encoded))
             }
             check(dir.isDirectory || dir.mkdirs())
-            if (pinned == null) check(prefs.edit().putString("admin", invitation.admin).commit())
+            if (pinned == null) check(prefs.edit().putString("admin", invitation.admin).putString("connection_code", confirmedAdmin).commit())
+            connectionCode.value = confirmedAdmin
             val name = invitation.space.key.replace(':', '-')
             val file = AtomicFile(File(dir, name + (if (epoch == 1L) "" else "-epoch-$epoch") + ".blinvite"))
             if (file.baseFile.exists()) {
@@ -180,6 +238,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 repo.applyRemote(checkpoint)
             }
             val session = CloudSpaceSession(invitation, repo, grant, database, profile, catalog)
+            session.status.value = CloudSpaceStatus(lastSuccess = prefs.getLong("last_sync_" + name, 0L))
             session.historical = epoch < prefs.getLong("minimum_epoch_" + invitation.space.key, 1L)
             _sessions.value = _sessions.value + session
             markHistorical()
@@ -268,7 +327,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 if (!git.objectDatabase.exists()) git.create(true)
                 val transport = CloudGitEvents(git, CloudGitSsh.REMOTE, CloudGitSsh.configure)
                 val control = transport.readControl(session.space)?.verify(invitation.admin, session.space)
-                    ?: throw CloudAdminException("Нужно обновить приглашение у администратора.")
+                    ?: throw CloudAdminException("Доступ к списку недоступен.")
                 if (!control.matches(invitation.signed.manifest)) {
                     require(control.epoch >= session.epoch) { "Обнаружена устаревшая версия доступа" }
                     if (control.epoch > session.epoch || control.retired) {
@@ -277,10 +336,10 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                         check(prefs.edit().putLong(keyName, maxOf(minimum, prefs.getLong(keyName, 1L))).commit())
                         session.historical = true
                         if (widgetKey.value == session.localKey) refreshWidgets()
-                        session.status.value = previous.copy(syncing = false, issue = "Версия списка изменилась. Получите новое приглашение.")
+                        session.status.value = previous.copy(syncing = false, issue = "Доступ к прежней версии закрыт.")
                         return
                     }
-                    throw CloudAdminException("Версия приглашения не совпадает с опубликованной.")
+                    throw CloudAdminException("Доступ к списку изменился.")
                 }
                 val engine = CloudSyncEngine(journals, CloudOutbox(context, epochNamespace = session.epoch), transport, identity)
                 // Pull durable events first. Merge the current local state, never replace it.
@@ -297,7 +356,9 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 catch (e: CancellationException) { throw e }
                 catch (_: Exception) { photoIssue = "Не все фотографии обновлены. Повторите синхронизацию." }
             }
-            session.status.value = CloudSpaceStatus(lastSuccess = System.currentTimeMillis(), photoIssue = photoIssue)
+            val syncedAt = System.currentTimeMillis()
+            prefs.edit().putLong("last_sync_" + session.localKey, syncedAt).apply()
+            session.status.value = CloudSpaceStatus(lastSuccess = syncedAt, photoIssue = photoIssue)
             if (widgetKey.value == session.localKey) refreshWidgets()
         } catch (e: CancellationException) { throw e }
         catch (e: LinkageError) { session.status.value = previous.copy(syncing = false, issue = "Облачный транспорт несовместим с этой сборкой. Данные сохранены.") }

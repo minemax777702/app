@@ -31,80 +31,28 @@ internal fun CloudHomePanel(onConnect: () -> Unit, onOpen: (CloudSpaceSession) -
     val cloud = (context.applicationContext as ShoppingApp).cloudSpaces
     val sessions by cloud.sessions.collectAsStateWithLifecycle()
     val issue by cloud.issue.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
-    var pending by remember { mutableStateOf<ByteArray?>(null) }
-    var invitation by remember { mutableStateOf<CloudInvitation?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var confirmed by remember { mutableStateOf(false) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            try {
-                val bytes = withContext(Dispatchers.IO) {
-                    val input = context.contentResolver.openInputStream(uri) ?: error("No invitation")
-                    CloudSpaces.readBounded(input)
-                }
-                val decoded = withContext(Dispatchers.IO) {
-                    CloudInvitation.decode(bytes).also { it.verify(CloudDeviceIdentity.fingerprint()) }
-                }
-                pending = bytes; invitation = decoded; confirmed = false; error = null
-            } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { error = "Приглашение недействительно или предназначено для другого телефона." }
-        }
-    }
+    val code by cloud.connectionCode.collectAsStateWithLifecycle()
+    val connecting by cloud.connecting.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(24.dp)).padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Icon(painterResource(R.drawable.ic_cloud), contentDescription = null, modifier = Modifier.size(36.dp), tint = p.text)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(if (sessions.isEmpty()) "Ваши списки в облаке" else "Мои списки", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Text(if (sessions.isEmpty()) "Личные и общие покупки на разных телефонах" else "Локальные покупки отделены от облачных", color = p.textSecondary, fontSize = 13.sp)
-            }
-        }
-        if (sessions.isEmpty()) Text("Покажите QR-код администратору, затем откройте полученное приглашение.", color = p.textSecondary, fontSize = 14.sp)
-        sessions.forEach { session ->
+        FreshCutSectionTitle("Мои списки")
+        sessions.filterNot { it.historical }.forEach { session ->
             val status by session.status.collectAsStateWithLifecycle()
-            val historical by session.historicalState.collectAsStateWithLifecycle()
             FreshCutListRow(if (session.space.kind == CloudSpaceKind.PERSONAL) R.drawable.ic_user_round else R.drawable.ic_group,
-                session.invitation.label + (if (historical) " · прежняя версия" else ""),
+                session.invitation.label,
                 when {
-                    historical -> "Сохранено для просмотра"
                     status.syncing -> "Синхронизация…"
-                    status.issue != null -> "Сохранено на телефоне"
-                    status.lastSuccess > 0 -> "Обновлено " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(status.lastSuccess))
+                    status.issue != null -> "Офлайн"
+                    status.lastSuccess > 0 -> "Синхронизировано"
                     else -> "Ожидает синхронизации"
                 }, onClick = { onOpen(session) })
         }
-        FreshCutSecondaryButton("Открыть приглашение", { picker.launch(arrayOf("*/*")) }, enabled = !busy)
-        FreshCutSecondaryButton("Подключить устройство", onConnect, enabled = !busy)
-        (error ?: issue)?.let { Text(it, color = p.error, fontSize = 13.sp) }
-    }
-    invitation?.let { invite ->
-        AppSheet(onDismissRequest = { if (!busy) { invitation = null; pending = null } }, containerColor = p.sheet,
-            title = { SheetHeader("Присоединиться к списку") }, text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(invite.label, color = p.text, fontSize = 18.sp)
-                    Text("Пользователь: ${invite.userName}", color = p.textSecondary, fontSize = 14.sp)
-                    Text("Сверьте код с администратором лично или по доверенному каналу.", color = p.textSecondary, fontSize = 13.sp)
-                    Text(invite.adminFingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp)
-                    FreshCutSecondaryButton(if (confirmed) "Код совпадает ✓" else "Код совпадает", { confirmed = !confirmed }, enabled = !busy)
-                    error?.let { Text(it, color = p.error, fontSize = 13.sp) }
-                }
-            }, confirmButton = {
-                SheetActionButton(onClick = {
-                    val bytes = pending ?: return@SheetActionButton
-                    busy = true; error = null
-                    scope.launch {
-                        try {
-                            cloud.importInvitation(bytes, invite.adminFingerprint)
-                            invitation = null; pending = null
-                        } catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { error = "Не удалось открыть список. Проверьте приглашение и код администратора." }
-                        catch (_: LinkageError) { error = "Облачный модуль недоступен в этой сборке." }
-                        finally { busy = false }
-                    }
-                }, enabled = confirmed && !busy) { Text(if (busy) "Подключаем…" else "Присоединиться") }
-            })
+        if (code == null) FreshCutSecondaryButton("Подключиться", onConnect)
+        else {
+            if (sessions.none { !it.historical }) Text(if (connecting) "Подключение…" else "Ожидает доступа", color = p.textSecondary, fontSize = 14.sp)
+            FreshCutSecondaryButton(if (connecting) "Обновляем…" else "Обновить", { cloud.refreshConnection() }, enabled = !connecting)
+            FreshCutSecondaryButton("Настройки подключения", onConnect, enabled = !connecting)
+        }
+        issue?.let { Text(it, color = p.error, fontSize = 13.sp) }
     }
 }
 

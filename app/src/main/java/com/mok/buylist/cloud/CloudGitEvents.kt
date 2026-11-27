@@ -102,6 +102,27 @@ internal class CloudGitEvents(
         pushFile(branch, tip, "photo.bin", CloudPhotoWire.seal(photo, manifest, key, identity, writer), "Encrypted product photo")
     }
 
+    fun readAccess(deviceId: String, trustedFingerprint: String): List<CloudInvitation> = synchronized(LOCK) {
+        val prefix = CloudAccessDelivery.prefix(deviceId)
+        val list = git.lsRemote().setRemote(remote).setHeads(true).setTags(false).setTimeout(30)
+        configure?.let { list.setTransportConfigCallback(it) }
+        val refs = list.call().filter { it.name.startsWith(prefix) }
+        require(refs.size <= CloudUserRegistry.MAX_GROUPS + 1)
+        val result = mutableListOf<CloudInvitation>()
+        for (ref in refs) {
+            val tip = repository.exactRef(tracking(ref.name))?.objectId?.takeIf { it == ref.objectId }
+                ?: fetchTip(ref.name, known = true) ?: error("Access ref disappeared")
+            val access = CloudInvitation.decode(readFile(tip, "access.bin", CloudInvitation.MAX_FILE))
+            require(ref.name == CloudAccessDelivery.branch(deviceId, access.space))
+            require(access.adminFingerprint == trustedFingerprint)
+            access.verify(deviceId)
+            // Old or revoked grants remain encrypted but never become active again.
+            val control = readControl(access.space)?.verify(access.admin, access.space) ?: continue
+            if (control.matches(access.signed.manifest)) result.add(access)
+        }
+        result
+    }
+
     fun readControl(space: CloudSpace): CloudEpochControl? = synchronized(LOCK) {
         val tip = fetchTip(CloudEpochControl.branch(space)) ?: return@synchronized null
         RevWalk(repository).use { walk ->

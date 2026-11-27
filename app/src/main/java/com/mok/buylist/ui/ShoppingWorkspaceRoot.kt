@@ -48,26 +48,26 @@ internal fun ShoppingWorkspaceRoot() {
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val p = LocalPalette.current
     val sessions by app.cloudSpaces.sessions.collectAsStateWithLifecycle()
-    // Do not reopen a cloud space implicitly after process recreation.
-    var selectedKey by remember { mutableStateOf<String?>(null) }
+    val selectedKey by app.cloudSpaces.selectedWorkspace.collectAsStateWithLifecycle()
     var selector by remember { mutableStateOf(false) }
     val requested = activity?.widgetWorkspaceRequest
     LaunchedEffect(requested, sessions) {
         if (requested == "local") {
-            selectedKey = null
+            app.cloudSpaces.selectWorkspace(null)
             activity.selectNoticeWorkspace(null)
             activity.consumeWidgetWorkspaceRequest()
         } else if (requested != null && sessions.any { it.localKey == requested }) {
-            selectedKey = requested
+            app.cloudSpaces.selectWorkspace(sessions.first { it.localKey == requested })
             activity.selectNoticeWorkspace(requested)
             activity.consumeWidgetWorkspaceRequest()
         }
     }
     val selected = sessions.firstOrNull { it.localKey == selectedKey }
+    LaunchedEffect(selectedKey, sessions) { activity?.selectNoticeWorkspace(selected?.localKey) }
     val historical = if (selected != null) selected.historicalState.collectAsStateWithLifecycle().value else false
     val status = if (selected != null) selected.status.collectAsStateWithLifecycle().value else null
     val select: (CloudSpaceSession?) -> Unit = { session ->
-        selectedKey = session?.localKey
+        app.cloudSpaces.selectWorkspace(session)
         selector = false
         activity?.selectNoticeWorkspace(session?.localKey)
     }

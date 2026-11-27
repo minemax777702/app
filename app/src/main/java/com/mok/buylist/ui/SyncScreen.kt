@@ -115,7 +115,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     // Only encrypted bytes are retained when the document picker locks the admin session.
     var recoveryImport by remember { mutableStateOf<ByteArray?>(null) }
     var recoveryExport by remember { mutableStateOf<ByteArray?>(null) }
-    var inviteExport by remember { mutableStateOf<ByteArray?>(null) }
     var selectedCloudSpace by remember { mutableStateOf<com.mok.buylist.cloud.CloudSpaceSession?>(null) }
     val installedVersion = remember { com.mok.buylist.update.AppUpdater.installedVersion(context) }
     val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
@@ -176,19 +175,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             activity?.notifyUser(if (ok) "Копия реестра сохранена" else "Не удалось сохранить копию реестра")
         }
     }
-    val saveInvitation = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        val bytes = inviteExport
-        inviteExport = null
-        if (uri != null && bytes != null) scope.launch {
-            val ok = runCatching {
-                withContext(Dispatchers.IO) {
-                    val stream = context.contentResolver.openOutputStream(uri) ?: error("no output stream")
-                    stream.use { it.write(bytes) }
-                }
-            }.isSuccess
-            activity?.notifyUser(if (ok) "Приглашение сохранено" else "Не удалось сохранить приглашение")
-        }
-    }
     val openRecovery = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
             val bytes = runCatching {
@@ -235,10 +221,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                         saveRecovery.launch("buylist-cloud-recovery-${LocalDate.now()}.blcloud")
                     },
                     onClearRecovery = { recoveryImport = null },
-                    onExportInvite = { bytes ->
-                        inviteExport = bytes
-                        saveInvitation.launch("buylist-invitation.blinvite")
-                    },
                 )
                 "cloud-device" -> CloudDeviceRequestPanel(onDone = { page = "cloud" })
                 "nearby" -> {

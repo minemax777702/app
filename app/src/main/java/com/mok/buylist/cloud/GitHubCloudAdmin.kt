@@ -330,6 +330,26 @@ internal class GitHubCloudAdmin(private val token: String) {
         require(branchTip(branch) == commit) { "Не удалось подтвердить новую версию списка" }
     }
 
+    internal suspend fun publishAccess(access: CloudInvitation, force: Boolean = false) = withContext(Dispatchers.IO) {
+        val branch = CloudAccessDelivery.branch(access.recipient, access.space)
+        val oldTip = branchTip(branch)
+        if (oldTip != null) {
+            val old = CloudInvitation.decode(readCommitFile(oldTip, "access.bin", CloudInvitation.MAX_FILE).bytes)
+            old.verify(access.recipient)
+            require(old.admin == access.admin && old.space == access.space)
+            require(old.signed.manifest.epoch <= access.signed.manifest.epoch)
+            if (old.signed.manifest.epoch == access.signed.manifest.epoch) {
+                require(old.signed.manifest.canonical().contentEquals(access.signed.manifest.canonical()))
+                if (!force && old.label == access.label && old.userName == access.userName) return@withContext
+            }
+        }
+        val commit = createFileCommit("access.bin", writeBlob(access.encode()), oldTip, "Publish encrypted device access")
+        if (oldTip == null) requireSuccess(request("POST", "$repoPath/git/refs", JSONObject().put("ref", branch).put("sha", commit)))
+        else requireSuccess(request("PATCH", "$repoPath/git/refs/" + branch.removePrefix("refs/"),
+            JSONObject().put("sha", commit).put("force", false)))
+        require(branchTip(branch) == commit)
+    }
+
     private fun deviceTitle(device: CloudDeviceDraft) = "buylist-device-${device.fingerprint}"
     private fun deviceSshKey(device: CloudDeviceDraft): String = CloudSshWire.openSsh(
         CloudDeviceProtocol.publicKey(device.publicKey) as java.security.interfaces.ECPublicKey

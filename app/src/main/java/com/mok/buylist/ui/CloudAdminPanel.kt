@@ -47,7 +47,6 @@ internal fun CloudAdminPanel(
     onExportRecovery: (ByteArray) -> Unit = {},
     onClearRecovery: () -> Unit = {},
     onHideAdmin: () -> Unit = {},
-    onExportInvite: (ByteArray) -> Unit = {},
 ) {
     val p = LocalPalette.current
     val activity = LocalActivity.current
@@ -185,7 +184,7 @@ internal fun CloudAdminPanel(
         return
     }
     if (showUsers && session != null && storage?.actionsEnabled == false) {
-        CloudUsersPanel(requireNotNull(session), onBack = { showUsers = false }, onExportInvite = onExportInvite)
+        CloudUsersPanel(requireNotNull(session), onBack = { showUsers = false })
         return
     }
 
@@ -207,7 +206,6 @@ internal fun CloudAdminPanel(
                 }, enabled = !busy && vault.supported)
                 FreshCutSecondaryButton("Удалить сохранённый вход", { forgetLogin() }, enabled = !busy)
             }
-            Text("Вход доступен только владельцу GitHub. После проверки можно сохранить токен в защищённом хранилище.", color = p.textSecondary, fontSize = 14.sp)
             if (!vault.supported) Text("Для сохранения входа необходим Android 11 или новее и системная блокировка экрана.", color = p.textSecondary, fontSize = 14.sp)
             SheetTextField(token, { token = it.filterNot(Char::isWhitespace).take(512) }, "Токен GitHub",
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -235,13 +233,11 @@ internal fun CloudAdminPanel(
                     }
                 }
                 if (current.actionsEnabled != false) {
-                    Text("Перед подключением пользователей отключите Actions в репозитории данных.", color = p.textSecondary, fontSize = 14.sp)
                     FreshCutSecondaryButton("Отключить Actions", {
                         execute(admin::disableActions) { storage = it }
                     }, enabled = !busy)
                 }
             } else {
-                Text("Если репозиторий уже существует, проверьте доступ токена. Создаётся только приватный репозиторий, без отправки покупок.", color = p.textSecondary, fontSize = 14.sp)
                 FreshCutSecondaryButton("Создать приватный репозиторий", {
                     execute(admin::createPrivateStorage) { storage = it }
                 }, enabled = !busy)

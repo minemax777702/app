@@ -96,12 +96,6 @@ internal fun CloudUserRegistry.prepareSpace(space: CloudSpace): CloudUserRegistr
     require(grants.isNotEmpty() && grants.any { it.role == CloudGroupRole.OWNER }) {
         "Сначала подключите устройство владельца"
     }
-    if (space.kind == CloudSpaceKind.GROUP) {
-        val group = groups.single { it.id == space.id }
-        require(group.members.keys.all { id -> grants.any { it.userId == id } }) {
-            "Сначала зарегистрируйте устройства всех участников группы"
-        }
-    }
     val manifest = SignedCloudManifest.sign(CloudManifest(space, 1, 1, grants), signer.signingKey())
     val raw = ByteArray(32).also { SecureRandom().nextBytes(it) }
     val provision = try { CloudProvision(CloudInviteCrypto.encode(manifest.encode()), CloudInviteCrypto.encode(raw)) }

@@ -83,7 +83,7 @@ internal object CloudDeviceProtocol {
 
     fun requireFresh(request: CloudDeviceRequest, now: Long) {
         require(now >= TTL_MILLIS && request.createdAt in (now - TTL_MILLIS)..(now + 60_000L)) {
-            "Срок QR-кода истёк"
+            "Срок кода устройства истёк"
         }
         require(request.signature.length in 1..128)
         if (request.encryptionPublicKey.isNotEmpty()) CloudInviteCrypto.encryptionKey(request.encryptionPublicKey)
@@ -91,6 +91,6 @@ internal object CloudDeviceProtocol {
             initVerify(publicKey(request.publicKey))
             update(payload(request.publicKey, request.createdAt, request.encryptionPublicKey))
         }.verify(decoder.decode(request.signature))
-        require(valid) { "Подпись QR-кода неверна" }
+        require(valid) { "Подпись кода устройства неверна" }
     }
 }
