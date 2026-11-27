@@ -123,7 +123,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     viewModel: ShoppingViewModel, onBack: () -> Unit, navigation: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
-    val catalog = shoppingCatalog()
+    val catalog = LocalContext.current.lentaCatalog
     val products by catalog.products.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val address by catalog.address.collectAsStateWithLifecycle()

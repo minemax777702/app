@@ -70,7 +70,7 @@ internal fun StoresScreen(
     val custom by viewModel.customProducts.collectAsStateWithLifecycle()
     val customCodes by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
-    val catalog = shoppingCatalog()
+    val catalog = LocalContext.current.lentaCatalog
     val lenta by catalog.products.collectAsStateWithLifecycle()
     val address by catalog.address.collectAsStateWithLifecycle()
     val lentaCodes by catalog.barcodeRows.collectAsStateWithLifecycle()

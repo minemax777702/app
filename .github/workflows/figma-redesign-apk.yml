@@ -81,6 +81,8 @@ jobs:
       - name: Build and verify signed release APK
         shell: bash
         env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
           BUYLIST_KEYSTORE_BASE64: ${{ secrets.BUYLIST_KEYSTORE_BASE64 }}
           BUYLIST_STORE_PASSWORD: ${{ secrets.BUYLIST_STORE_PASSWORD }}
           BUYLIST_KEY_ALIAS: ${{ secrets.BUYLIST_KEY_ALIAS }}
@@ -99,17 +101,12 @@ jobs:
           printf '%s' "$BUYLIST_KEYSTORE_BASE64" | base64 --decode > "$BUYLIST_STORE_FILE"
           unset BUYLIST_KEYSTORE_BASE64
           chmod +x ./gradlew
-          # Stable keeps its gate; beta development builds only the signed APK.
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             ./gradlew :app:testDebugUnitTest --stacktrace --build-cache
           fi
           ./gradlew :app:assembleRelease --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
-      - name: Verify SSH reflection classes in release APK
-        if: github.ref == 'refs/heads/beta'
-        shell: bash
-        run: python3 tools/verify_ssh_apk.py app/build/outputs/apk/release/app-release.apk "$ANDROID_HOME/build-tools/37.0.0/dexdump"
-      - name: Upload R8 mapping for the exact APK
+      - name: Upload R8 mapping
         uses: actions/upload-artifact@v6
         with:
           name: fresh-cut-r8-mapping
@@ -168,27 +165,4 @@ jobs:
           if [[ -n "$notes" ]]; then
             args+=(--notes "$notes")
           fi
-          # Separate tag creation from release creation. GitHub may reject a new
-          # ref pointing at a commit with workflow changes (even with contents: write).
-          # Never move an existing tag; require it to point to this exact APK commit.
-          if ! tag_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" 2>/dev/null)"; then
-            echo "Creating tag $TAG for $GITHUB_SHA"
-            if ! gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
-              -f "ref=refs/tags/$TAG" -f "sha=$GITHUB_SHA" >/dev/null; then
-              echo "::error::GitHub rejected tag creation. Create the exact tag manually or check GitHub workflow-file permissions. The signed APK remains in Actions artifacts."
-              exit 1
-            fi
-            tag_json="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG")"
-          fi
-          actual_sha="$(jq -r '.object.sha' <<< "$tag_json")"
-          object_type="$(jq -r '.object.type' <<< "$tag_json")"
-          if [[ "$object_type" == "tag" ]]; then
-            tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$actual_sha")"
-            actual_sha="$(jq -r '.object.sha' <<< "$tag_object")"
-            object_type="$(jq -r '.object.type' <<< "$tag_object")"
-          fi
-          if [[ "$object_type" != "commit" || "$actual_sha" != "$GITHUB_SHA" ]]; then
-            echo "::error::Existing tag does not match the APK commit. Refusing to publish."
-            exit 1
-          fi
-          gh release create "$TAG" release/app-release.apk --verify-tag "${args[@]}"
+          gh release create "$TAG" release/app-release.apk "${args[@]}"

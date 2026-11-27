@@ -39,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import kotlinx.coroutines.delay
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.mok.buylist.nearbySync
 import com.mok.buylist.themeSettings
 import com.mok.buylist.ui.theme.ShoppingTheme
 import com.mok.buylist.ui.theme.isDarkTheme
@@ -49,23 +48,6 @@ class MainActivity : ComponentActivity() {
         private set
     internal val notice: NoticePayload? get() = noticePresentation.current
     private var noticeId = 0L
-    private var noticeWorkspace: String? = null
-    internal var widgetWorkspaceRequest by mutableStateOf<String?>(null)
-        private set
-    internal fun consumeWidgetWorkspaceRequest() { widgetWorkspaceRequest = null }
-    private fun handleWidgetIntent(intent: Intent) {
-        if (intent.action == "com.mok.buylist.OPEN_WIDGET_LIST") {
-            widgetWorkspaceRequest = intent.getStringExtra("workspace") ?: "local"
-            intent.action = null
-        }
-    }
-
-    internal fun selectNoticeWorkspace(key: String?) {
-        if (noticeWorkspace == key) return
-        noticeWorkspace = key
-        noticePresentation = NoticePresentation()
-        noticeOwner = null
-    }
     private var showUpdates by mutableStateOf(false)
     private var updateCheck: Job? = null
     private var shownUpdateCode: Long? = null
@@ -112,7 +94,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleUpdateIntent(intent)
-        handleWidgetIntent(intent)
     }
 
     internal fun checkUpdatesOnEntry(force: Boolean = false) {
@@ -136,7 +117,7 @@ class MainActivity : ComponentActivity() {
     internal var noticeOwner by mutableStateOf<Any?>(null)
         private set
     internal fun notifyUser(message: String) {
-        ActionJournal.get(applicationContext, noticeWorkspace).notice(message)
+        ActionJournal.get(applicationContext).notice(message)
         noticeOwner = noticeSheets.lastOrNull()
         noticePresentation = noticePresentation.enqueue(noticePayload(++noticeId, message))
     }
@@ -169,14 +150,7 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
-    override fun onStart() {
-        super.onStart()
-        (application as com.mok.buylist.ShoppingApp).cloudSpaces.foreground(true)
-    }
-
     override fun onStop() {
-        (application as com.mok.buylist.ShoppingApp).cloudSpaces.foreground(false)
-        nearbySync.stop()
         super.onStop()
     }
 
@@ -184,7 +158,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         showUpdates = savedInstanceState?.getBoolean("show_updates") == true
         handleUpdateIntent(intent)
-        handleWidgetIntent(intent)
         val initialMode = themeSettings.app.value
         val initialDark = when (initialMode) {
             ThemeMode.DARK -> true
@@ -230,7 +203,7 @@ class MainActivity : ComponentActivity() {
             }
             ShoppingTheme(mode) {
                 Box(Modifier.fillMaxSize()) {
-                    ShoppingWorkspaceRoot()
+                    CloudShoppingRoot()
                     if (showUpdates && !showLaunch) AppUpdateSheet(onClose = { showUpdates = false })
                     val presentation = noticePresentation
                     val current = presentation.current

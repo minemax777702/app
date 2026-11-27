@@ -44,9 +44,6 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.mok.buylist.R
-import com.mok.buylist.ShoppingApp
-import kotlinx.coroutines.flow.flowOf
-import androidx.glance.appwidget.updateAll
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.repository
 import com.mok.buylist.themeSettings
@@ -58,29 +55,20 @@ import com.mok.buylist.ui.theme.ThemeMode
 
 class ShoppingWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val cloud = (context.applicationContext as ShoppingApp).cloudSpaces
-        cloud.awaitReady()
+        val repository = context.repository
         val themeSettings = context.themeSettings
+        val initial = repository.getItems()
         provideContent {
-            val key by cloud.widgetKey.collectAsState()
-            val sessions by cloud.sessions.collectAsState()
-            val session = sessions.firstOrNull { it.localKey == key }
-            val repository = if (key == null) context.repository else session?.repository
-            val historical = if (session != null) session.historicalState.collectAsState().value else false
-            androidx.compose.runtime.key(key, repository) {
-            val source = androidx.compose.runtime.remember(repository) { repository?.observeItems() ?: flowOf(emptyList<ShoppingItem>()) }
             // Пока сессия открыта, список и тема живут за счёт подписок: одиночные updateAll,
             // пришедшие во время открытой сессии, иначе теряются и виджет показывает старое.
-            val items by source.collectAsState(emptyList())
+            val items by repository.observeItems().collectAsState(initial)
             val mode by themeSettings.widget.collectAsState()
-            WidgetContent(items, mode, key, session?.invitation?.label ?: if (key == null) context.getString(R.string.app_name) else "Список недоступен", key == null || (session?.grant?.canWrite == true && !historical), repository != null)
-            }
+            WidgetContent(items, mode)
         }
     }
 }
 
 private val ItemIdKey = ActionParameters.Key<String>("item_id")
-private val WorkspaceKey = ActionParameters.Key<String>("workspace_key")
 
 /** Цвет из палитры дизайна: «Авто» следует теме телефона, «Светлая»/«Тёмная» фиксируют цвет. */
 private fun color(mode: ThemeMode, pick: (ShoppingPalette) -> Color): ColorProvider = when (mode) {
@@ -90,9 +78,9 @@ private fun color(mode: ThemeMode, pick: (ShoppingPalette) -> Color): ColorProvi
 }
 
 @Composable
-private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, key: String?, title: String, writable: Boolean, available: Boolean) {
+private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode) {
     val context = LocalContext.current
-    val openApp = actionStartActivity(Intent(context, MainActivity::class.java).setAction("com.mok.buylist.OPEN_WIDGET_LIST").putExtra("workspace", key ?: "local").setData(android.net.Uri.parse("buylist://widget/" + (key ?: "local"))))
+    val openApp = actionStartActivity(Intent(context, MainActivity::class.java))
     Column(
         GlanceModifier
             .fillMaxSize()
@@ -121,7 +109,7 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, key: Strin
             }
             Spacer(GlanceModifier.width(10.dp))
             Text(
-                text = title,
+                text = context.getString(R.string.app_name),
                 modifier = GlanceModifier.defaultWeight(),
                 maxLines = 1,
                 style = TextStyle(
@@ -172,7 +160,7 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, key: Strin
                 }
                 Spacer(GlanceModifier.height(10.dp))
                 Text(
-                    text = if (available) context.getString(R.string.widget_empty) else "Откройте приложение",
+                    text = context.getString(R.string.widget_empty),
                     style = TextStyle(
                         color = color(mode) { it.text },
                         fontSize = 18.sp,
@@ -182,7 +170,7 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, key: Strin
                 )
                 Spacer(GlanceModifier.height(4.dp))
                 Text(
-                    text = if (available) context.getString(R.string.widget_empty_hint) else "Выберите доступный список в профиле",
+                    text = context.getString(R.string.widget_empty_hint),
                     style = TextStyle(
                         color = color(mode) { it.textSecondary },
                         fontSize = 14.sp,
@@ -196,9 +184,9 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, key: Strin
                     Row(
                         GlanceModifier
                             .fillMaxWidth()
-                            .then(if (writable) GlanceModifier.clickable(
-                                actionRunCallback<BuyItemAction>(actionParametersOf(ItemIdKey to item.id, WorkspaceKey to (key ?: "local"))),
-                            ) else GlanceModifier.clickable(openApp))
+                            .clickable(
+                                actionRunCallback<BuyItemAction>(actionParametersOf(ItemIdKey to item.id)),
+                            )
                             .padding(horizontal = 10.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -228,22 +216,9 @@ private fun WidgetContent(items: List<ShoppingItem>, mode: ThemeMode, key: Strin
 class BuyItemAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val id = parameters[ItemIdKey] ?: return
-        val key = parameters[WorkspaceKey] ?: return
-        val cloud = (context.applicationContext as ShoppingApp).cloudSpaces
-        cloud.awaitReady()
-        // Refuse stale clicks after selection changes. Never fall back to the default DB.
-        if (key != (cloud.widgetKey.value ?: "local")) return
-        if (key == "local") {
-            context.repository.buy(id)
-            context.repository.finishTripIfDone()
-        } else {
-            val session = cloud.sessions.value.singleOrNull { it.localKey == key } ?: return
-            if (!session.writable) return
-            cloud.edit(session) { repo ->
-                repo.buy(id)
-                repo.finishTripIfDone()
-            }
-        }
-        ShoppingWidget().updateAll(context)
+        // repository.buy сам обновляет виджет.
+        context.repository.buy(id)
+        // Купили последнее — список завершён: в приложении будет не «3 из 3», а чистый экран и запись в архиве.
+        context.repository.finishTripIfDone()
     }
 }

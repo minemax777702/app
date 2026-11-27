@@ -104,7 +104,7 @@ fun AddItemSheet(
     var createOpen by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     var newBarcode by remember { mutableStateOf("") }
-    val lenta = shoppingCatalog()
+    val lenta = LocalContext.current.lentaCatalog
     val scope = rememberCoroutineScope()
     fun showHeard(name: String) {
         text = name

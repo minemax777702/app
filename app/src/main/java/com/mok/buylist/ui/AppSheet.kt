@@ -70,11 +70,11 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
             .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
             .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
-                visualTransformation = visualTransformation,
                 modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp)
                     .onFocusChanged { focused = it.isFocused }, singleLine = true,
                 textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(p.text), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
+                visualTransformation = visualTransformation,
                 decorationBox = { inner -> Box { if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, color = p.textSecondary, fontSize = 15.sp); inner() } })
             if (trailingAction != null) Box(Modifier.align(Alignment.CenterEnd)) { trailingAction() }
         }

@@ -45,7 +45,7 @@ import java.security.MessageDigest
 
 @Composable
 fun LentaSettings(onDismiss: () -> Unit) {
-    val catalog = shoppingCatalog()
+    val catalog = LocalContext.current.lentaCatalog
     val current by catalog.address.collectAsStateWithLifecycle()
     var address by rememberSaveable { mutableStateOf(current) }
     val p = LocalPalette.current
@@ -66,7 +66,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     onUserScroll: () -> Unit = {},
     customResults: List<ProductSearchRow> = emptyList(),
     customContent: @Composable (ProductSearchRow) -> Unit = {}) {
-    val catalog = shoppingCatalog()
+    val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()

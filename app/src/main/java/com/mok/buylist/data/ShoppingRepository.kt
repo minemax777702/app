@@ -47,11 +47,7 @@ class ShoppingRepository(
     private val context: Context,
     private val db: AppDatabase,
     private val profile: UserProfile,
-    private val isolatedWorkspace: Boolean = false,
-    private val workspaceCatalog: LentaCatalog? = null,
-    private val onWorkspaceMutation: (() -> Unit)? = null,
 ) {
-    private val catalog: LentaCatalog get() = workspaceCatalog ?: context.lentaCatalog
     private val dao = db.shoppingDao()
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
     fun observeCustomProducts(): Flow<List<CustomProduct>> = dao.observeCustomProducts()
@@ -114,7 +110,7 @@ class ShoppingRepository(
         if (storeId == lentaStoreId()) {
             dao.getLentaProducts().map { it.toProduct() }.firstOrNull {
                 (aliases["lenta:${it.id}"] ?: "lenta:${it.id}") == canonical &&
-                    it.address == catalog.address.value && it.address.isNotBlank() && it.channel == "locc"
+                    it.address == context.lentaCatalog.address.value && it.address.isNotBlank() && it.channel == "locc"
             }?.price?.let(::parsePriceKopecks)?.let { return it }
         }
         val receipts = dao.getBought().mapNotNull { decodePurchaseEvent(it.purchaseEvent) } +
@@ -585,7 +581,7 @@ class ShoppingRepository(
         val item = db.withTransaction {
             val now = System.currentTimeMillis()
             ensureLentaStore(now)
-            val address = catalog.address.value
+            val address = context.lentaCatalog.address.value
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
                 address.isNotBlank() && it.address == address && it.channel == "locc"
             }
@@ -618,6 +614,7 @@ class ShoppingRepository(
             val item = dao.findById(id) ?: return@withTransaction
             if (item.deleted) return@withTransaction
             val now = System.currentTimeMillis()
+            val catalog = context.lentaCatalog
             val product = dao.getLentaProducts().firstOrNull { it.id == item.productId }?.toProduct()?.takeIf {
                 catalog.address.value.isNotBlank() && it.address == catalog.address.value && it.channel == "locc"
             }
@@ -835,7 +832,7 @@ class ShoppingRepository(
                 savedLenta != null -> addProduct(savedLenta.toProduct(), count)
                 id != null -> {
                     val restored = LentaProduct(id, name, "", "", "", "", "", "", channel = "locc")
-                    catalog.save(restored)
+                    context.lentaCatalog.save(restored)
                     addProduct(restored, count)
                 }
                 else -> {
@@ -880,7 +877,7 @@ class ShoppingRepository(
         val uid = archiveUidOf(lastPurchaseAt, bought.map { it.nameKey })
         // Тот же список мог уже прийти от второго телефона: заводить вторую запись не нужно.
         if (dao.archiveIdByUid(uid) == null) {
-            val address = catalog.address.value
+            val address = context.lentaCatalog.address.value
             val products = dao.getLentaProducts().associateBy { it.id }
             val remaining = if (allowRemaining) dao.getItems() else emptyList()
             val remainingSnapshots = remaining.map { item ->
@@ -948,39 +945,23 @@ class ShoppingRepository(
      * Сливает данные второго телефона с локальными и записывает результат. Слияние делается над свежим снимком
      * внутри транзакции, поэтому правки, сделанные пока шёл обмен, не теряются.
      */
-    internal suspend fun applyLateChanges(plan: com.mok.buylist.cloud.CloudLatePlan): Boolean {
-        require(isolatedWorkspace)
-        val applied = db.withTransaction {
-            val local = buildSnapshot()
-            if (local != plan.before) return@withTransaction false
-            val merged = SyncMerge.merge(local, plan.patch)
-            if (local != merged) write(merged)
-            true
-        }
-        if (applied) refreshWidget()
-        return applied
-    }
-
     suspend fun applyRemote(remote: Snapshot): SyncSummary {
         val summary = db.withTransaction {
             val local = buildSnapshot()
             val merged = SyncMerge.merge(local, remote)
-            if (!isolatedWorkspace || merged != local) write(merged)
+            write(merged)
             summarize(local, merged)
         }
         // НЕ завершаем поход автоматически во время сетевого обмена.
         // Второе устройство может ещё передавать незавершённые позиции;
         // преждевременная архивация создаёт надгробия и стирает текущий список.
-        refreshWidget(notifyCloud = false)
+        refreshWidget()
         return summary
     }
 
     // --- Откат обмена ---
 
-    private val undoFile: File get() {
-        check(!isolatedWorkspace) { "Default undo file is not available in an isolated workspace" }
-        return File(context.filesDir, "undo-sync.bin")
-    }
+    private val undoFile: File get() = File(context.filesDir, "undo-sync.bin")
 
     /** Запоминает состояние до обмена. Вызывается один раз перед первым применением чужих данных. */
     suspend fun saveUndoPoint() {
@@ -1168,15 +1149,12 @@ class ShoppingRepository(
         dao.upsertTombstones(
             // Удаления архивов хранятся бессрочно: иначе старый телефон
             // восстановит удалённый список спустя 400 дней.
-            merged.tombs.filter { isolatedWorkspace || it.kind == TombKind.ARCHIVE || it.at >= cutoff }
+            merged.tombs.filter { it.kind == TombKind.ARCHIVE || it.at >= cutoff }
                 .map { Tombstone(it.kind.code, it.key, it.at) },
         )
     }
 
-    private suspend fun refreshWidget(notifyCloud: Boolean = true) {
-        if (!isolatedWorkspace) ShoppingWidget().updateAll(context)
-        else if (notifyCloud) onWorkspaceMutation?.invoke()
-    }
+    private suspend fun refreshWidget() = ShoppingWidget().updateAll(context)
 
     private companion object {
         const val MAX_NAME_LENGTH = 30

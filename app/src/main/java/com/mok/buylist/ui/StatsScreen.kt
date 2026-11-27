@@ -82,7 +82,7 @@ fun StatsScreen(
         val ids = bought.filter { it.deleted }.map { it.authorId }.toSet()
         (buyersIn(archive, users) + users.filter { it.id in ids }).distinctBy { it.id }
     }
-    val catalog = shoppingCatalog()
+    val catalog = LocalContext.current.lentaCatalog
     val lentaProducts by catalog.products.collectAsStateWithLifecycle()
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()

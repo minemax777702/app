@@ -34,6 +34,12 @@ android {
         versionName = appVersionName.get()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        val url = signingValue("SUPABASE_URL").orElse("").get()
+        val key = signingValue("SUPABASE_PUBLISHABLE_KEY").orElse("").get()
+        require(url.isEmpty() || url.matches(Regex("https://[a-zA-Z0-9.-]+")))
+        require(key.isEmpty() || key.matches(Regex("sb_publishable_[A-Za-z0-9_-]+")))
+        buildConfigField("String", "SUPABASE_URL", "\"$url\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"$key\"")
     }
 
     signingConfigs {
@@ -61,6 +67,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     androidResources {
         // Интерфейс только русский; переводы системных библиотек на десятки других языков в приложение не берём.
@@ -82,8 +89,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
     }
 }
 
@@ -114,11 +121,11 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.zxing.core)
-    implementation(libs.play.services.nearby)
-    // Pure Java SSH transport diagnostic; no native agent or export of Keystore keys.
-    implementation("androidx.work:work-runtime:2.10.2")
-    implementation("com.github.mwiede:jsch:2.28.8")
-    implementation("org.eclipse.jgit:org.eclipse.jgit:7.8.1.202611041320-r")
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.5.0"))
+    implementation("io.github.jan-tennert.supabase:auth-kt")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:realtime-kt")
+    implementation("io.ktor:ktor-client-okhttp:3.3.0")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)

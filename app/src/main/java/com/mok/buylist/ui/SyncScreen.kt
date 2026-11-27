@@ -89,12 +89,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val p = LocalPalette.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val activeWorkspace = LocalShoppingWorkspace.current
-    if (activeWorkspace != null) {
-        CloudWorkspaceProfile(activeWorkspace, addressRequest, onOpenTheme)
-        return
-    }
-    val selectWorkspace = LocalSelectShoppingWorkspace.current
     val controller = remember { SyncController(context.repository, scope) }
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as? MainActivity
@@ -102,31 +96,15 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     var showAddress by rememberSaveable { mutableStateOf(false) }
     val address by context.lentaCatalog.address.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
-    var page by remember { mutableStateOf("profile") }
-    val adminGesture = remember { com.mok.buylist.cloud.CloudAdminGesture() }
-    val adminPrefs = remember(context) { context.getSharedPreferences("cloud_admin_navigation", android.content.Context.MODE_PRIVATE) }
-    var adminVisible by remember(adminPrefs) { mutableStateOf(adminPrefs.getBoolean("visible", false)) }
-    fun setAdminVisible(visible: Boolean) {
-        adminPrefs.edit().putBoolean("visible", visible).apply()
-        adminVisible = visible
-        adminGesture.reset()
-    }
+    var page by rememberSaveable { mutableStateOf("profile") }
     var showBackup by rememberSaveable { mutableStateOf(false) }
-    // Only encrypted bytes are retained when the document picker locks the admin session.
-    var recoveryImport by remember { mutableStateOf<ByteArray?>(null) }
-    var recoveryExport by remember { mutableStateOf<ByteArray?>(null) }
-    var selectedCloudSpace by remember { mutableStateOf<com.mok.buylist.cloud.CloudSpaceSession?>(null) }
     val installedVersion = remember { com.mok.buylist.update.AppUpdater.installedVersion(context) }
     val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
     LaunchedEffect(page) {
-        adminGesture.reset()
         if (page == "sources") page = "profile"
-        if (page != "cloud-admin") { recoveryImport = null; recoveryExport = null }
         onActiveChange(page != "profile"); scrollState.scrollTo(0)
     }
-    BackHandler(enabled = page != "profile") {
-        page = if (page == "cloud-device" || page == "cloud-space") "cloud" else "profile"
-    }
+    BackHandler(enabled = page != "profile") { page = "profile" }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) scrollState.scrollTo(0) }
     LaunchedEffect(state.notice) {
         val notice = state.notice ?: return@LaunchedEffect
@@ -162,70 +140,16 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             controller.onBackupRead(bytes)
         }
     }
-    val saveRecovery = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        val bytes = recoveryExport
-        recoveryExport = null
-        if (uri != null && bytes != null) scope.launch {
-            val ok = runCatching {
-                withContext(Dispatchers.IO) {
-                    val output = context.contentResolver.openOutputStream(uri) ?: error("no output stream")
-                    output.use { it.write(bytes) }
-                }
-            }.isSuccess
-            activity?.notifyUser(if (ok) "Копия реестра сохранена" else "Не удалось сохранить копию реестра")
-        }
-    }
-    val openRecovery = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            val bytes = runCatching {
-                withContext(Dispatchers.IO) {
-                    context.contentResolver.openInputStream(uri)?.use { input ->
-                        val limit = com.mok.buylist.cloud.CloudRecoveryCodec.MAX_FILE_BYTES
-                        val output = java.io.ByteArrayOutputStream()
-                        val buffer = ByteArray(4096)
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            require(output.size() + count <= limit)
-                            output.write(buffer, 0, count)
-                        }
-                        output.toByteArray()
-                    }
-                }
-            }.getOrNull()
-            if (page == "cloud-admin") recoveryImport = bytes
-            if (bytes == null) activity?.notifyUser("Не удалось прочитать копию реестра")
-        }
-    }
     Column(Modifier.fillMaxSize().background(p.background)) {
         when (page) {
-            "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
-            "cloud" -> SubScreenHeader("Облачное хранилище", { page = "profile" })
-            "cloud-device" -> SubScreenHeader("Подключение устройства", { page = "cloud" })
-            "cloud-space" -> SubScreenHeader(selectedCloudSpace?.invitation?.label ?: "Общий список", { page = "cloud" })
-            "cloud-admin" -> SubScreenHeader("Администрирование облака", { page = "profile" })
+            "cloud" -> SubScreenHeader("Облако", { page = "profile" })
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "cloud" -> CloudHomePanel(onConnect = { page = "cloud-device" }, onOpen = { selectWorkspace(it) })
-                "cloud-space" -> selectedCloudSpace?.let { CloudWorkspacePanel(it) }
-                "cloud-admin" -> CloudAdminPanel(
-                    onHideAdmin = { setAdminVisible(false); page = "profile" },
-                    recoveryFile = recoveryImport,
-                    onChooseRecovery = { openRecovery.launch(arrayOf("*/*")) },
-                    onExportRecovery = { bytes ->
-                        recoveryExport = bytes
-                        saveRecovery.launch("buylist-cloud-recovery-${LocalDate.now()}.blcloud")
-                    },
-                    onClearRecovery = { recoveryImport = null },
-                )
-                "cloud-device" -> CloudDeviceRequestPanel(onDone = { page = "cloud" })
-                "nearby" -> {
-                    NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
-                }
+                "cloud" -> SupabasePanel()
                 else -> {
                     if (profile != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
                         .clickable(role = Role.Button, onClick = onRename).padding(16.dp),
@@ -249,22 +173,10 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_store, "Магазин Ленты",
                         if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
-                        "Проверить наличие обновлений", { activity?.openUpdates() })
+                        "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
-                    ProfileMenuRow(R.drawable.ic_cloud, "Облако", "Подключение устройства", { page = "cloud" })
-                    val cloud = (context.applicationContext as com.mok.buylist.ShoppingApp).cloudSpaces
-                    val widgetKey by cloud.widgetKey.collectAsStateWithLifecycle()
-                    if (widgetKey != null) ProfileMenuRow(R.drawable.ic_list_check, "Список в виджете", "Вернуть локальные покупки", { cloud.selectWidget(null) })
-                    if (adminVisible) ProfileMenuRow(R.drawable.ic_cloud, "Администрирование облака", "Пользователи, группы и хранилище", { page = "cloud-admin" })
-                    ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
+                    ProfileMenuRow(R.drawable.ic_sync, "Облако", "Пользователи, списки и группы", { page = "cloud" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
-                    Text("Версия ${installedVersion.name} · сборка ${installedVersion.code}",
-                        modifier = Modifier.fillMaxWidth().clickable(indication = null, interactionSource = null) {
-                            if (!adminVisible && adminGesture.tap(android.os.SystemClock.elapsedRealtime())) {
-                                setAdminVisible(true)
-                                page = "cloud-admin"
-                            }
-                        }.padding(vertical = 16.dp), color = p.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
                 }
             }
         }
