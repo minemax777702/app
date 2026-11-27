@@ -59,11 +59,13 @@ fun LentaSettings(onDismiss: () -> Unit) {
 }
 
 @Composable
-fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
+internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     onAdd: (LentaProduct) -> Unit, onSettings: () -> Unit,
     onlineOnly: Boolean = false, hasOtherResults: Boolean = false,
     leadingResults: LazyListScope.() -> Unit = {}, footer: (@Composable () -> Unit)? = null,
-    onUserScroll: () -> Unit = {}) {
+    onUserScroll: () -> Unit = {},
+    customResults: List<ProductSearchRow> = emptyList(),
+    customContent: @Composable (ProductSearchRow) -> Unit = {}) {
     val catalog = LocalContext.current.lentaCatalog
     val address by catalog.address.collectAsStateWithLifecycle()
     val saved by catalog.products.collectAsStateWithLifecycle()
@@ -76,6 +78,12 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     val scope = rememberCoroutineScope()
     val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
     val state by controller.state.collectAsStateWithLifecycle()
+    var sort by rememberSaveable { mutableStateOf(ProductSort.DEFAULT) }
+    val resultRows = remember(state.local, state.online, address, sort, customResults) {
+        sortProductRows(customResults + (state.local + state.online).distinctBy { it.id }.map {
+            ProductSearchRow.lenta(it, searchCatalogPrice(it, address))
+        }, sort)
+    }
     val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     LaunchedEffect(state.failed) {
         if (state.failed) activity?.notifyUser("Не удалось выполнить поиск в Ленте")
@@ -85,6 +93,7 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     }
     Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (trimmed.length >= 2 || hasOtherResults || footer != null) {
+            if (trimmed.length >= 2) ProductSortMenu(sort, { sort = it })
             // Вспомогательные действия прокручиваются вместе с результатами.
             LazyColumn(
                 Modifier.fillMaxWidth().weight(1f).pointerInput(Unit) {
@@ -111,14 +120,17 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 if (!hasOtherResults && !state.loading && state.started && !state.failed && state.local.isEmpty() && state.online.isEmpty())
                     item { Text("Ничего не найдено", color = p.textSecondary, fontSize = 14.sp, modifier = Modifier.padding(12.dp)) }
                 leadingResults()
-                items(state.local, key = { "local:${it.id}" }) { product ->
-                    LentaResult(product, address, onClick = { onAdd(product) })
+                items(resultRows, key = { it.key }) { row ->
+                    val product = row.lenta
+                    if (product != null) LentaResult(product, row, onClick = { onAdd(product) })
+                    else customContent(row)
                 }
                 if (!onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
                     item { Text("Найти в Ленте", Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
                 }
-                items(state.online, key = { "online:${it.id}" }) { product ->
-                    LentaResult(product, address, onClick = { onAdd(product) })
+                if (state.hasMore && sort != ProductSort.DEFAULT) item {
+                    Text("Сортировка по загруженным результатам", color = p.textSecondary, fontSize = 11.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp))
                 }
                 if (state.loading) item {
                     val loadingSize = Modifier.height(56.dp)
@@ -138,16 +150,17 @@ fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
 }
 
 @Composable
-private fun LentaResult(product: LentaProduct, address: String, onClick: () -> Unit) {
+private fun LentaResult(product: LentaProduct, row: ProductSearchRow, onClick: () -> Unit) {
     val p = LocalPalette.current
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card).clickable(onClick = onClick).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LentaImage(product.image, Modifier.size(52.dp))
             Column(Modifier.weight(1f)) {
                 Text(product.name, color = p.text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                val price = product.price.takeIf { product.address == address && product.channel == "locc" && it.isNotBlank() && it != "null" }
-                val details = listOfNotNull(price?.let { "$it ₽" }, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
+                val price = row.price?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString().replace('.', ',') + " ₽" }
+                val details = listOfNotNull(price, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
                 if (details.isNotEmpty()) Text(details, color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                row.normalized?.let { Text(it.label(), color = p.textSecondary, fontSize = 12.sp) }
             }
         }
     }

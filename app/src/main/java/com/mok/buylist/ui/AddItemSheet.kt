@@ -228,25 +228,24 @@ fun AddItemSheet(
                     modifier = Modifier.weight(1f),
                     hasOtherResults = matches.isNotEmpty(),
                     onUserScroll = { dismissKeyboard() },
-                    leadingResults = {
-                        matches.forEach { custom ->
-                            item(key = "custom:${custom.id}") {
-                                FreshCutListRow(
-                                    icon = R.drawable.ic_package,
-                                    title = custom.name,
-                                    subtitle = if (custom.isWeighted) "Весовой товар" else "Свой товар",
-                                    value = custom.estimatedPriceKopecks?.let {
-                                        java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
-                                    },
-                                    onClick = {
-                                        dismissKeyboard()
-                                        onAddCustom(custom) { added ->
-                                            activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
-                                            if (added) { text = ""; onQueryChange(""); scannedCode = null }
-                                        }
-                                    },
-                                )
-                            }
+                    customResults = matches.map { ProductSearchRow.custom(it) },
+                    customContent = { row ->
+                        row.custom?.let { custom ->
+                            FreshCutListRow(
+                                icon = R.drawable.ic_package,
+                                title = custom.name,
+                                subtitle = listOfNotNull(if (custom.isWeighted) "Весовой товар" else "Свой товар", row.normalized?.label()).joinToString(" · "),
+                                value = row.price?.let {
+                                    java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
+                                },
+                                onClick = {
+                                    dismissKeyboard()
+                                    onAddCustom(custom) { added ->
+                                        activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
+                                        if (added) { text = ""; onQueryChange(""); scannedCode = null }
+                                    }
+                                },
+                            )
                         }
                     },
                     footer = {

@@ -120,6 +120,10 @@ jobs:
       group: publish-apk-${{ github.ref }}
       cancel-in-progress: false
     steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
       - uses: actions/download-artifact@v7
         with:
           name: fresh-cut-release
@@ -143,5 +147,10 @@ jobs:
             args+=(--prerelease --latest=false)
           else
             args+=(--latest)
+          fi
+          # Optional user-facing notes in the commit body, followed by GitHub's generated history.
+          notes="$(git log -1 --format=%b | sed -n '/^Changelog:$/,$p' | tail -n +2)"
+          if [[ -n "$notes" ]]; then
+            args+=(--notes "$notes")
           fi
           gh release create "$TAG" release/app-release.apk "${args[@]}"

@@ -47,6 +47,36 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     var progress by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf<File?>(null) }
+    var historyOpen by remember { mutableStateOf(false) }
+    var historyPage by remember(channel) { mutableIntStateOf(1) }
+    var history by remember(channel) { mutableStateOf(emptyList<com.mok.buylist.update.ReleaseNotes>()) }
+    var historyMore by remember(channel) { mutableStateOf(true) }
+    var historyLoading by remember(channel) { mutableStateOf(false) }
+    var historyError by remember(channel) { mutableStateOf<String?>(null) }
+    var expandedHistory by remember(channel) { mutableStateOf<Long?>(null) }
+    fun loadHistory() {
+        if (historyLoading || !historyMore) return
+        historyLoading = true
+        historyError = null
+        val target = channel
+        val page = historyPage
+        scope.launch {
+            try {
+                val result = AppUpdater.releaseNotes(target, page)
+                if (channel == target) {
+                    history = (history + result.entries).distinctBy { it.version.code }.sortedByDescending { it.version.code }
+                    historyMore = result.hasMore
+                    historyPage = page + 1
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                if (channel == target) historyError = "Не удалось загрузить историю версий."
+            } finally {
+                if (channel == target) historyLoading = false
+            }
+        }
+    }
     var notificationsEnabled by remember { mutableStateOf(UpdateNotifications.enabled(context)) }
     var notificationsAllowed by remember { mutableStateOf(UpdateNotifications.canPost(context)) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -140,6 +170,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 FreshCutSectionTitle("Канал обновлений")
                 FreshCutSegments(UpdateChannel.entries.map { it.label }, channel.ordinal, { index ->
                     if (!downloading && !checking && !installing) {
+                        historyOpen = false
                         channel = UpdateChannel.entries[index]
                         AppUpdater.selectChannel(context, channel)
                     }
@@ -194,6 +225,26 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                     }
                     error?.let { Text(it, color = p.error, fontSize = 13.sp) }
                 }
+                release?.takeIf { it.version.code >= installed.code }?.let { current ->
+                    FreshCutSectionTitle(if (current.version.code > installed.code) "Что нового" else "Изменения в этой версии")
+                    ReleaseChangelog(current.changelog)
+                }
+                FreshCutSecondaryButton(if (historyOpen) "Скрыть историю версий" else "История версий", {
+                    historyOpen = !historyOpen
+                    if (historyOpen && history.isEmpty()) loadHistory()
+                })
+                if (historyOpen) {
+                    history.forEach { entry ->
+                        FreshCutListRow(com.mok.buylist.R.drawable.ic_history, entry.version.name,
+                            entry.publishedAt.take(10) + if (entry.version.code == installed.code) " · Установлена" else "",
+                            onClick = { expandedHistory = if (expandedHistory == entry.version.code) null else entry.version.code })
+                        if (expandedHistory == entry.version.code) ReleaseChangelog(entry.changelog)
+                    }
+                    historyError?.let { Text(it, color = p.error, fontSize = 13.sp) }
+                    if (historyLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
+                    else if (historyMore) FreshCutSecondaryButton(if (historyError != null) "Повторить" else "Показать ещё", { loadHistory() })
+                    else if (history.isEmpty()) Text("История пока пуста.", color = p.textSecondary, fontSize = 13.sp)
+                }
             }
         },
         confirmButton = {
@@ -231,4 +282,17 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
             }
         },
     )
+}
+
+@Composable
+private fun ReleaseChangelog(raw: String) {
+    val p = LocalPalette.current
+    val lines = remember(raw) { com.mok.buylist.update.releaseChangelogLines(raw) }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (lines.isEmpty()) Text("Описание изменений отсутствует.", color = p.textSecondary, fontSize = 13.sp)
+        else lines.forEach { line ->
+            Text(line, color = p.text, fontSize = 13.sp, lineHeight = 19.sp)
+        }
+    }
 }

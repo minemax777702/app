@@ -23,7 +23,11 @@ internal data class AppRelease(
     val url: String,
     val sha256: String,
     val size: Long,
+    val changelog: String = "",
 )
+
+internal data class ReleaseNotes(val version: ReleaseVersion, val changelog: String, val publishedAt: String)
+internal data class ReleaseNotesPage(val entries: List<ReleaseNotes>, val hasMore: Boolean)
 
 internal object AppUpdater {
     private const val REPO = "minemax777702/app"
@@ -70,6 +74,20 @@ internal object AppUpdater {
         error("Не удалось найти канал в пределах списка релизов.")
     }
 
+    suspend fun releaseNotes(channel: UpdateChannel, page: Int): ReleaseNotesPage = withContext(Dispatchers.IO) {
+        require(page >= 1)
+        val releases = JSONArray(readJson("https://api.github.com/repos/$REPO/releases?per_page=20&page=$page"))
+        val entries = (0 until releases.length()).mapNotNull { index ->
+            val entry = releases.getJSONObject(index)
+            if (entry.optBoolean("draft")) return@mapNotNull null
+            val version = ReleaseVersion.parse(entry.optString("tag_name"), entry.optBoolean("prerelease"))
+                ?: return@mapNotNull null
+            if (version.channel != channel) return@mapNotNull null
+            ReleaseNotes(version, entry.optString("body", "").take(32_000), entry.optString("published_at", ""))
+        }
+        ReleaseNotesPage(entries.sortedByDescending { it.version.code }, releases.length() == 20)
+    }
+
     private fun parseAsset(version: ReleaseVersion, release: JSONObject): AppRelease {
         val assets = release.getJSONArray("assets")
         val asset = (0 until assets.length()).map { assets.getJSONObject(it) }
@@ -81,7 +99,7 @@ internal object AppUpdater {
         require(digest.matches(Regex("[a-fA-F0-9]{64}"))) { "Контрольная сумма APK недоступна." }
         val size = asset.optLong("size")
         require(size in 1..MAX_APK_BYTES) { "Недопустимый размер APK." }
-        return AppRelease(version, expected, digest.lowercase(), size)
+        return AppRelease(version, expected, digest.lowercase(), size, release.optString("body", "").take(32_000))
     }
 
     private fun cacheDirectory(context: Context): File =
