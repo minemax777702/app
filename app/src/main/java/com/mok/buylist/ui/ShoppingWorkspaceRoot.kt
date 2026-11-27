@@ -209,19 +209,19 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
         onDismissRequest = { if (!transferBusy) { transferPlan = null; transferSource = null } },
         containerColor = p.sheet, title = { SheetHeader("Перенос изменений") },
         text = {
-            Text("Изменений без конфликтов: ${plan.changes}. Конфликтующих записей: ${plan.conflicts}. Прежний список останется доступен; конфликтующие записи не перезаписываются.", color = p.textSecondary, fontSize = 14.sp)
+            Text("Изменений без конфликтов: ${plan.changes}. Конфликтующих записей: ${plan.conflicts}. Прежний список останется доступен. При конфликте перенос всего пакета блокируется, чтобы не разделить связанные покупки и архивы.", color = p.textSecondary, fontSize = 14.sp)
         }, confirmButton = {
             SheetActionButton(onClick = {
                 transferBusy = true
                 scope.launch {
                     try {
                         val ok = app.cloudSpaces.transferLate(source, session, plan)
-                        transferMessage = if (ok) "Изменения перенесены. Конфликты сохранены в прежней версии." else "Список изменился. Повторите проверку."
+                        transferMessage = if (ok) "Изменения перенесены. Прежняя версия сохранена." else "Список изменился. Повторите проверку."
                         transferPlan = null; transferSource = null
                     } catch (e: kotlinx.coroutines.CancellationException) { throw e }
                     catch (_: Exception) { transferMessage = "Перенос не выполнен. Данные сохранены."; transferPlan = null; transferSource = null }
                     finally { transferBusy = false }
                 }
-            }, enabled = !transferBusy && plan.changes > 0) { Text("Перенести") }
+            }, enabled = !transferBusy && plan.changes > 0 && plan.conflicts == 0) { Text("Перенести") }
         })
 }

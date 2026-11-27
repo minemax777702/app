@@ -49,6 +49,7 @@ class ShoppingRepository(
     private val profile: UserProfile,
     private val isolatedWorkspace: Boolean = false,
     private val workspaceCatalog: LentaCatalog? = null,
+    private val onWorkspaceMutation: (() -> Unit)? = null,
 ) {
     private val catalog: LentaCatalog get() = workspaceCatalog ?: context.lentaCatalog
     private val dao = db.shoppingDao()
@@ -970,7 +971,7 @@ class ShoppingRepository(
         // НЕ завершаем поход автоматически во время сетевого обмена.
         // Второе устройство может ещё передавать незавершённые позиции;
         // преждевременная архивация создаёт надгробия и стирает текущий список.
-        refreshWidget()
+        refreshWidget(notifyCloud = false)
         return summary
     }
 
@@ -1172,8 +1173,9 @@ class ShoppingRepository(
         )
     }
 
-    private suspend fun refreshWidget() {
+    private suspend fun refreshWidget(notifyCloud: Boolean = true) {
         if (!isolatedWorkspace) ShoppingWidget().updateAll(context)
+        else if (notifyCloud) onWorkspaceMutation?.invoke()
     }
 
     private companion object {

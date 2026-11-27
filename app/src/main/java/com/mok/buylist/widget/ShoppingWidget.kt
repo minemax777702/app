@@ -67,12 +67,14 @@ class ShoppingWidget : GlanceAppWidget() {
             val session = sessions.firstOrNull { it.localKey == key }
             val repository = if (key == null) context.repository else session?.repository
             val historical = if (session != null) session.historicalState.collectAsState().value else false
+            androidx.compose.runtime.key(key, repository) {
             val source = androidx.compose.runtime.remember(repository) { repository?.observeItems() ?: flowOf(emptyList<ShoppingItem>()) }
             // Пока сессия открыта, список и тема живут за счёт подписок: одиночные updateAll,
             // пришедшие во время открытой сессии, иначе теряются и виджет показывает старое.
             val items by source.collectAsState(emptyList())
             val mode by themeSettings.widget.collectAsState()
             WidgetContent(items, mode, key, session?.invitation?.label ?: if (key == null) context.getString(R.string.app_name) else "Список недоступен", key == null || (session?.grant?.canWrite == true && !historical), repository != null)
+            }
         }
     }
 }

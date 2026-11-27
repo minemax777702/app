@@ -270,6 +270,9 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                         "Проверить наличие обновлений", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
                     ProfileMenuRow(R.drawable.ic_cloud, "Облако", "Подключение устройства", { page = "cloud" })
+                    val cloud = (context.applicationContext as com.mok.buylist.ShoppingApp).cloudSpaces
+                    val widgetKey by cloud.widgetKey.collectAsStateWithLifecycle()
+                    if (widgetKey != null) ProfileMenuRow(R.drawable.ic_list_check, "Список в виджете", "Вернуть локальные покупки", { cloud.selectWidget(null) })
                     if (adminVisible) ProfileMenuRow(R.drawable.ic_cloud, "Администрирование облака", "Пользователи, группы и хранилище", { page = "cloud-admin" })
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })

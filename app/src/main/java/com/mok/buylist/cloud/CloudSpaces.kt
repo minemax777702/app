@@ -110,7 +110,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 kotlinx.coroutines.currentCoroutineContext().ensureActive()
                 sync(session)
                 val status = session.status.value
-                if (!session.historical && (status.syncing || status.issue != null || status.lastSuccess == 0L)) ok = false
+                if (!session.historical && (status.syncing || status.issue != null || status.photoIssue != null || status.lastSuccess == 0L)) ok = false
             }
             ok
         }
@@ -168,7 +168,11 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
             val needsProfile = profile.id != grant.userId || profile.profile.value?.name != invitation.userName
             if (needsProfile) profile.adopt(grant.userId, invitation.userName)
             val catalog = com.mok.buylist.data.LentaCatalog(context, database, scope, "cloud-lenta-$name")
-            val repo = ShoppingRepository(context, database, profile, isolatedWorkspace = true, workspaceCatalog = catalog)
+            val repo = ShoppingRepository(context, database, profile, isolatedWorkspace = true, workspaceCatalog = catalog,
+                onWorkspaceMutation = {
+                    if (_sessions.value.any { it.localKey == name && it.writable }) CloudSyncWork.enqueue(context)
+                    if (widgetKey.value == name) scope.launch { refreshWidgets() }
+                })
             if (needsProfile && grant.canWrite) repo.saveProfile(invitation.userName)
             if (invitation.checkpoint.isNotEmpty()) {
                 val checkpoint = CloudEpochCheckpoint.open(invitation.checkpoint, invitation.signed.manifest,
@@ -220,6 +224,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     suspend fun transferLate(source: CloudSpaceSession, target: CloudSpaceSession, plan: CloudLatePlan): Boolean {
         require(source.historical && target.writable && source.space == target.space && source.epoch < target.epoch)
         require(source.grant.canWrite && source.grant.userId == target.grant.userId)
+        require(plan.conflicts == 0) { "Сначала разрешите конфликты" }
         val applied = withContext(Dispatchers.IO) {
             target.mutex.withLock {
                 require(target.writable)

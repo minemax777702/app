@@ -82,8 +82,25 @@ internal object CustomProductPreviews {
     @Synchronized fun cloudPhoto(context: Context, id: String, workspace: String): CloudPhoto? {
         val f = file(context, id, workspace)
         if (!f.exists()) return null
-        require(f.length() in 4L..CloudPhoto.MAX_JPEG.toLong()) { "Фото нужно сохранить заново в уменьшенном размере" }
-        return CloudPhoto(id, f.lastModified(), f.readBytes())
+        require(f.length() in 4L..4_000_000L)
+        val bytes = if (f.length() <= CloudPhoto.MAX_JPEG) f.readBytes() else {
+            // Existing pre-cloud photos are reduced in memory, without replacing the original.
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(f.path, bounds)
+            require(bounds.outWidth in 1..1024 && bounds.outHeight in 1..1024)
+            val original = requireNotNull(BitmapFactory.decodeFile(f.path))
+            val scaled = Bitmap.createScaledBitmap(original, maxOf(1, original.width / 2), maxOf(1, original.height / 2), true)
+            try {
+                ByteArrayOutputStream().also {
+                    check(scaled.compress(Bitmap.CompressFormat.JPEG, 60, it))
+                    require(it.size() <= CloudPhoto.MAX_JPEG)
+                }.toByteArray()
+            } finally {
+                if (scaled !== original) scaled.recycle()
+                original.recycle()
+            }
+        }
+        return CloudPhoto(id, f.lastModified(), bytes)
     }
 
     suspend fun installCloudPhoto(context: Context, photo: CloudPhoto, workspace: String) {
