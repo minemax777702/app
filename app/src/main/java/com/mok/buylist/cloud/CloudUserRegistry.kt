@@ -5,7 +5,10 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.util.UUID
+import java.security.MessageDigest
 import javax.crypto.Cipher
+import javax.crypto.AEADBadTagException
+import javax.crypto.BadPaddingException
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
@@ -211,6 +214,27 @@ internal object CloudRegistryCodec {
     }
 }
 
+internal enum class CloudRegistryFailure(val code: String, val explanation: String) {
+    ENVELOPE("REG-01", "Неизвестный формат зашифрованного файла. Обновите приложение."),
+    AUTHENTICATION("REG-02", "Файл не расшифровывается текущим ключом: ключ изменился или файл повреждён. Используйте исходный телефон либо актуальную копию .blcloud."),
+    PAYLOAD("REG-03", "Подлинность файла подтверждена, но формат записей не поддерживается или нарушен. Обновите приложение; не удаляйте файл."),
+    KEY_PROVIDER("REG-04", "Android Keystore не смог выполнить расшифровку. Перезапустите телефон. Если ошибка повторится, потребуется восстановление."),
+    FILE_HASH("REG-05", "Полученный файл не соответствует версии GitHub. Повторите загрузку."),
+}
+
+internal class CloudRegistryReadException(val failure: CloudRegistryFailure, cause: Throwable? = null) :
+    Exception(failure.code, cause)
+
+/** Verify the Git blob ID against the exact returned bytes (not an authenticity signature). */
+internal object CloudRegistryBlob {
+    fun verify(bytes: ByteArray, sha: String) {
+        val digest = MessageDigest.getInstance("SHA-1")
+        digest.update("blob ${bytes.size}\u0000".toByteArray(Charsets.US_ASCII))
+        val computed = digest.digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
+        if (computed != sha) throw CloudRegistryReadException(CloudRegistryFailure.FILE_HASH)
+    }
+}
+
 /** Authenticated encryption bound to the repository and this draft format. */
 internal object CloudRegistryCrypto {
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
@@ -227,11 +251,23 @@ internal object CloudRegistryCrypto {
     }
 
     fun decrypt(key: SecretKey, bytes: ByteArray): CloudUserRegistry {
-        require(bytes.size in 29..CloudRegistryCodec.MAX_BYTES + 29 && bytes[0] == 1.toByte())
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, bytes.copyOfRange(1, 13)))
-        cipher.updateAAD(aad)
-        val plain = cipher.doFinal(bytes, 13, bytes.size - 13)
-        return try { CloudRegistryCodec.decode(plain) } finally { plain.fill(0) }
+        if (bytes.size !in 29..CloudRegistryCodec.MAX_BYTES + 29 || bytes[0] != 1.toByte())
+            throw CloudRegistryReadException(CloudRegistryFailure.ENVELOPE)
+        val plain = try {
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, bytes.copyOfRange(1, 13)))
+            cipher.updateAAD(aad)
+            cipher.doFinal(bytes, 13, bytes.size - 13)
+        } catch (e: AEADBadTagException) {
+            throw CloudRegistryReadException(CloudRegistryFailure.AUTHENTICATION, e)
+        } catch (e: BadPaddingException) {
+            // Some Android providers report GCM tag failure as BadPaddingException.
+            throw CloudRegistryReadException(CloudRegistryFailure.AUTHENTICATION, e)
+        } catch (e: Exception) {
+            throw CloudRegistryReadException(CloudRegistryFailure.KEY_PROVIDER, e)
+        }
+        return try { CloudRegistryCodec.decode(plain) }
+        catch (e: Exception) { throw CloudRegistryReadException(CloudRegistryFailure.PAYLOAD, e) }
+        finally { plain.fill(0) }
     }
 }

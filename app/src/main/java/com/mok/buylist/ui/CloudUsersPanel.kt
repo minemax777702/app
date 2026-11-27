@@ -109,10 +109,15 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
         FreshCutSecondaryButton("К настройкам облака", onBack)
         FreshCutSectionTitle("Пользователи и группы")
         FreshCutTabs(listOf("Пользователи", "Группы", "Устройства"), section, { section = it; showArchived = false })
-        Text("Предварительный реестр. Записи пока не предоставляют доступ и не подключают устройства. Имена шифруются. До появления восстановления используйте только тестовые имена. При удалении приложения ключ может быть потерян. Реестр доступен только на создавшем его устройстве.", color = p.textSecondary, fontSize = 14.sp)
+        Text("Имена и настройки реестра зашифрованы. Сохраняйте актуальную копию .blcloud после изменений. SSH-доступ и доступ к покупкам — разные разрешения.", color = p.textSecondary, fontSize = 14.sp)
         val current = loaded
         if (busy) Text("Загрузка…", color = p.textSecondary, fontSize = 14.sp)
-        error?.let { Text(it, color = p.error, fontSize = 14.sp) }
+        error?.let {
+            Text(it, color = p.error, fontSize = 14.sp)
+            if (loaded == null && (it.startsWith("REG-") || it.contains("Ключ реестра отсутствует"))) {
+                Text("Не удаляйте приложение, его данные или файл реестра на GitHub. Для восстановления вернитесь в настройки облака и выберите актуальный файл .blcloud.", color = p.textSecondary, fontSize = 13.sp)
+            }
+        }
         if (current != null && section == 0) {
             val users = current.registry.users
             FreshCutDetailLine("Активные записи", users.count { !it.archived }.toString())

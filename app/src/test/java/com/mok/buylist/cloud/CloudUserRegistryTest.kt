@@ -75,6 +75,33 @@ class CloudUserRegistryTest {
         assertEquals(old, CloudRegistryCodec.decode(CloudRegistryCodec.encode(old)))
     }
 
+    @Test fun registryFailuresDistinguishEnvelopeAndAuthentication() {
+        val registry = CloudUserRegistry().add("Тест")
+        val encrypted = CloudRegistryCrypto.encrypt(key, registry)
+        val invalidHeader = encrypted.clone().also { it[0] = 99 }
+        val envelope = runCatching { CloudRegistryCrypto.decrypt(key, invalidHeader) }.exceptionOrNull()
+        assertEquals(CloudRegistryFailure.ENVELOPE, (envelope as CloudRegistryReadException).failure)
+        val wrong = SecretKeySpec(ByteArray(32), "AES")
+        val auth = runCatching { CloudRegistryCrypto.decrypt(wrong, encrypted) }.exceptionOrNull()
+        assertEquals(CloudRegistryFailure.AUTHENTICATION, (auth as CloudRegistryReadException).failure)
+    }
+
+    @Test fun authenticatedUnknownPayloadIsNotAKeyFailure() {
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, key)
+        cipher.updateAAD("BuyList|minemax777702/app-cloud|admin-users|1".toByteArray(Charsets.UTF_8))
+        val encrypted = byteArrayOf(1) + cipher.iv + cipher.doFinal(ByteArray(16))
+        val error = runCatching { CloudRegistryCrypto.decrypt(key, encrypted) }.exceptionOrNull()
+        assertEquals(CloudRegistryFailure.PAYLOAD, (error as CloudRegistryReadException).failure)
+    }
+
+    @Test fun gitBlobHashChecksExactBytes() {
+        val hello = "hello\n".toByteArray()
+        CloudRegistryBlob.verify(hello, "ce013625030ba8dba906f756967f9e9ca394464a")
+        val error = runCatching { CloudRegistryBlob.verify("hello".toByteArray(), "ce013625030ba8dba906f756967f9e9ca394464a") }.exceptionOrNull()
+        assertEquals(CloudRegistryFailure.FILE_HASH, (error as CloudRegistryReadException).failure)
+    }
+
     @Test fun malformedRecordsAreRejected() {
         val registry = CloudUserRegistry().add("Анна")
         assertTrue(runCatching { registry.add(" ") }.isFailure)

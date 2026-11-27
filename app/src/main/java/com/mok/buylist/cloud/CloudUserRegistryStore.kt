@@ -15,7 +15,7 @@ import kotlin.coroutines.coroutineContext
 
 internal data class LoadedCloudUsers(val registry: CloudUserRegistry, val sha: String?)
 
-/** Non-exportable key for a preliminary admin-only registry. Recovery is not implemented. */
+/** Non-exportable key for the administrative registry; portable recovery requires a .blcloud copy. */
 internal class CloudUserRegistryStore(context: Context) {
     private val app = context.applicationContext
     private val checkpoint = AtomicFile(File(app.noBackupFilesDir, "cloud-users-checkpoint-v1"))
@@ -55,7 +55,12 @@ internal class CloudUserRegistryStore(context: Context) {
         }
         val registry = try { CloudRegistryCrypto.decrypt(key(false), remote.bytes) }
         catch (e: CloudAdminException) { throw e }
-        catch (_: Exception) { throw CloudAdminException("Реестр не удалось проверить. Запись запрещена.") }
+        catch (e: CloudRegistryReadException) {
+            throw CloudAdminException("${e.failure.code}: ${e.failure.explanation} Запись запрещена.")
+        }
+        catch (_: Exception) {
+            throw CloudAdminException("REG-04: Не удалось получить ключ Android Keystore. Запись запрещена.")
+        }
         if (registry.revision < checkpointRevision()) throw CloudAdminException("Обнаружена более старая версия реестра. Запись запрещена.")
         rememberRevision(registry.revision)
         LoadedCloudUsers(registry, remote.sha)
@@ -65,7 +70,11 @@ internal class CloudUserRegistryStore(context: Context) {
         withContext(Dispatchers.IO) {
             require(next.revision == Math.addExact(previous.registry.revision, 1))
             if (previous.sha == null && checkpointRevision() >= 0) throw CloudAdminException("Необходимо перечитать реестр.")
-            val encrypted = CloudRegistryCrypto.encrypt(key(previous.sha == null), next)
+            val registryKey = key(previous.sha == null)
+            val encrypted = CloudRegistryCrypto.encrypt(registryKey, next)
+            // Never upload bytes that this installation cannot immediately authenticate and read.
+            if (CloudRegistryCrypto.decrypt(registryKey, encrypted) != next)
+                throw CloudAdminException("Локальная проверка нового реестра не пройдена. Запись отменена.")
             coroutineContext.ensureActive()
             val sha = admin.writeUserRegistry(encrypted, previous.sha)
             // If the network result is uncertain, the caller must reload before any subsequent write.
@@ -93,7 +102,10 @@ internal class CloudUserRegistryStore(context: Context) {
             if (remote.sha != copy.sha || copy.registry.revision < checkpointRevision())
                 throw CloudAdminException("Копия не соответствует текущей версии реестра. Запись запрещена.")
             val next = copy.registry.copy(revision = Math.addExact(copy.registry.revision, 1))
-            val encrypted = CloudRegistryCrypto.encrypt(key(true), next)
+            val registryKey = key(true)
+            val encrypted = CloudRegistryCrypto.encrypt(registryKey, next)
+            if (CloudRegistryCrypto.decrypt(registryKey, encrypted) != next)
+                throw CloudAdminException("Проверка восстановленного реестра не пройдена. Запись отменена.")
             coroutineContext.ensureActive()
             val sha = admin.writeUserRegistry(encrypted, remote.sha)
             rememberRevision(next.revision)

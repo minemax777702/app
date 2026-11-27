@@ -78,8 +78,16 @@ internal class GitHubCloudAdmin(private val token: String) {
             throw CloudAdminException("Неизвестный формат реестра.")
         val sha = file.optString("sha")
         if (!sha.matches(Regex("[0-9a-f]{40}"))) throw CloudAdminException("Не удалось проверить версию реестра.")
-        val bytes = Base64.decode(file.getString("content"), Base64.DEFAULT)
+        val bytes = try { Base64.decode(file.getString("content"), Base64.DEFAULT) }
+        catch (_: Exception) { throw CloudAdminException("REG-05: Не удалось декодировать файл GitHub. Запись запрещена.") }
         if (bytes.size > CloudRegistryCodec.MAX_BYTES + 29) throw CloudAdminException("Реестр слишком большой.")
+        try {
+            if (file.optLong("size", -1) != bytes.size.toLong())
+                throw CloudRegistryReadException(CloudRegistryFailure.FILE_HASH)
+            CloudRegistryBlob.verify(bytes, sha)
+        } catch (e: CloudRegistryReadException) {
+            throw CloudAdminException("${e.failure.code}: ${e.failure.explanation} Запись запрещена.")
+        }
         RegistryFile(bytes, sha)
     }
 

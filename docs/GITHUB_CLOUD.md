@@ -75,3 +75,7 @@ CloudOutbox persists exact signed encrypted event bytes before push. CloudSyncEn
 ## CI and Android compatibility
 
 JGit 7.8.1.202611041320-r includes the upstream Android PID guard (JGit commit 908a6a5848342883575fcdec5e917048de2a53e5). Java compile target is 17; Android API 29+ unchanged. R8 ignores only the desktop ProcessHandle reference, which is guarded upstream. Release builds retain JVM tests. Emulator integration tests are manual (Actions → Cloud integration tests → Run workflow → beta), with explicit emulator serial and boot logs. Publication keeps GITHUB_TOKEN and contents: write, creates/verifies the exact release tag separately and refuses mismatched tags. No extra token is required by the workflow; if GitHub rejects tag creation, the owner may create the exact tag manually and rerun only publish. The signed APK remains an artifact even when publication fails.
+
+## Ошибки проверки административного реестра
+
+REG-01: неизвестный контейнер; REG-02: не прошла аутентификация AES-GCM (не тот ключ или повреждение); REG-03: подлинная полезная нагрузка не декодируется; REG-04: сбой Keystore или криптопровайдера; REG-05: несовпадение размера/хеша Git blob. Проверка формата и защита от отката сохраняются. Новые записи проверяются локальным расшифрованием перед отправкой. Не удалять ключ, приложение или удалённый файл для обхода ошибки. Восстановление из актуального .blcloud возможно только для точного SHA; при отсутствии ключа и копии расшифровка старых записей невозможна.
