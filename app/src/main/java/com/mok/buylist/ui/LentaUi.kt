@@ -205,11 +205,36 @@ fun LentaImage(url: String, modifier: Modifier = Modifier) {
                     try {
                         c.connectTimeout = 8000; c.readTimeout = 8000
                         if (c.responseCode != 200) error("image")
-                        val bytes = c.inputStream.use { it.readBytes() }
-                        if (bytes.size <= 2_000_000) file.writeBytes(bytes) else error("image too large")
+                        val limit = 2_000_000
+                        if (c.contentLength > limit) error("image too large")
+                        val temporary = java.io.File.createTempFile("lenta_", ".tmp", context.cacheDir)
+                        try {
+                            c.inputStream.use { input ->
+                                temporary.outputStream().use { output ->
+                                    val buffer = ByteArray(8192)
+                                    var total = 0
+                                    while (true) {
+                                        val count = input.read(buffer)
+                                        if (count < 0) break
+                                        total += count
+                                        if (total > limit) error("image too large")
+                                        output.write(buffer, 0, count)
+                                    }
+                                }
+                            }
+                            if (!temporary.renameTo(file) && !file.exists()) error("image cache")
+                        } finally { temporary.delete() }
                     } finally { c.disconnect() }
                 }
-                BitmapFactory.decodeFile(file.path)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(file.path, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                    file.delete()
+                    return@runCatching null
+                }
+                var sample = 1
+                while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1024) sample *= 2
+                BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
             }.getOrNull()
         }
     }
