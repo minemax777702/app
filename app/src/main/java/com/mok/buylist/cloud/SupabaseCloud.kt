@@ -188,6 +188,17 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         }
     }
 
+    val passkeys = CloudPasskeys(
+        token = { api().auth.awaitInitialization(); api().auth.currentAccessTokenOrNull() },
+        user = { api().auth.currentUserOrNull()?.id },
+        acceptSession = { session ->
+            api().auth.awaitInitialization()
+            check(api().auth.currentUserOrNull() == null) { "Account already signed in" }
+            api().auth.importSession(session, autoRefresh = true)
+            signal()
+        },
+    )
+
     fun signal() { signals.trySend(Unit) }
     suspend fun signIn(email: String, password: String) {
         api().auth.signInWith(Email) { this.email = email.trim(); this.password = password }

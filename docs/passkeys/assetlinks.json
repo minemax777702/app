@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mok.buylist",
+      "sha256_cert_fingerprints": [
+        "88:48:64:61:06:21:CD:C3:8A:BD:FD:61:AB:17:37:F8:66:96:52:DB:F1:FD:19:51:9A:12:90:40:79:7A:ED:AF"
+      ]
+    }
+  }
+]

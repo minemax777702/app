@@ -41,6 +41,8 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     fun notify(text: String) { activity?.notifyAccount(text) }
     fun notifyPending(text: String) { notify("$text · Ожидает синхронизации") }
     var registration by remember { mutableStateOf(false) }
+    var passkeyStage by remember { mutableStateOf(PasskeyStage.IDLE) }
+    var passkeySheet by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
@@ -88,7 +90,17 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     } else cloud.signIn(email,password)
                     password=""
                 }
-            },enabled=!busy && email.contains('@') && password.length>=6 && (!registration || name.isNotBlank()))
+            },enabled=!busy && passkeyStage==PasskeyStage.IDLE && email.contains('@') && password.length>=6 && (!registration || name.isNotBlank()))
+            if(!registration && activity!=null) PasskeyAction(passkeyStage, false, enabled=!busy) {
+                if(passkeyStage!=PasskeyStage.IDLE)return@PasskeyAction
+                passkeyStage=PasskeyStage.PREPARING
+                scope.launch {
+                    try { cloud.passkeys.signIn(activity){passkeyStage=it}; password="";notify("Вход по ключу доступа выполнен") }
+                    catch(e:CancellationException){throw e}
+                    catch(e:Exception){passkeyError(e).takeIf{it.isNotBlank()}?.let(::notify)}
+                    finally{passkeyStage=PasskeyStage.IDLE}
+                }
+            }
         }
         return
     }
@@ -103,6 +115,8 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if (!adminOnly) FreshCutListRow(R.drawable.ic_user_round, me.name,
             onClick={ if(!busy) editName=true }, showChevron=false)
+        if (!adminOnly && activity!=null) FreshCutListRow(R.drawable.ic_fingerprint,"Ключи доступа",
+            "Вход без пароля",showChevron=false,onClick={passkeySheet=true})
         if (pendingCount > 0) Text("Ожидают синхронизации: $pendingCount",color=p.textSecondary,fontSize=13.sp)
         status?.let { Text(it,color=p.textSecondary,fontSize=13.sp) }
         val tabs = if(adminOnly) listOf("Пользователи","Группы") else listOf("Списки","Группы")
@@ -137,8 +151,14 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 FreshCutSecondaryButton("Создать пользователя",{createUserGroup=null;createUser=true},enabled=!busy)
             }
         }
-        if (!adminOnly) FreshCutSecondaryButton("Выйти",{perform{cloud.signOut()}},enabled=!busy)
+        if (!adminOnly) FreshCutSecondaryButton("Выйти",{perform{
+            cloud.signOut()
+            if(activity!=null) try { cloud.passkeys.clearCredentialState(activity) }
+            catch(e:CancellationException){throw e} catch(_:Exception){}
+        }},enabled=!busy)
     }
+
+    if(passkeySheet && !adminOnly && activity!=null) PasskeySettingsSheet(cloud.passkeys,activity,{passkeySheet=false},::notify)
 
     if(editName) {
         var title by remember { mutableStateOf(me.name) }
