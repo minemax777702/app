@@ -89,7 +89,12 @@ class ShoppingViewModel internal constructor(application: Application, workspace
     internal val lenta = workspace?.catalog ?: app.localCatalog
     private val journal = ActionJournal.get(application, workspaceNamespace)
     private val actionMutex = kotlinx.coroutines.sync.Mutex()
-    internal val actions = journal.entries
+    private val accountJournal = workspace?.userId?.let { ActionJournal.get(application, "account-$it") }
+    internal val actions = accountJournal?.let { account ->
+        combine(journal.entries, account.entries) { list, shared ->
+            (list + shared).sortedByDescending { it.at }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, (journal.entries.value + account.entries.value).sortedByDescending { it.at })
+    } ?: journal.entries
     private val plannedPrefs = application.getSharedPreferences("planned_shopping_stores" + workspaceNamespace, android.content.Context.MODE_PRIVATE)
     internal val plannedStores = MutableStateFlow(plannedPrefs.all.mapNotNull { (id, value) ->
         (value as? String)?.let { id to it }
@@ -482,14 +487,18 @@ class ShoppingViewModel internal constructor(application: Application, workspace
             val protectedIds = undoableRecentActions(snapshot).filter { action ->
                 repository.canUndoListAction(action.before, action.after, action.removedAt)
             }.mapTo(HashSet()) { it.id }
-            journal.clear(notificationIdsToClear(snapshot, group, protectedIds))
+            val ids = notificationIdsToClear(snapshot, group, protectedIds)
+            journal.clear(ids)
+            accountJournal?.clear(ids)
         } }
     }
 
     /** Explicitly confirmed full cleanup; also forfeits the remaining undo history. */
     internal fun clearAllNotifications() {
         viewModelScope.launch { actionMutex.withLock {
-            journal.clear(actions.value.mapTo(HashSet()) { it.id })
+            val ids = actions.value.mapTo(HashSet()) { it.id }
+            journal.clear(ids)
+            accountJournal?.clear(ids)
         } }
     }
 

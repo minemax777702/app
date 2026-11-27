@@ -35,8 +35,8 @@ internal fun NotificationsScreen(
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
     val date = remember { DateTimeFormatter.ofPattern("dd.MM.yyyy · HH:mm") }
-    val visible = actions.filterNot { it.title == "Действие отменено" }
-    val undoIds = undoableRecentActions(visible).mapTo(HashSet()) { it.id }.intersect(availableUndoIds)
+    val undoIds = undoableRecentActions(actions).mapTo(HashSet()) { it.id }.intersect(availableUndoIds)
+    val visible = remember(actions, undoIds) { visibleNotifications(actions, undoIds) }
     val undoable = visible.filter { it.id in undoIds }
     val grouped = remember(visible, undoIds) {
         visible.filterNot { it.id in undoIds }.groupBy { it.group() }
@@ -46,19 +46,18 @@ internal fun NotificationsScreen(
     var pricesLimit by rememberSaveable { mutableIntStateOf(3) }
     var actionsLimit by rememberSaveable { mutableIntStateOf(5) }
     var otherLimit by rememberSaveable { mutableIntStateOf(3) }
+    var accountLimit by rememberSaveable { mutableIntStateOf(5) }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("Уведомления", onBack) {
-            if (visible.isNotEmpty()) TextButton(onClick = { confirmClearAll = true }) {
-                Text("Очистить", color = p.text)
-            }
+            if (actions.isNotEmpty()) FreshCutToolbarAction(R.drawable.ic_trash, "Очистить уведомления", { confirmClearAll = true })
         }
         if (visible.isEmpty()) Column(Modifier.weight(1f).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Icon(painterResource(R.drawable.ic_bell), null, Modifier.size(40.dp), tint = p.textSecondary)
             Spacer(Modifier.height(12.dp))
             Text("Пока нет уведомлений", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("Здесь появятся ваши действия", color = p.textSecondary, fontSize = 13.sp)
+
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), overscrollEffect = null) {
             if (undoable.isNotEmpty()) {
@@ -80,15 +79,14 @@ internal fun NotificationsScreen(
                     NotificationGroup.COMPLETED -> completedLimit
                     NotificationGroup.PRICES -> pricesLimit
                     NotificationGroup.ACTIONS -> actionsLimit
+                    NotificationGroup.ACCOUNT -> accountLimit
                     NotificationGroup.OTHER -> otherLimit
                 }
                 item(key = "group:${group.name}") {
                     Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(group.title, Modifier.weight(1f), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                         Text(entries.size.toString(), color = p.textSecondary, fontSize = 12.sp)
-                        TextButton(onClick = { onClear(group) }) {
-                            Text("Очистить", color = p.textSecondary, fontSize = 12.sp)
-                        }
+                        FreshCutToolbarAction(R.drawable.ic_trash, "Очистить раздел", { onClear(group) })
                     }
                 }
                 items(entries.take(limit), key = { it.id }) { action ->
@@ -101,6 +99,7 @@ internal fun NotificationsScreen(
                             NotificationGroup.COMPLETED -> completedLimit += 10
                             NotificationGroup.PRICES -> pricesLimit += 10
                             NotificationGroup.ACTIONS -> actionsLimit += 10
+                            NotificationGroup.ACCOUNT -> accountLimit += 10
                             NotificationGroup.OTHER -> otherLimit += 10
                         }
                     }, modifier = Modifier.fillMaxWidth()) {
@@ -142,7 +141,15 @@ private fun NotificationRow(action: ListAction, group: NotificationGroup, timest
             "Добавлен товар", "Создан товар" -> R.drawable.ic_plus
             else -> R.drawable.ic_edit
         }
-        NotificationGroup.OTHER -> R.drawable.ic_bell
+        NotificationGroup.ACCOUNT -> when {
+            action.title.startsWith("Пользователь создан") || action.title.startsWith("Участник добавлен") || action.title.startsWith("Участники добавлены") -> R.drawable.ic_user_plus
+            action.title.startsWith("Участник исключён") -> R.drawable.ic_user_minus
+            action.title.startsWith("Группа") -> R.drawable.ic_group
+            action.title.startsWith("Список") -> R.drawable.ic_list_check
+            action.title.startsWith("Доступ") -> R.drawable.ic_shield
+            else -> R.drawable.ic_user_round
+        }
+        NotificationGroup.OTHER -> if(noticeStyle(action.title)==NoticeStyle.WARNING) R.drawable.ic_info else R.drawable.ic_bell
     }
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -150,10 +157,13 @@ private fun NotificationRow(action: ListAction, group: NotificationGroup, timest
             Icon(painterResource(icon), null, Modifier.size(22.dp), tint = p.text)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(action.title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            if (action.detail.isNotBlank()) Text(action.detail, color = p.text, fontSize = 13.sp)
+            val payload = noticePayload(0,action.title)
+            val title = if (action.detail.isNotBlank()) action.title else payload.title
+            val detail = action.detail.ifBlank { payload.message }
+            Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (detail.isNotBlank() && detail != title) Text(detail, color = p.textSecondary, fontSize = 13.sp, lineHeight=18.sp)
             Text(timestamp, color = p.textSecondary, fontSize = 11.sp)
-            if (action.result == "Отменено") Text(action.result, color = p.textSecondary, fontSize = 12.sp)
+
         }
         if (canUndo) TextButton(onClick = onUndo) { Text("Отменить", color = p.text) }
     }

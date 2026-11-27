@@ -52,10 +52,10 @@ internal fun noticeStyle(message: String): NoticeStyle {
         listOf("не удалось", "ошиб", "некоррект", "недоступ", "не обновлено",
             "без штрихкода:", "без новой цены:", "штрихкод отсутствует",
             "поврежден", "не найден", "не найдена", "истек", "не хватает",
-            "время вышло", "укажите адрес", "http ", "уже изменено")
+            "время вышло", "укажите адрес", "http ", "уже изменено", "не отправлено")
             .any { it in text } -> NoticeStyle.WARNING
         listOf("добавлен", "сохранен", "обновлен", "отмечен", "завершен",
-            "восстановлен", "удален", "отменен", "сброшен", "выполнен")
+            "восстановлен", "удален", "отменен", "сброшен", "выполнен", "создан", "изменен", "исключен", "отключен", "подтвержден")
             .any { it in text } -> NoticeStyle.SUCCESS
         else -> NoticeStyle.INFO
     }
@@ -85,12 +85,12 @@ internal fun noticePayload(id: Long, raw: String): NoticePayload {
         normalized == "уже в списке" -> "Товар уже в списке" to "Повторное добавление не требуется."
         normalized == "покупка отмечена" -> "Товар куплен" to "Покупка сохранена."
         normalized == "товар сохранен" -> "Товар сохранён" to "Товар добавлен в базу продуктов."
-        normalized.startsWith("список завершен") -> "Покупки завершены" to raw
+        normalized.startsWith("список завершен") -> "Покупки завершены" to raw.substringAfter(" · ", "")
+        isAccountNotice(raw) -> raw.substringBefore(" · ") to raw.substringAfter(" · ", "")
         else -> when (style) {
-            NoticeStyle.SUCCESS -> "Готово"
-            NoticeStyle.INFO -> "Информация"
-            NoticeStyle.WARNING -> "Внимание"
-        } to raw
+            NoticeStyle.SUCCESS, NoticeStyle.INFO -> raw.substringBefore(" · ") to raw.substringAfter(" · ", "")
+            NoticeStyle.WARNING -> "Внимание" to raw
+        }
     }
     return NoticePayload(id, title, formatNoticeMessage(message), style)
 }
@@ -209,18 +209,18 @@ private fun NoticeBanner(
                 Text(notice.title, color = p.text, fontSize = 14.sp,
                     lineHeight = 19.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (expanded) {
+                if (notice.message.isNotBlank() && expanded) {
                     Text(notice.message, modifier = Modifier.heightIn(max = bodyMaxHeight)
                         .verticalScroll(rememberScrollState()),
                         color = p.textSecondary, fontSize = 12.sp,
                         lineHeight = 17.sp, fontWeight = FontWeight.Normal)
-                } else {
+                } else if (notice.message.isNotBlank()) {
                     Text(notice.message, color = p.textSecondary, fontSize = 12.sp,
                         lineHeight = 17.sp, fontWeight = FontWeight.Normal,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 if (pendingCount > 0) {
-                    Text("В очереди: $pendingCount", color = p.textSecondary, fontSize = 11.sp)
+                    Text("+$pendingCount", color = p.textSecondary, fontSize = 11.sp)
                 }
             }
             if (notice.opensUpdates) {
@@ -230,7 +230,7 @@ private fun NoticeBanner(
                     Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть уведомление",
                         modifier = Modifier.size(18.dp), tint = p.textSecondary)
                 }
-            } else {
+            } else if (notice.message.length > 100 || notice.message.contains('\n')) {
                 Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null,
                     modifier = Modifier.padding(top = 8.dp).size(18.dp), tint = p.textSecondary)
             }

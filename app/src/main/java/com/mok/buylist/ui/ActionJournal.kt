@@ -36,10 +36,11 @@ internal class ActionJournal private constructor(context: Context, namespace: St
 
     @Synchronized
     fun notice(message: String) {
-        if (message == "Действие отменено") return
-        val latest = state.value.firstOrNull()
-        if (latest != null && System.currentTimeMillis() - latest.at < 1500 &&
-            (latest.title == message || (message == "Добавлено в список" && latest.title == "Добавлен товар"))) return
+        if (!keepNoticeInHistory(message)) return
+        val now = System.currentTimeMillis()
+        val recent = state.value.take(8).filter { now - it.at in 0..3000 }
+        if (recent.any { it.title == message || (message == "Добавлено в список" && it.title == "Добавлен товар") ||
+            (message == "Покупка отмечена" && it.title == "Покупка отмечена") }) return
         record(message)
     }
 
@@ -122,13 +123,15 @@ internal enum class NotificationGroup(val title: String) {
     ACTIONS("Действия с товарами"),
     COMPLETED("Завершённые списки"),
     PRICES("Обновления цен"),
-    OTHER("Другие уведомления"),
+    ACCOUNT("Аккаунт и группы"),
+    OTHER("Важное"),
 }
 
 internal fun ListAction.group(): NotificationGroup {
     val normalized = title.lowercase().replace('ё', 'е')
     return when {
         normalized.startsWith("список завершен") -> NotificationGroup.COMPLETED
+        isAccountNotice(title) -> NotificationGroup.ACCOUNT
         normalized.contains("цен") || normalized.startsWith("не обновлено:") ||
             normalized.startsWith("данные товара обновлены") || normalized.startsWith("данные каталога обновлены") ||
             normalized.startsWith("обновление остановлено") -> NotificationGroup.PRICES
@@ -138,6 +141,31 @@ internal fun ListAction.group(): NotificationGroup {
         else -> NotificationGroup.OTHER
     }
 }
+
+internal fun isAccountNotice(message: String): Boolean {
+    val normalized = message.lowercase().replace('ё','е')
+    return listOf("пользователь создан", "пользователь изменен", "группа создана", "группа изменена",
+        "группа удалена", "участник добавлен", "участники добавлены", "участник исключен",
+        "список создан", "список изменен", "список удален", "имя профиля изменено",
+        "доступ отключен", "доступ восстановлен", "почта подтверждена").any { normalized.startsWith(it) }
+}
+
+/** Transient hints stay in the overlay, not in the persistent history. */
+internal fun keepNoticeInHistory(message: String): Boolean {
+    val normalized = message.trim().lowercase().replace('ё','е')
+    return normalized.isNotBlank() && normalized !in setOf("действие отменено", "уже в списке",
+        "добавлено в список", "покупка отмечена", "загрузка", "готово", "информация", "офлайн",
+        "нет соединения", "изменения ожидают синхронизации", "действие уже изменено или завершено")
+        && !normalized.startsWith("ожидают синхронизации:")
+}
+
+/** Keep undo slots even if the corresponding status is no longer worth showing. */
+internal fun visibleNotifications(rows: List<ListAction>, undoIds: Set<String>): List<ListAction> =
+    rows.filter { action ->
+        action.id in undoIds || (action.result.isEmpty() && (action.before != null || action.after != null ||
+            keepNoticeInHistory(action.title)) && !(action.group() == NotificationGroup.ACTIONS &&
+            (action.before != null || action.after != null) && action.id !in undoIds))
+    }
 
 internal const val NOTIFICATION_GROUP_LIMIT = 100
 

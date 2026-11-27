@@ -6,12 +6,12 @@ import org.junit.Test
 
 class ActionJournalRulesTest {
     @Test fun rotationLimitsEveryGroupIndependently() {
-        val titles = listOf("Добавлен товар", "Список завершён", "Цена обновлена", "Обмен выполнен")
+        val titles = listOf("Добавлен товар", "Список завершён", "Цена обновлена", "Обмен выполнен", "Группа создана")
         val rows = (150 downTo 1).flatMap { n ->
             titles.map { ListAction(id = "$n:$it", at = n.toLong(), title = it) }
         }
         val kept = rotateNotifications(rows)
-        assertEquals(400, kept.size)
+        assertEquals(500, kept.size)
         NotificationGroup.entries.forEach { group ->
             val entries = kept.filter { it.group() == group }
             assertEquals(100, entries.size)
@@ -40,5 +40,13 @@ class ActionJournalRulesTest {
         assertEquals(setOf("finished"), notificationIdsToClear(rows, NotificationGroup.ACTIONS, setOf("active")))
         assertEquals(setOf("finished", "price"), notificationIdsToClear(rows, null, setOf("active")))
         assertEquals(setOf("active", "finished", "price"), notificationIdsToClear(rows, null, emptySet()))
+    }
+    @Test fun transientAndExpiredActionsAreNotShown() {
+        val undo = ListAction(id="undo",title="Добавлен товар",after=ShoppingItem(name="Молоко"))
+        val stale = undo.copy(id="stale")
+        val duplicate = ListAction(id="duplicate",title="Уже в списке")
+        val created = ListAction(id="created",title="Пользователь создан · Анна")
+        assertEquals(listOf(undo,created),visibleNotifications(listOf(undo,stale,duplicate,created),setOf("undo")))
+        assertEquals(NotificationGroup.ACCOUNT,created.group())
     }
 }

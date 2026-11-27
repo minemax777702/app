@@ -139,6 +139,18 @@ class MainActivity : ComponentActivity() {
         private set
     internal fun notifyUser(message: String) {
         ActionJournal.get(applicationContext).notice(message)
+        showNotice(message)
+    }
+
+    /** Account events belong to the account, not to the currently selected list. */
+    internal fun notifyAccount(message: String) {
+        val app = application as com.mok.buylist.ShoppingApp
+        val uid = app.cloud.directory.value.me?.id
+        if (uid != null) ActionJournal.get(applicationContext, "account-$uid").notice(message)
+        showNotice(message)
+    }
+
+    private fun showNotice(message: String) {
         noticeOwner = noticeSheets.lastOrNull()
         noticePresentation = noticePresentation.enqueue(noticePayload(++noticeId, message))
     }

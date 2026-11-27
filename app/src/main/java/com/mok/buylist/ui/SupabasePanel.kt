@@ -30,6 +30,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     val p = LocalPalette.current
     val app = LocalContext.current.applicationContext as ShoppingApp
     val cloud = app.cloud
+    val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
     val directory by cloud.directory.collectAsStateWithLifecycle()
     val signedIn by cloud.signedIn.collectAsStateWithLifecycle()
     val workspace by cloud.workspace.collectAsStateWithLifecycle()
@@ -37,7 +38,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     val pendingCount by cloud.pendingCount.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
+    fun notify(text: String) { activity?.notifyAccount(text) }
     var registration by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -56,11 +57,11 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     var deletion by remember { mutableStateOf<Pair<String, suspend () -> Unit>?>(null) }
     fun perform(action: suspend () -> Unit) {
         if (busy) return
-        busy = true; message = null
+        busy = true
         scope.launch {
             try { action() }
             catch (e: CancellationException) { throw e }
-            catch (_: Exception) { message = "Не удалось выполнить операцию. Повторите попытку." }
+            catch (_: Exception) { notify("Не удалось выполнить операцию") }
             finally { busy = false }
         }
     }
@@ -71,7 +72,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     }
     if (!signedIn) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FreshCutTabs(listOf("Вход","Регистрация"), if (registration) 1 else 0, { registration = it == 1; message = null })
+            FreshCutTabs(listOf("Вход","Регистрация"), if (registration) 1 else 0, { registration = it == 1 })
             if (registration) SheetTextField(name,{ name=it.take(50) },"Имя")
             SheetTextField(email,{ email=it.take(254) },"Электронная почта",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))
             SheetTextField(password,{ password=it.take(128) },"Пароль",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),
@@ -80,13 +81,12 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 perform {
                     if (registration) {
                         if (!cloud.signUp(name,email,password)) {
-                            registration=false; message="Подтвердите почту и войдите"
+                            registration=false; notify("Подтвердите почту и войдите")
                         }
                     } else cloud.signIn(email,password)
                     password=""
                 }
             },enabled=!busy && email.contains('@') && password.length>=6 && (!registration || name.isNotBlank()))
-            message?.let { Text(it,color=p.textSecondary,fontSize=13.sp) }
         }
         return
     }
@@ -120,9 +120,9 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     val memberCount = directory.members.count{it.group==group.id && it.user!=group.owner}+1
                     val subtitle = if(adminOnly) "Участников: $memberCount" else "Списков: ${directory.lists.count{it.group==group.id}} · Участников: $memberCount"
                     FreshCutListRow(R.drawable.ic_group,group.name,subtitle,showChevron=false,
-                        onClick={ editingGroup=group;addingMembers=false;message=null;groupSheet=true })
+                        onClick={ editingGroup=group;addingMembers=false;groupSheet=true })
                 }
-                FreshCutSecondaryButton("Создать группу",{editingGroup=null;addingMembers=false;message=null;groupSheet=true},enabled=!busy)
+                FreshCutSecondaryButton("Создать группу",{editingGroup=null;addingMembers=false;groupSheet=true},enabled=!busy)
             }
             else -> {
                 directory.people.forEach { row ->
@@ -132,10 +132,9 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                         else -> "Пользователь"
                     },showChevron=me.id!=row.id,onClick=if(me.id!=row.id) {{person=row}} else null)
                 }
-                FreshCutSecondaryButton("Создать пользователя",{createUserGroup=null;message=null;createUser=true},enabled=!busy)
+                FreshCutSecondaryButton("Создать пользователя",{createUserGroup=null;createUser=true},enabled=!busy)
             }
         }
-        message?.let { Text(it,color=p.error,fontSize=13.sp) }
         if (!adminOnly) FreshCutSecondaryButton("Выйти",{perform{cloud.signOut()}},enabled=!busy)
     }
 
@@ -143,7 +142,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
         var title by remember { mutableStateOf(me.name) }
         AppSheet(onDismissRequest={editName=false},containerColor=p.sheet,title={SheetHeader("Профиль")},text={
             SheetTextField(title,{title=it.take(50)},"Имя")
-        },confirmButton={SheetActionButton(onClick={ editName=false;perform{cloud.renameSelf(title)} },enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
+        },confirmButton={SheetActionButton(onClick={ editName=false;perform{cloud.renameSelf(title);notify("Имя профиля изменено")} },enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
     }
     if(listSheet) {
         val row=editingList
@@ -155,9 +154,9 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 if(row==null){
                     FreshCutListRow(R.drawable.ic_user_round,"Личный",selected=group==null,showChevron=false,onClick={group=null})
                     directory.groups.filter{directory.participates(it)}.forEach{g->FreshCutListRow(R.drawable.ic_group,g.name,selected=group==g.id,showChevron=false,onClick={group=g.id})}
-                }else FreshCutSecondaryButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id) }},enabled=!busy)
+                }else FreshCutSecondaryButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id);notify("Список удалён · ${row.name}") }},enabled=!busy)
             }
-        },confirmButton={SheetActionButton(onClick={listSheet=false;perform{cloud.saveList(row?.id,title,group)}},enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
+        },confirmButton={SheetActionButton(onClick={listSheet=false;perform{cloud.saveList(row?.id,title,group);notify((if(row==null) "Список создан" else "Список изменён")+" · "+title.trim())}},enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
     }
     if(groupSheet) {
         val original = editingGroup
@@ -191,7 +190,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     } else Text("Нет пользователей для добавления",color=p.textSecondary,fontSize=14.sp)
                     if(me.admin) FreshCutListRow(R.drawable.ic_user_plus,"Создать пользователя",
                         showChevron=false,onClick={
-                            createUserGroup=row.id;groupSheet=false;createUser=true;message=null
+                            createUserGroup=row.id;groupSheet=false;createUser=true
                         })
                 } else if(original != null && row == null) {
                     Text("Группа недоступна",color=p.textSecondary,fontSize=14.sp)
@@ -202,7 +201,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                             FreshCutSectionTitle("Участники · ${members.size}",Modifier.weight(1f))
                             if(manage) FreshCutToolbarAction(R.drawable.ic_user_plus,"Добавить участников",
-                                {addingMembers=true;message=null},primary=true,enabled=!busy)
+                                {addingMembers=true},primary=true,enabled=!busy)
                         }
                         Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
                             members.forEach { user ->
@@ -211,7 +210,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                     if(owner) "Владелец" else if(!user.active) "Доступ отключён" else "",
                                     showChevron=false,
                                     trailing=if(manage && !owner) {{ FreshCutToolbarAction(R.drawable.ic_user_minus,
-                                        "Исключить из группы",{perform{cloud.member(row.id,user.id,false)}},enabled=!busy) }} else null)
+                                        "Исключить из группы",{perform{cloud.member(row.id,user.id,false);notify("Участник исключён · ${user.name} · ${row.name}")}},enabled=!busy) }} else null)
                             }
                         }
                         if(!adminOnly && directory.participates(row)) {
@@ -229,23 +228,23 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                         }
                         if(manage) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
                             FreshCutToolbarAction(R.drawable.ic_trash,"Удалить группу",{
-                                groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id)}
+                                groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id);notify("Группа удалена · ${row.name}")}
                             },enabled=!busy)
                         }
                     }
                 }
                 if(pendingCount>0 && row!=null) Text("Изменения ожидают синхронизации",color=p.textSecondary,fontSize=12.sp)
-                message?.let { Text(it,color=p.error,fontSize=13.sp) }
             }
         },confirmButton={
             if(addingMembers && row!=null && manage && available.isNotEmpty()) {
                 SheetActionButton(onClick={perform{
                     val selected=chosen.intersect(available.mapTo(HashSet()){it.id})
                     selected.forEach { cloud.member(row.id,it,true) }
+                    if(selected.isNotEmpty()) notify("Участники добавлены · ${row.name} · ${selected.size}")
                     addingMembers=false
                 }},enabled=!busy && chosen.isNotEmpty()){Text("Добавить · ${chosen.size}")}
             } else if(!addingMembers && manage && (original==null || title.trim()!=row?.name)) {
-                SheetActionButton(onClick={perform{cloud.saveGroup(row?.id,title);groupSheet=false}},
+                SheetActionButton(onClick={perform{cloud.saveGroup(row?.id,title);notify((if(row==null) "Группа создана" else "Группа изменена")+" · "+title.trim());groupSheet=false}},
                     enabled=!busy && title.isNotBlank()){Text(if(original==null)"Создать" else "Сохранить")}
             }
         })
@@ -266,11 +265,11 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                         val owner=g.owner==row.id
                         val included=owner || directory.members.any{it.group==g.id && it.user==row.id}
                         FreshCutListRow(R.drawable.ic_group,g.name,selected=included,showChevron=false,
-                            onClick=if(owner)null else {{perform{cloud.member(g.id,row.id,!included)}}})
+                            onClick=if(owner)null else {{perform{cloud.member(g.id,row.id,!included);notify((if(included) "Участник исключён" else "Участник добавлен")+" · "+row.name+" · "+g.name)}}})
                     }
                 }
             }
-        },confirmButton={SheetActionButton(onClick={person=null;perform{cloud.updatePerson(row.id,personName,admin,active)}},enabled=!busy){Text("Сохранить")}})
+        },confirmButton={SheetActionButton(onClick={person=null;perform{cloud.updatePerson(row.id,personName,admin,active);notify((if(!active && row.active) "Доступ отключён" else if(active && !row.active) "Доступ восстановлен" else "Пользователь изменён")+" · "+personName.trim())}},enabled=!busy){Text("Сохранить")}})
     }
     deletion?.let{(title,action)->
         AppSheet(onDismissRequest={deletion=null},containerColor=p.sheet,title={SheetHeader(title)},text={
@@ -286,7 +285,6 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 SheetTextField(newName,{newName=it.take(50)},"Имя")
                 SheetTextField(newEmail,{newEmail=it.take(254)},"Электронная почта",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))
                 SheetTextField(newPassword,{newPassword=it.take(128)},"Пароль",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),visualTransformation=PasswordVisualTransformation())
-                message?.let{Text(it,color=p.error,fontSize=13.sp)}
             }
         },confirmButton={SheetActionButton(onClick={perform{
             val created=cloud.createPerson(newName,newEmail,newPassword)
@@ -298,7 +296,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 addingMembers=false
                 groupSheet=true
             }
-            message=if(created.confirmationSent)"Пользователь создан" else "Пользователь создан. Письмо подтверждения не отправлено"
+            notify("Пользователь создан · ${newName.trim()}"+if(created.confirmationSent) "" else " · Письмо подтверждения не отправлено")
             cloud.refresh()
         }},enabled=!busy && newName.isNotBlank() && newEmail.contains('@') && newPassword.length>=8){Text(if(busy)"Создание…" else "Создать")}})
     }
