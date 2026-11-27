@@ -184,6 +184,152 @@ internal class GitHubCloudAdmin(private val token: String) {
         bytes
     }
 
+    private fun checkedSha(value: String): String = value.also { require(it.matches(Regex("[0-9a-f]{40}"))) }
+
+    private fun readJson(path: String): JSONObject {
+        val response = request("GET", "$repoPath/$path")
+        requireSuccess(response)
+        return JSONObject(response.body)
+    }
+
+    private fun branchTip(branch: String): String? {
+        require(branch.startsWith("refs/heads/cloud-"))
+        val response = request("GET", "$repoPath/git/ref/" + branch.removePrefix("refs/"))
+        if (response.status == 404) return null
+        requireSuccess(response)
+        val obj = JSONObject(response.body).getJSONObject("object")
+        require(obj.getString("type") == "commit")
+        return checkedSha(obj.getString("sha"))
+    }
+
+    private fun readBlob(sha: String, max: Int): ByteArray {
+        checkedSha(sha)
+        val response = request("GET", "$repoPath/git/blobs/$sha", maxResponseBytes = max * 2 + 8192)
+        requireSuccess(response)
+        val json = JSONObject(response.body)
+        require(json.getString("sha") == sha && json.getString("encoding") == "base64")
+        val bytes = Base64.decode(json.getString("content"), Base64.DEFAULT)
+        require(bytes.size in 1..max && CloudRegistryBlob.sha(bytes) == sha)
+        return bytes
+    }
+
+    private fun writeBlob(bytes: ByteArray): String {
+        val response = request("POST", "$repoPath/git/blobs", JSONObject()
+            .put("content", Base64.encodeToString(bytes, Base64.NO_WRAP)).put("encoding", "base64"))
+        requireSuccess(response)
+        return checkedSha(JSONObject(response.body).getString("sha")).also {
+            require(it == CloudRegistryBlob.sha(bytes))
+        }
+    }
+
+    private data class CommitFile(val bytes: ByteArray, val parents: List<String>)
+
+    private fun readCommitFile(sha: String, name: String, max: Int): CommitFile {
+        val commit = readJson("git/commits/" + checkedSha(sha))
+        require(commit.getString("sha") == sha)
+        val tree = readJson("git/trees/" + checkedSha(commit.getJSONObject("tree").getString("sha")))
+        require(!tree.optBoolean("truncated"))
+        val entries = tree.getJSONArray("tree")
+        require(entries.length() == 1)
+        val file = entries.getJSONObject(0)
+        require(file.getString("path") == name && file.getString("type") == "blob" && file.getString("mode") == "100644")
+        val parents = commit.getJSONArray("parents")
+        require(parents.length() <= 1)
+        return CommitFile(readBlob(file.getString("sha"), max),
+            (0 until parents.length()).map { checkedSha(parents.getJSONObject(it).getString("sha")) })
+    }
+
+    internal suspend fun snapshotForRotation(provision: CloudProvision, signer: CloudAdminSigner): com.mok.buylist.sync.Snapshot =
+        withContext(Dispatchers.IO) {
+            requireRegistryStorage()
+            val manifest = provision.signed().verify(signer.publicKey, provision.space, 1)
+            val key = provision.key()
+            var snapshot = if (provision.checkpointSha.isEmpty()) com.mok.buylist.sync.Snapshot()
+                else CloudEpochCheckpoint.open(readBlob(provision.checkpointSha, CloudEpochCheckpoint.MAX_BYTES), manifest, key)
+            val tips = linkedMapOf<String, String?>()
+            for (grant in manifest.grants.filter { it.canWrite }) {
+                val branch = "refs/heads/cloud-v1/" + manifest.space.key.replace(':', '/') + "/${manifest.epoch}/${grant.deviceId}"
+                val tip = branchTip(branch)
+                tips[branch] = tip
+                var sha = tip
+                val reverse = arrayListOf<CloudSignedEvent>()
+                while (sha != null) {
+                    require(reverse.size < 500) { "История требует отдельного переноса: слишком много событий" }
+                    val file = readCommitFile(sha, "event.bin", CloudSignedEvent.MAX_DELTA_BYTES + 1024)
+                    val event = CloudSignedEvent.decode(file.bytes)
+                    require(event.header.deviceId == grant.deviceId)
+                    require(event.header.space == manifest.space && event.header.epoch == manifest.epoch)
+                    reverse.add(event)
+                    sha = file.parents.singleOrNull()
+                }
+                var cursor = CloudCursor()
+                for (event in reverse.asReversed()) {
+                    require(event.header.sequence == cursor.sequence + 1 && event.header.previousHash == cursor.digest)
+                    snapshot = com.mok.buylist.sync.SyncMerge.merge(snapshot, event.open(manifest, key))
+                    cursor = CloudCursor(event.header.sequence, event.digest)
+                }
+            }
+            require(tips.all { (branch, tip) -> branchTip(branch) == tip }) {
+                "Покупки изменились во время переноса. Повторите операцию."
+            }
+            snapshot
+        }
+
+    internal suspend fun storeCheckpoint(bytes: ByteArray): String = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        require(bytes.size in 29..CloudEpochCheckpoint.MAX_BYTES)
+        // Keep the blob reachable through an immutable commit/ref, not just loose object storage.
+        val blob = writeBlob(bytes)
+        val branch = "refs/heads/cloud-checkpoints-v1/$blob"
+        val old = branchTip(branch)
+        if (old == null) {
+            val commit = createFileCommit("checkpoint.bin", blob, null, "Store encrypted workspace checkpoint")
+            requireSuccess(request("POST", "$repoPath/git/refs", JSONObject().put("ref", branch).put("sha", commit)))
+        } else {
+            require(readCommitFile(old, "checkpoint.bin", CloudEpochCheckpoint.MAX_BYTES).bytes.contentEquals(bytes))
+        }
+        blob
+    }
+
+    internal suspend fun invitationCheckpoint(provision: CloudProvision): ByteArray = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        if (provision.checkpointSha.isEmpty()) byteArrayOf()
+        else readBlob(provision.checkpointSha, CloudEpochCheckpoint.MAX_BYTES)
+    }
+
+    private fun createFileCommit(name: String, blob: String, oldTip: String?, message: String): String {
+        val entry = JSONObject().put("path", name).put("mode", "100644").put("type", "blob").put("sha", blob)
+        val treeResponse = request("POST", "$repoPath/git/trees", JSONObject().put("tree", JSONArray().put(entry)))
+        requireSuccess(treeResponse)
+        val tree = checkedSha(JSONObject(treeResponse.body).getString("sha"))
+        val parents = JSONArray()
+        if (oldTip != null) parents.put(oldTip)
+        val commitResponse = request("POST", "$repoPath/git/commits", JSONObject()
+            .put("message", message).put("tree", tree).put("parents", parents))
+        requireSuccess(commitResponse)
+        return checkedSha(JSONObject(commitResponse.body).getString("sha"))
+    }
+
+    internal suspend fun publishEpoch(provision: CloudProvision, signer: CloudAdminSigner) = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        val next = CloudEpochControl.create(provision, signer)
+        val branch = CloudEpochControl.branch(provision.space)
+        val oldTip = branchTip(branch)
+        if (oldTip != null) {
+            val old = CloudEpochControl.decode(readCommitFile(oldTip, "control.bin", CloudEpochControl.MAX_BYTES).bytes)
+                .verify(signer.publicKey, provision.space)
+            if (old.body().contentEquals(next.body())) return@withContext
+            require(next.epoch > old.epoch || (next.epoch == old.epoch && next.retired && !old.retired)) {
+                "Нельзя заменить более новую версию списка"
+            }
+        }
+        val commit = createFileCommit("control.bin", writeBlob(next.encode()), oldTip, "Update signed workspace version")
+        if (oldTip == null) requireSuccess(request("POST", "$repoPath/git/refs", JSONObject().put("ref", branch).put("sha", commit)))
+        else requireSuccess(request("PATCH", "$repoPath/git/refs/" + branch.removePrefix("refs/"),
+            JSONObject().put("sha", commit).put("force", false)))
+        require(branchTip(branch) == commit) { "Не удалось подтвердить новую версию списка" }
+    }
+
     private fun deviceTitle(device: CloudDeviceDraft) = "buylist-device-${device.fingerprint}"
     private fun deviceSshKey(device: CloudDeviceDraft): String = CloudSshWire.openSsh(
         CloudDeviceProtocol.publicKey(device.publicKey) as java.security.interfaces.ECPublicKey
