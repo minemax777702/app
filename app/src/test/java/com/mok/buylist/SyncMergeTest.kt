@@ -393,6 +393,19 @@ class SyncMergeTest {
         assertEquals(merged, SyncMerge.merge(merged, old))
     }
 
+    @Test fun gtin14SurvivesRepeatedSync() {
+        val product = com.mok.buylist.data.StoredLentaProduct(
+            7, "Молоко", "", "", null, "", "4607958070862", "", 0, "", 1,
+        )
+        val snapshot = Snapshot(products = listOf(product), productBarcodes = listOf(
+            com.mok.buylist.data.StoredProductBarcode(7, "14607958070869"),
+        ))
+        val merged = SyncMerge.merge(snapshot, Snapshot())
+        assertEquals(setOf("4607958070862", "14607958070869"),
+            merged.productBarcodes.map { it.code }.toSet())
+        assertEquals(merged, SyncMerge.merge(merged, snapshot))
+    }
+
     @Test fun manuallyDeletedBarcodeIsNotRestoredByOlderPhone() {
         val product = com.mok.buylist.data.StoredLentaProduct(
             7, "Молоко", "", "", null, "", "4607078115627", "", 0, "", 1,

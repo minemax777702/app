@@ -67,7 +67,7 @@ object SyncMerge {
                     com.mok.buylist.data.StoredProductBarcode(p.id, it)
                 }
             }).filter { it.productId in activeProductIds &&
-            it.code.length in setOf(8, 12, 13) && it.code.all(Char::isDigit) }
+            it.code.length in setOf(8, 12, 13, 14) && it.code.all { digit -> digit in '0'..'9' } }
             .groupBy { it.productId to it.code }
             .values.map { rows ->
                 rows.maxWith(compareBy<com.mok.buylist.data.StoredProductBarcode> { it.updatedAt }
