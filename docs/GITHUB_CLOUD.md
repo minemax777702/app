@@ -79,3 +79,7 @@ JGit 7.8.1.202611041320-r includes the upstream Android PID guard (JGit commit 9
 ## Ошибки проверки административного реестра
 
 REG-01: неизвестный контейнер; REG-02: не прошла аутентификация AES-GCM (не тот ключ или повреждение); REG-03: подлинная полезная нагрузка не декодируется; REG-04: сбой Keystore или криптопровайдера; REG-05: несовпадение размера/хеша Git blob. Проверка формата и защита от отката сохраняются. Новые записи проверяются локальным расшифрованием перед отправкой. Не удалять ключ, приложение или удалённый файл для обхода ошибки. Восстановление из актуального .blcloud возможно только для точного SHA; при отсутствии ключа и копии расшифровка старых записей невозможна.
+
+### SSH diagnostic reports
+
+The test key is unchanged. Compare the OpenSSH SHA256 fingerprint with Deploy keys in app-cloud. The new report tests the local Keystore signature, observes allowlisted SSH milestones (TCP, banner, KEX, host key, public key and authentication), distinguishes errors SSH-01 through SSH-08, and checks Git read access. Run both ports and copy the report. No raw server replies, PAT, private key or shopping data are logged. Strict host key checking remains mandatory. Read-only deploy key is sufficient. R8 retains the configured JSch algorithms and probes only negotiated algorithms.

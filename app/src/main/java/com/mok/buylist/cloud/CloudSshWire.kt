@@ -39,6 +39,14 @@ internal object CloudSshWire {
     fun openSsh(key: ECPublicKey): String =
         "$ALGORITHM ${Base64.getEncoder().encodeToString(publicBlob(key))} buylist-ssh-test"
 
+    fun fingerprint(openSsh: String): String {
+        val parts = openSsh.trim().split(Regex("\\s+"))
+        require(parts.size >= 2 && parts[0] == ALGORITHM)
+        val blob = Base64.getDecoder().decode(parts[1])
+        return "SHA256:" + Base64.getEncoder().withoutPadding().encodeToString(
+            java.security.MessageDigest.getInstance("SHA-256").digest(blob))
+    }
+
     fun sign(key: PrivateKey, data: ByteArray): ByteArray {
         val der = Signature.getInstance("SHA256withECDSA").apply { initSign(key); update(data) }.sign()
         val (r, s) = parseSignature(der)

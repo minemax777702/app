@@ -10,6 +10,13 @@ import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 
 class CloudSshWireTest {
+    @Test fun fingerprintMatchesOpenSshBlob() {
+        val blob = byteArrayOf(1, 2, 3)
+        val expected = "SHA256:" + java.util.Base64.getEncoder().withoutPadding().encodeToString(
+            java.security.MessageDigest.getInstance("SHA-256").digest(blob))
+        org.junit.Assert.assertEquals(expected, CloudSshWire.fingerprint("ecdsa-sha2-nistp256 AQID label"))
+    }
+
     @Test fun publicBlobAndSshSignatureAreCanonical() {
         val pair = KeyPairGenerator.getInstance("EC").apply {
             initialize(ECGenParameterSpec("secp256r1"))

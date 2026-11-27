@@ -25,6 +25,20 @@ internal fun CloudSshProbePanel() {
     var publicKey by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var reports by remember { mutableStateOf<Map<Int, String>>(emptyMap()) }
+
+    fun copy(value: String, label: String) {
+        context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText(label, value))
+    }
+
+    suspend fun check(port: Int) {
+        val report = try { CloudSshProbe.check(port) }
+        catch (e: CancellationException) { throw e }
+        catch (e: CloudAdminException) { e.message ?: "SSH $port: неизвестная ошибка" }
+        catch (e: Exception) { "SSH $port: ${e.javaClass.simpleName}" }
+        catch (e: LinkageError) { "SSH $port: несовместимость клиента (${e.javaClass.simpleName})" }
+        reports = reports + (port to report)
+    }
 
     fun execute(operation: suspend () -> Unit) {
         if (busy) return
@@ -48,12 +62,27 @@ internal fun CloudSshProbePanel() {
         }, enabled = !busy)
         else {
             Text(key, color = p.textSecondary, fontSize = 12.sp)
+            val fingerprint = remember(key) { com.mok.buylist.cloud.CloudSshWire.fingerprint(key) }
+            Text("Отпечаток тестового ключа", color = p.text, fontSize = 14.sp)
+            Text(fingerprint, color = p.textSecondary, fontSize = 12.sp)
             FreshCutSecondaryButton("Копировать открытый ключ", {
-                context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("SSH public key", key))
+                copy(key, "SSH public key")
                 message = "Открытый ключ скопирован"
             }, enabled = !busy)
-            FreshCutSecondaryButton("Проверить SSH через 443", { execute { message = CloudSshProbe.check(443) } }, enabled = !busy)
-            FreshCutSecondaryButton("Проверить SSH через 22", { execute { message = CloudSshProbe.check(22) } }, enabled = !busy)
+            FreshCutSecondaryButton("Проверить оба порта", {
+                execute {
+                    reports = emptyMap()
+                    check(443)
+                    check(22)
+                }
+            }, enabled = !busy)
+            FreshCutSecondaryButton("Проверить SSH через 443", { execute { check(443) } }, enabled = !busy)
+            FreshCutSecondaryButton("Проверить SSH через 22", { execute { check(22) } }, enabled = !busy)
+            reports.toSortedMap().values.forEach { Text(it, color = p.text, fontSize = 13.sp) }
+            if (reports.isNotEmpty()) FreshCutSecondaryButton("Копировать отчёт", {
+                copy("BuyList SSH diagnostic\nAndroid API ${android.os.Build.VERSION.SDK_INT}\n$fingerprint\n\n" +
+                    reports.toSortedMap().values.joinToString("\n\n"), "SSH diagnostic")
+            }, enabled = !busy)
         }
         if (busy) Text("Проверяем…", color = p.textSecondary, fontSize = 14.sp)
         message?.let { Text(it, color = p.text, fontSize = 14.sp) }

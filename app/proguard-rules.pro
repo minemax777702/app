@@ -10,16 +10,17 @@
 
 # JSch algorithm implementations are selected by class name. Keep only implementations
 # used in the pinned P-256/AES-CTR/HMAC configuration of the diagnostic.
--keep class com.jcraft.jsch.DHEC256 { <init>(); }
--keep class com.jcraft.jsch.UserAuthNone { <init>(); }
--keep class com.jcraft.jsch.UserAuthPublicKey { <init>(); }
--keep class com.jcraft.jsch.jce.ECDHN { <init>(); }
--keep class com.jcraft.jsch.jce.SHA256 { <init>(); }
--keep class com.jcraft.jsch.jce.SignatureECDSA256 { <init>(); }
--keep class com.jcraft.jsch.jce.HMACSHA256 { <init>(); }
--keep class com.jcraft.jsch.jce.AES128CTR { <init>(); }
--keep class com.jcraft.jsch.jce.Random { <init>(); }
--keep class com.jcraft.jsch.jce.MD5 { <init>(); }
+# Keep implementations and inherited crypto methods callable through reflection.
+-keep class com.jcraft.jsch.DHEC256 { *; }
+-keep class com.jcraft.jsch.UserAuthNone { *; }
+-keep class com.jcraft.jsch.UserAuthPublicKey { *; }
+-keep class com.jcraft.jsch.jce.ECDHN { *; }
+-keep class com.jcraft.jsch.jce.SHA256 { *; }
+-keep class com.jcraft.jsch.jce.SignatureECDSA256 { *; }
+-keep class com.jcraft.jsch.jce.HMACSHA256 { *; }
+-keep class com.jcraft.jsch.jce.AES128CTR { *; }
+-keep class com.jcraft.jsch.jce.Random { *; }
+-keep class com.jcraft.jsch.jce.MD5 { *; }
 # Optional JSch agents/providers are not used on Android. No global missing-class suppression.
 -dontwarn com.sun.jna.**
 -dontwarn org.newsclub.net.unix.**
