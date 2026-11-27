@@ -49,7 +49,7 @@ internal data class CloudDirectory(
     val members: List<CloudMember> = emptyList(),
 ) {
     fun manages(group: CloudGroup) = me?.let { it.active && (it.id == group.owner || it.admin) } == true
-    fun participates(group: CloudGroup) = me?.let { person -> group.owner == person.id || members.any { it.group == group.id && it.user == person.id } } == true
+    fun participates(group: CloudGroup) = me?.let { person -> person.active && (group.owner == person.id || members.any { it.group == group.id && it.user == person.id }) } == true
     fun manages(list: CloudList) = me?.let { person ->
         person.active && (list.owner == person.id || groups.any { it.id == list.group && it.owner == person.id })
     } == true
