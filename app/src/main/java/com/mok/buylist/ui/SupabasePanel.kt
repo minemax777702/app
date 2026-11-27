@@ -3,6 +3,7 @@ package com.mok.buylist.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
@@ -131,7 +132,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                         selected=workspace?.listId==row.id,showChevron=false,
                         onClick={ editingList=row;newListGroup=null;listSheet=true })
                 }
-                FreshCutSecondaryButton("Создать список",{ editingList=null;newListGroup=null;listSheet=true },enabled=!busy)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.End) { FreshCutToolbarAction(R.drawable.ic_plus,"Создать список",{ editingList=null;newListGroup=null;listSheet=true },enabled=!busy) }
             }
             selectedTab == 1 -> {
                 directory.groups.filter { adminOnly || directory.participates(it) }.forEach { group ->
@@ -140,7 +141,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     FreshCutListRow(R.drawable.ic_group,group.name,subtitle,showChevron=false,
                         onClick={ editingGroup=group;addingMembers=false;groupSheet=true })
                 }
-                FreshCutSecondaryButton("Создать группу",{editingGroup=null;addingMembers=false;groupSheet=true},enabled=!busy)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.End) { FreshCutToolbarAction(R.drawable.ic_plus,"Создать группу",{editingGroup=null;addingMembers=false;groupSheet=true},enabled=!busy) }
             }
             else -> {
                 directory.people.forEach { row ->
@@ -176,8 +177,8 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
                 SheetTextField(title,{title=it.take(100)},"Название")
                 if(row==null){
-                    FreshCutListRow(R.drawable.ic_user_round,"Личный",selected=group==null,showChevron=false,onClick={group=null})
-                    directory.groups.filter{directory.participates(it)}.forEach{g->FreshCutListRow(R.drawable.ic_group,g.name,selected=group==g.id,showChevron=false,onClick={group=g.id})}
+                    val choices=directory.groups.filter{directory.participates(it)}
+                    FilterSelect("Группа",choices.firstOrNull{it.id==group}?.name ?: "Личный",listOf("Личный")+choices.map{it.name}) { index -> group=choices.getOrNull(index-1)?.id }
                 }else FreshCutSecondaryButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id);notifyPending("Список удалён · ${row.name}") }},enabled=!busy)
             }
         },confirmButton={SheetActionButton(onClick={listSheet=false;perform{cloud.saveList(row?.id,title,group);notifyPending((if(row==null) "Список создан" else "Список изменён")+" · "+title.trim())}},enabled=!busy && title.isNotBlank()){Text("Сохранить")}})
@@ -194,7 +195,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
         }.sortedWith(compareByDescending<CloudPerson> { it.id == row.owner }.thenBy { it.name })
         val memberIds = members.mapTo(HashSet()) { it.id }
         val available = directory.people.filter { it.active && it.id !in memberIds }
-        val visible = available.filter { it.name.contains(query.trim(), ignoreCase = true) }
+        val visible = available.filter { query.isNotBlank() && it.name.contains(query.trim(), ignoreCase = true) }
         AppSheet(onDismissRequest={
             if(!busy) { if(addingMembers) addingMembers=false else groupSheet=false }
         },containerColor=p.sheet,title={
@@ -210,7 +211,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                     chosen=if(user.id in chosen) chosen-user.id else chosen+user.id
                                 })
                         }
-                        if(visible.isEmpty()) Text("Пользователи не найдены",color=p.textSecondary,fontSize=13.sp)
+                        if(query.isNotBlank() && visible.isEmpty()) Text("Пользователи не найдены",color=p.textSecondary,fontSize=13.sp)
                     } else Text("Нет пользователей для добавления",color=p.textSecondary,fontSize=14.sp)
                     if(me.admin) FreshCutListRow(R.drawable.ic_user_plus,"Создать пользователя",
                         showChevron=false,onClick={
@@ -233,7 +234,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                 FreshCutListRow(R.drawable.ic_user_round,user.name,
                                     if(owner) "Владелец" else if(!user.active) "Доступ отключён" else "",
                                     showChevron=false,
-                                    trailing=if(manage && !owner) {{ FreshCutToolbarAction(R.drawable.ic_user_minus,
+                                    trailing=if(manage && !owner) {{ FreshCutToolbarAction(R.drawable.ic_close,
                                         "Исключить из группы",{perform{cloud.member(row.id,user.id,false);notifyPending("Участник исключён · ${user.name} · ${row.name}")}},enabled=!busy) }} else null)
                             }
                         }
@@ -255,8 +256,8 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                 if(!busy){groupSheet=false;leavingGroup=row}
                             })
                         }
-                        if(manage) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                            FreshCutToolbarAction(R.drawable.ic_trash,"Удалить группу",{
+                        if(manage) {
+                            FreshCutSecondaryButton("Удалить группу",{
                                 groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id);notifyPending("Группа удалена · ${row.name}")}
                             },enabled=!busy)
                         }
@@ -310,15 +311,19 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
         var personName by remember(row){mutableStateOf(row.name)}
         var admin by remember(row){mutableStateOf(row.admin)}
         var active by remember(row){mutableStateOf(row.active)}
+        var groupQuery by remember(row.id){mutableStateOf("")}
         AppSheet(onDismissRequest={person=null},containerColor=p.sheet,title={SheetHeader(row.name)},text={
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
                 SheetTextField(personName,{personName=it.take(50)},"Имя")
-                FreshCutListRow(R.drawable.ic_user_round,"Пользователь",selected=!admin,showChevron=false,onClick={admin=false})
-                FreshCutListRow(R.drawable.ic_shield,"Администратор",selected=admin,showChevron=false,onClick={admin=true})
-                FreshCutSecondaryButton(if(active)"Отключить доступ" else "Восстановить доступ",{active=!active})
+                FilterSelect("Роль",if(admin) "Администратор" else "Пользователь",listOf("Пользователь","Администратор")) { admin=it==1 }
+                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    Text("Доступ к приложению",modifier=Modifier.weight(1f),color=p.text)
+                    Switch(checked=active,onCheckedChange={active=it},enabled=!busy)
+                }
                 if(row.active) {
                     FreshCutSectionTitle("Группы")
-                    directory.groups.filter{directory.manages(it)}.forEach{g ->
+                    SheetTextField(groupQuery,{groupQuery=it.take(100)},"Найти группу")
+                    directory.groups.filter{g -> directory.manages(g) && (g.owner==row.id || directory.members.any{it.group==g.id && it.user==row.id} || (groupQuery.isNotBlank() && g.name.contains(groupQuery.trim(),ignoreCase=true)))}.forEach{g ->
                         val owner=g.owner==row.id
                         val included=owner || directory.members.any{it.group==g.id && it.user==row.id}
                         FreshCutListRow(R.drawable.ic_group,g.name,selected=included,showChevron=false,

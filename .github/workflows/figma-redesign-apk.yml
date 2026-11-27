@@ -131,6 +131,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      actions: write
     concurrency:
       group: publish-apk-${{ github.ref }}
       cancel-in-progress: false
@@ -169,3 +170,24 @@ jobs:
             args+=(--notes "$notes")
           fi
           gh release create "$TAG" release/app-release.apk "${args[@]}"
+      - name: Rotate published Beta releases
+        if: needs.build.outputs.channel == 'beta'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          gh api --paginate "repos/$repo/releases?per_page=100" | jq -s -r 'add | map(select(.prerelease and (.draft|not) and (.tag_name|test("^beta-v[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+$")))) | sort_by(.published_at) | reverse | .[10:][] | .tag_name' > "$RUNNER_TEMP/old-beta-tags"
+          while IFS= read -r tag; do
+            code="${tag##*-}"
+            number=$((code - 1000))
+            runs="$(gh api --paginate "repos/$repo/actions/workflows/figma-redesign-apk.yml/runs?branch=beta&per_page=100" | jq -s -r --argjson n "$number" '.[].workflow_runs[] | select(.run_number == $n and .head_branch == "beta") | .id')"
+            for run in $runs; do
+              gh api --paginate "repos/$repo/actions/runs/$run/artifacts?per_page=100" | jq -r '.artifacts[] | select(.name == "fresh-cut-release" or .name == "fresh-cut-r8-mapping") | .id' > "$RUNNER_TEMP/old-beta-artifacts"
+              while IFS= read -r artifact; do
+                gh api --method DELETE "repos/$repo/actions/artifacts/$artifact"
+              done < "$RUNNER_TEMP/old-beta-artifacts"
+            done
+            gh release delete "$tag" --repo "$repo" --cleanup-tag --yes
+          done < "$RUNNER_TEMP/old-beta-tags"

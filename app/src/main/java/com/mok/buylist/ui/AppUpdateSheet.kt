@@ -95,7 +95,8 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 val result = AppUpdater.releaseNotes(target, page)
                 if (channel == target) {
                     history = (history + result.entries).distinctBy { it.version.code }.sortedByDescending { it.version.code }
-                    historyMore = result.hasMore
+                    if (target.name == "BETA") history = history.take(10)
+                    historyMore = result.hasMore && (target.name != "BETA" || history.size < 10)
                     historyPage = page + 1
                 }
             } catch (e: CancellationException) {
@@ -247,14 +248,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                                     .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                             } else changeNotifications(!notificationsEnabled)
                         }, primary = notificationsEnabled && notificationsAllowed)
-                    FreshCutToolbarAction(R.drawable.ic_history,
-                        if (historyOpen) "Скрыть историю версий" else "История версий", {
-                            historyOpen = !historyOpen
-                            if (historyOpen) {
-                                changelogOpen = false
-                                if (history.isEmpty()) loadHistory()
-                            }
-                        }, primary = historyOpen)
+
                 }
                 FreshCutSegments(UpdateChannel.entries.map { it.label }, channel.ordinal, { index ->
                     if (!busy && channel.ordinal != index) {
@@ -276,9 +270,9 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                                 ready != null -> "Готово к установке"
                                 update != null -> "Доступно обновление"
                                 error != null -> "Проверка не удалась"
-                                release == null -> "Нет обновлений в канале"
-                                release!!.version.code < installed.code -> "В канале более старая версия"
-                                else -> "Последняя версия установлена"
+                                release == null -> "Нет обновлений"
+                                release!!.version.code < installed.code -> "Версия новее канала"
+                                else -> "Актуальная версия"
                             }
                             Text(status, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                             if (update != null || ready != null) {
@@ -326,8 +320,10 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                     FreshCutSectionTitle("Что нового")
                     ReleaseChangelog(notes.changelog)
                 }
+                FreshCutListRow(R.drawable.ic_history, "История версий", showChevron = false,
+                    trailing = { androidx.compose.material3.Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(if(historyOpen) 180f else 0f), tint=p.textSecondary) },
+                    onClick = { historyOpen = !historyOpen; if(historyOpen) { changelogOpen=false; if(history.isEmpty()) loadHistory() } })
                 if (historyOpen) {
-                    FreshCutSectionTitle("История версий")
                     history.forEach { entry ->
                         FreshCutListRow(R.drawable.ic_history, entry.version.name,
                             listOfNotNull(formatReleaseDate(entry.publishedAt, entry.version.channel).takeIf { it.isNotBlank() },
