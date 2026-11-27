@@ -351,8 +351,13 @@ object SyncMerge {
 
     /** Не пересылаем архивы, которые уже есть у получателя. */
     fun forPeer(s: Snapshot, peer: Hello): Snapshot {
-        val known = peer.archives.filter { it.digest.isNotEmpty() }.mapTo(HashSet()) { it.prefix to it.digest }
-        return s.copy(archives = s.archives.filter { (archivePrefix(it.uid) to archiveDigest(it)) !in known })
+        val known = peer.archives.filter { it.digest.isNotEmpty() }
+            .groupBy({ it.prefix }, { it.digest })
+            .mapValues { (_, digests) -> digests.toHashSet() }
+        return s.copy(archives = s.archives.filter { archive ->
+            val digests = known[archivePrefix(archive.uid)]
+            digests == null || archiveDigest(archive) !in digests
+        })
     }
 
     fun archivePrefix(uid: String): Long =
