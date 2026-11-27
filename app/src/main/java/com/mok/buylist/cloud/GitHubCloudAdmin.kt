@@ -3,6 +3,8 @@ package com.mok.buylist.cloud
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONArray
+import java.util.UUID
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -98,6 +100,63 @@ internal class GitHubCloudAdmin(private val token: String) {
         sha
     }
 
+    internal data class BackupFile(val id: String, val sha: String, val size: Long)
+
+    private fun backupPath(id: String): String {
+        require(UUID.fromString(id).toString() == id)
+        return "$repoPath/contents/backups/manual/$id.enc"
+    }
+
+    suspend fun listBackups(): List<BackupFile> = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        val response = request("GET", "$repoPath/contents/backups/manual", maxResponseBytes = 1_048_576)
+        if (response.status == 404) {
+            requireSuccess(request("GET", "$repoPath/contents"))
+            return@withContext emptyList()
+        }
+        requireSuccess(response)
+        val array = JSONArray(response.body)
+        // Contents API returns at most 1000 entries. Do not silently truncate.
+        if (array.length() >= 1000) throw CloudAdminException("Достигнут предел списка резервных копий.")
+        buildList {
+            repeat(array.length()) { index ->
+                val entry = array.getJSONObject(index)
+                val name = entry.optString("name")
+                val id = name.removeSuffix(".enc")
+                val validId = runCatching { UUID.fromString(id).toString() == id }.getOrDefault(false)
+                val sha = entry.optString("sha")
+                val size = entry.optLong("size", -1L)
+                if (entry.optString("type") == "file" && name.endsWith(".enc") &&
+                    validId && sha.matches(Regex("[0-9a-f]{40}")) && size in 1L..CloudPurchaseBackupCodec.MAX_FILE_BYTES.toLong()) {
+                    add(BackupFile(id, sha, size))
+                }
+            }
+        }
+    }
+
+    suspend fun uploadBackup(bytes: ByteArray): String = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        require(bytes.size in 1..CloudPurchaseBackupCodec.MAX_FILE_BYTES)
+        val id = UUID.randomUUID().toString()
+        val payload = JSONObject().put("message", "Add encrypted manual backup")
+            .put("content", Base64.encodeToString(bytes, Base64.NO_WRAP))
+        // Unique immutable path; no SHA and no overwrite.
+        requireSuccess(request("PUT", backupPath(id), payload))
+        id
+    }
+
+    suspend fun downloadBackup(file: BackupFile): ByteArray = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        val response = request("GET", backupPath(file.id), maxResponseBytes = 1_048_576)
+        requireSuccess(response)
+        val data = JSONObject(response.body)
+        if (data.optString("type") != "file" || data.optString("encoding") != "base64" || data.optString("sha") != file.sha)
+            throw CloudAdminException("Файл изменился. Обновите список резервных копий.")
+        val bytes = Base64.decode(data.getString("content"), Base64.DEFAULT)
+        require(bytes.size.toLong() == file.size && bytes.size <= CloudPurchaseBackupCodec.MAX_FILE_BYTES)
+        bytes
+    }
+
     private fun verifyOwner() {
         val reply = request("GET", "/user")
         requireSuccess(reply)
@@ -140,7 +199,7 @@ internal class GitHubCloudAdmin(private val token: String) {
         throw CloudAdminException(message)
     }
 
-    private fun request(method: String, path: String, body: JSONObject? = null): Response {
+    private fun request(method: String, path: String, body: JSONObject? = null, maxResponseBytes: Int = 262_144): Response {
         val connection = URL("https://api.github.com$path").openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
@@ -168,7 +227,7 @@ internal class GitHubCloudAdmin(private val token: String) {
                 while (true) {
                     val count = input.read(buffer)
                     if (count < 0) break
-                    if (output.size() + count > 262_144) throw CloudAdminException("Слишком большой ответ GitHub.")
+                    if (output.size() + count > maxResponseBytes) throw CloudAdminException("Слишком большой ответ GitHub.")
                     output.write(buffer, 0, count)
                 }
                 output.toString("UTF-8")

@@ -52,6 +52,7 @@ internal fun CloudAdminPanel(
     val vault = remember(context.applicationContext) { CloudAdminVault(context) }
     var saved by remember { mutableStateOf(vault.exists) }
     var showUsers by remember { mutableStateOf(false) }
+    var showCloudBackups by remember { mutableStateOf(false) }
     var recoveryMode by remember { mutableStateOf(0) }
     var verifiedToken by remember { mutableStateOf<String?>(null) }
     var authentication by remember { mutableStateOf<CancellationSignal?>(null) }
@@ -67,6 +68,7 @@ internal fun CloudAdminPanel(
 
     fun lock() {
         showUsers = false
+        showCloudBackups = false
         recoveryMode = 0
         generation++
         val previous = authentication
@@ -172,6 +174,10 @@ internal fun CloudAdminPanel(
         }
     }
 
+    if (showCloudBackups && session != null && storage?.actionsEnabled == false) {
+        CloudBackupPanel(requireNotNull(session), onBack = { showCloudBackups = false })
+        return
+    }
     if (showUsers && session != null && storage?.actionsEnabled == false) {
         CloudUsersPanel(requireNotNull(session), onBack = { showUsers = false })
         return
@@ -222,6 +228,7 @@ internal fun CloudAdminPanel(
                 })
                 if (current.actionsEnabled == false) {
                     FreshCutSecondaryButton("Пользователи, группы и устройства", { showUsers = true }, enabled = !busy)
+                    FreshCutSecondaryButton("Резервные копии покупок", { showCloudBackups = true }, enabled = !busy)
                     FreshCutSectionTitle("Восстановление")
                     FreshCutSecondaryButton("Сохранить копию реестра", { recoveryMode = 1 }, enabled = !busy)
                     if (recoveryFile == null) {
