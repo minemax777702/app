@@ -116,6 +116,7 @@ dependencies {
     implementation(libs.zxing.core)
     implementation(libs.play.services.nearby)
     // Pure Java SSH transport diagnostic; no native agent or export of Keystore keys.
+    implementation("androidx.work:work-runtime:2.10.2")
     implementation("com.github.mwiede:jsch:2.28.8")
     implementation("org.eclipse.jgit:org.eclipse.jgit:7.8.1.202611041320-r")
 

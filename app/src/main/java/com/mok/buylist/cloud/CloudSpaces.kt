@@ -46,6 +46,9 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     private val _issue = MutableStateFlow<String?>(null)
     val issue: StateFlow<String?> = _issue
     private var started = false
+    private val ready = CompletableDeferred<Unit>()
+    private var foregroundJob: Job? = null
+    private val syncAllMutex = Mutex()
 
     @Synchronized fun start() {
         if (started) return
@@ -63,14 +66,42 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                     catch (_: LinkageError) { _issue.value = "Не удалось загрузить облачный модуль." }
                 }
             }
-            while (isActive) {
-                for (session in _sessions.value.filterNot { it.historical }) sync(session)
-                delay(45_000)
+            ready.complete(Unit)
+            if (_sessions.value.any { !it.historical }) CloudSyncWork.schedule(context)
+        }
+    }
+
+    suspend fun awaitReady() { ready.await() }
+
+    @Synchronized fun foreground(active: Boolean) {
+        if (!active) {
+            foregroundJob?.cancel(); foregroundJob = null
+            if (_sessions.value.any { !it.historical }) CloudSyncWork.enqueue(context)
+            return
+        }
+        if (foregroundJob?.isActive == true) return
+        foregroundJob = scope.launch(Dispatchers.IO) {
+            awaitReady()
+            while (isActive) { syncAll(); delay(45_000) }
+        }
+    }
+
+    suspend fun syncAll(): Boolean = withContext(Dispatchers.IO) {
+        awaitReady()
+        syncAllMutex.withLock {
+            var ok = true
+            for (session in _sessions.value.filterNot { it.historical }) {
+                kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                sync(session)
+                val status = session.status.value
+                if (!session.historical && (status.syncing || status.issue != null || status.lastSuccess == 0L)) ok = false
             }
+            ok
         }
     }
 
     suspend fun importInvitation(bytes: ByteArray, confirmedAdmin: String) = withContext(Dispatchers.IO) {
+        awaitReady()
         lock.withLock {
             val invitation = CloudInvitation.decode(bytes)
             require(invitation.adminFingerprint == confirmedAdmin) { "Код администратора не совпадает" }
@@ -104,6 +135,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
             markHistorical()
             _issue.value = null
         }
+        CloudSyncWork.schedule(context)
         _sessions.value.filter { it.space == CloudInvitation.decode(bytes).space && !it.historical }.maxByOrNull { it.epoch }?.let { requestSync(it) }
     }
 
@@ -140,7 +172,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     }
 
     fun requestSync(session: CloudSpaceSession) {
-        scope.launch(Dispatchers.IO) { sync(session) }
+        if (!session.historical) CloudSyncWork.enqueue(context)
     }
 
     suspend fun edit(session: CloudSpaceSession, action: suspend (ShoppingRepository) -> Unit) {

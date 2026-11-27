@@ -159,7 +159,13 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
+    override fun onStart() {
+        super.onStart()
+        (application as com.mok.buylist.ShoppingApp).cloudSpaces.foreground(true)
+    }
+
     override fun onStop() {
+        (application as com.mok.buylist.ShoppingApp).cloudSpaces.foreground(false)
         nearbySync.stop()
         super.onStop()
     }
