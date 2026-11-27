@@ -37,6 +37,10 @@ import com.mok.buylist.lentaCatalog
 import com.mok.buylist.ui.theme.LocalPalette
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -190,13 +194,17 @@ private fun LentaResult(product: LentaProduct, row: ProductSearchRow, onClick: (
 fun lentaPrice(product: LentaProduct): String = if (product.price.isBlank() || product.price == "null") "—" else
     "${product.price} ₽"
 
+private val lentaImageLoads = Semaphore(4)
+
 @Composable
 fun LentaImage(url: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val bitmap by produceState<android.graphics.Bitmap?>(null, url) {
         value = null
         value = withContext(Dispatchers.IO) {
+            lentaImageLoads.withPermit {
             runCatching {
+                currentCoroutineContext().ensureActive()
                 if (!url.startsWith("https://")) return@runCatching null
                 val key = MessageDigest.getInstance("SHA-256").digest(url.toByteArray()).joinToString("") { "%02x".format(it) }
                 val file = java.io.File(context.cacheDir, "lenta_$key")
@@ -214,6 +222,7 @@ fun LentaImage(url: String, modifier: Modifier = Modifier) {
                                     val buffer = ByteArray(8192)
                                     var total = 0
                                     while (true) {
+                                        currentCoroutineContext().ensureActive()
                                         val count = input.read(buffer)
                                         if (count < 0) break
                                         total += count
@@ -222,10 +231,12 @@ fun LentaImage(url: String, modifier: Modifier = Modifier) {
                                     }
                                 }
                             }
+                            currentCoroutineContext().ensureActive()
                             if (!temporary.renameTo(file) && !file.exists()) error("image cache")
                         } finally { temporary.delete() }
                     } finally { c.disconnect() }
                 }
+                currentCoroutineContext().ensureActive()
                 val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
                 BitmapFactory.decodeFile(file.path, bounds)
                 if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
@@ -235,7 +246,8 @@ fun LentaImage(url: String, modifier: Modifier = Modifier) {
                 var sample = 1
                 while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 1024) sample *= 2
                 BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
-            }.getOrNull()
+            }.onFailure { if (it is CancellationException) throw it }.getOrNull()
+            }
         }
     }
     val p = LocalPalette.current
