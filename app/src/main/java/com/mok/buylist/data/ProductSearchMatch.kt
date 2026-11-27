@@ -179,7 +179,17 @@ internal fun matchesProductName(name: String, query: String): Boolean {
     if (words.isEmpty()) return false
 
     val requestedType = primaryProductType(wanted, allowPrefix = true)
-    if (requestedType != null && titleProductType(name) != requestedType) return false
+    val actualType = titleProductType(name)
+    if (requestedType != null && actualType != requestedType) return false
+    // An ambiguous prefix (e.g. "мол" for milk and milk jugs) must still
+    // match a primary product type, not an ingredient or marketing name.
+    val lastTerm = wanted.last()
+    if (requestedType == null && lastTerm.length >= 2 && lastTerm !in productTypeByWord) {
+        val candidateTypes = productTypeByWord.asSequence()
+            .filter { (form, _) -> form.startsWith(lastTerm) }
+            .map { it.value }.toSet()
+        if (candidateTypes.size > 1 && actualType !in candidateTypes) return false
+    }
 
     fun matches(index: Int, word: String): Boolean {
         val term = wanted[index]
