@@ -3,11 +3,10 @@
 Stable 1.2.0 is the baseline. GitHub remains only the source/release host. No SSH, deploy keys, invitation files, QR enrollment or nearby transport.
 
 ## Backend setup
-1. Create a dedicated Supabase project in the BuyList organization.
-2. Apply `supabase/schema.sql` once in SQL Editor or via a migration. Run security advisors and RLS tests.
-3. Keep email confirmation enabled; configure email delivery before onboarding. Users register using name, email and password. The personal list is created automatically. Grant the first admin role only through the dashboard/SQL, using a verified account ID: `update public.profiles set role='admin' where id='<verified-user-uuid>';`.
-4. Set GitHub repository Actions variables SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY (only the public publishable key, never a service-role key). Local builds accept the same Gradle properties. No runtime setup form.
-5. Build a signed beta and verify with two distinct users/phones.
+Project [buylist](https://supabase.com/dashboard/project/fgklaqxwwfhjukxkxvja) is deployed in eu-central-1. The initial schema is applied. RLS and Realtime publication verified; security advisors report no findings. Database checks of registration trigger, private list isolation, group CRUD/membership, optimistic revision update, membership revocation, role protection and user disabling passed in a rolled-back transaction.
+The public client configuration is supplied in gradle.properties; optional nonempty CI variables override it. Never place a service-role or secret key in the APK.
+Register with a confirmed email, then grant the initial admin role in the dashboard/SQL to the verified account ID: `update public.profiles set role='admin' where id='<verified-user-uuid>';`. Configure email delivery for production if needed.
+Signed beta and device-to-device authentication, Realtime and offline behavior still need verification.
 
 ## Storage
 Five tables: profiles, groups, group_members, shopping_lists, list_states. Group owners manage membership directly; group members can edit purchases; global admins manage account roles/status and groups but cannot implicitly read private purchases. Delete archives list/group metadata, retaining existing purchase content. Users are disabled instead of deleting auth identity and purchase attribution.

@@ -34,8 +34,10 @@ android {
         versionName = appVersionName.get()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        val url = signingValue("SUPABASE_URL").orElse("").get()
-        val key = signingValue("SUPABASE_PUBLISHABLE_KEY").orElse("").get()
+        val url = providers.environmentVariable("SUPABASE_URL").filter { it.isNotBlank() }
+            .orElse(providers.gradleProperty("SUPABASE_URL")).orElse("").get()
+        val key = providers.environmentVariable("SUPABASE_PUBLISHABLE_KEY").filter { it.isNotBlank() }
+            .orElse(providers.gradleProperty("SUPABASE_PUBLISHABLE_KEY")).orElse("").get()
         require(url.isEmpty() || url.matches(Regex("https://[a-zA-Z0-9.-]+")))
         require(key.isEmpty() || key.matches(Regex("sb_publishable_[A-Za-z0-9_-]+")))
         buildConfigField("String", "SUPABASE_URL", "\"$url\"")
