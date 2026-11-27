@@ -365,6 +365,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 archive = archive,
                 bought = bought,
                 users = users,
+                listPicker = listPicker,
             )
         }
 

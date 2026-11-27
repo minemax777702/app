@@ -81,7 +81,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
             return@withTransaction "Этот штрихкод уже добавлен"
         }
         val previous = records.firstOrNull { it.productId == id && it.code == code }
-        val at = maxOf(System.currentTimeMillis(), (previous?.updatedAt ?: -1L) + 1)
+        val at = maxOf(com.mok.buylist.sync.MutationClock.next(), (previous?.updatedAt ?: -1L) + 1)
         dao.upsertProductBarcode(StoredProductBarcode(id, code, at, false))
         null
     }
@@ -90,7 +90,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         val current = dao.getProductBarcodes().firstOrNull {
             it.productId == id && it.code == code && !it.deleted
         } ?: return@withTransaction "Штрихкод не найден"
-        dao.upsertProductBarcode(current.copy(updatedAt = maxOf(System.currentTimeMillis(), current.updatedAt + 1), deleted = true))
+        dao.upsertProductBarcode(current.copy(updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), current.updatedAt + 1), deleted = true))
         null
     }
 
@@ -105,7 +105,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
                 com.mok.buylist.sync.barcodeMatches(it.code, next) }) {
             return@withTransaction "Этот штрихкод уже используется"
         }
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         dao.upsertProductBarcode(current.copy(updatedAt = maxOf(now, current.updatedAt + 1), deleted = true))
         val previouslyUsed = records.firstOrNull { it.productId == id && it.code == next }
         val restoredAt = maxOf(now, (previouslyUsed?.updatedAt ?: -1L) + 1)
@@ -135,10 +135,12 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
             } catch (_: Exception) { product }
         } else product
         db.withTransaction {
-            val old = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()
+            val previous = dao.getLentaProducts().firstOrNull { it.id == product.id }
+            val old = previous?.toProduct()
+            previous?.let { com.mok.buylist.sync.MutationClock.observe(it.updatedAt) }
             val saved = enriched.copy(ean = catalogBarcode(enriched.ean) ?: catalogBarcode(old?.ean).orEmpty(), stock = null)
             val deletedAt = dao.getTombstones().firstOrNull { it.kind == TombKind.PRODUCT.code && it.target == product.id.toString() }?.deletedAt ?: 0
-            dao.upsertLentaProduct(saved.toStored().copy(updatedAt = maxOf(System.currentTimeMillis(), deletedAt + 1)))
+            dao.upsertLentaProduct(saved.toStored().copy(updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), deletedAt + 1)))
             // Если Лента заменила EAN у того же ID, старый код остаётся доступным.
             rememberBarcode(product.id, old?.ean)
             rememberBarcode(product.id, saved.ean)
@@ -148,9 +150,10 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
 
     suspend fun removeById(id: Long) {
         db.withTransaction {
+            dao.getLentaProducts().firstOrNull { it.id == id }?.let { com.mok.buylist.sync.MutationClock.observe(it.updatedAt) }
             dao.deleteLentaProduct(id)
             dao.deleteProductBarcodes(id)
-            dao.upsertTombstone(Tombstone(TombKind.PRODUCT.code, id.toString(), System.currentTimeMillis()))
+            dao.upsertTombstone(Tombstone(TombKind.PRODUCT.code, id.toString(), com.mok.buylist.sync.MutationClock.next()))
         }
     }
 
@@ -283,7 +286,7 @@ internal fun readMcpResponse(
 }
 
 internal fun LentaProduct.toStored() = StoredLentaProduct(
-    id, name, image, pack, parsePriceKopecks(price), priceType, ean, address, storeId, channel, fetchedAt, System.currentTimeMillis(),
+    id, name, image, pack, parsePriceKopecks(price), priceType, ean, address, storeId, channel, fetchedAt, com.mok.buylist.sync.MutationClock.next(),
 )
 
 internal fun StoredLentaProduct.toProduct() = LentaProduct(

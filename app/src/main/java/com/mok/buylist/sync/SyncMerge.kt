@@ -288,14 +288,18 @@ object SyncMerge {
                     ?: "legacy:$line"
                 val old = byKey[key]
                 // Детеминированный выбор среди версий одного товара.
-                if (old == null || line > old) byKey[key] = line
+                val at = event?.revisedAt ?: 0L
+                val oldAt = old?.let(::decodePurchaseEvent)?.revisedAt ?: 0L
+                if (old == null || at > oldAt || (at == oldAt && line > old)) byKey[key] = line
             }
         }
         return "v1|" + byKey.values.joinToString("\n")
     }
 
     // Детерминированный выбор при разных данных записи с одним uid.
-    private val archiveOrder = compareBy<SyncArchive> { it.names.size }
+    private val archiveOrder = compareBy<SyncArchive> { it.completedAt }
+        .thenBy { it.purchaseEvents.maxOfOrNull { event -> decodePurchaseEvent(event)?.revisedAt ?: 0L } ?: 0L }
+        .thenBy { it.names.size }
         .thenBy { it.names.joinToString("\u0000") }
         .thenBy { it.buyers.joinToString("\u0000") }
         .thenBy { it.quantities.joinToString(",") }

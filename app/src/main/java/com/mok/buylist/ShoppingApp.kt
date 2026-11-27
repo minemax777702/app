@@ -13,6 +13,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 class ShoppingApp : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        com.mok.buylist.sync.MutationClock.initialize(this)
+    }
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     internal val cloud: SupabaseCloud by lazy { SupabaseCloud(this, appScope) }
     internal val localProfile by lazy { UserProfile(this) }

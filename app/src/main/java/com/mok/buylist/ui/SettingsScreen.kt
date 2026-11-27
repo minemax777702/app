@@ -32,6 +32,7 @@ fun SettingsScreen(
     users: List<com.mok.buylist.data.AppUser>,
     onOpenTheme: () -> Unit = {},
     navigation: @Composable () -> Unit = {},
+    listPicker: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val activeTab = tab.coerceIn(0, 1)
@@ -50,6 +51,7 @@ fun SettingsScreen(
             if (!storeDetail || section == 0) {
                 FreshCutRootHeader("ВАША БАЗА", if (section == 0) "Товары" else "Магазины",
                     if (section == 0) "Все товары и магазины" else "Цены и покупки по магазинам")
+                listPicker()
                 FreshCutSegments(listOf("Товары", "Магазины"), section, { section = it; storeDetail = false },
                     Modifier.padding(horizontal = 20.dp))
             }

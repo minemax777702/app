@@ -27,8 +27,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 
-/** Сколько хранится «надгробие»: телефон, не бывший на обмене дольше, может вернуть удалённое — это допустимо. */
-private const val TOMBSTONE_TTL_MILLIS = 400L * 24 * 60 * 60 * 1000
 
 /** Как долго после обмена его можно отменить. */
 const val UNDO_WINDOW_MILLIS = 10L * 60 * 1000
@@ -68,7 +66,7 @@ class ShoppingRepository(
             nameKeyOf(name) == nameKeyOf("Лента"))
             return@withTransaction "Такой магазин уже существует"
         dao.upsertStore(store.copy(name = name, nameKey = nameKeyOf(name),
-            updatedAt = maxOf(System.currentTimeMillis(), store.updatedAt + 1)))
+            updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), store.updatedAt + 1)))
         null
     }
 
@@ -78,7 +76,7 @@ class ShoppingRepository(
             ?: return@withTransaction "Магазин не найден"
         // Keep name and UUID for archived purchase history and sync tombstones.
         dao.upsertStore(store.copy(deleted = true,
-            updatedAt = maxOf(System.currentTimeMillis(), store.updatedAt + 1)))
+            updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), store.updatedAt + 1)))
         null
     }
 
@@ -90,7 +88,7 @@ class ShoppingRepository(
             return@withTransaction ShoppingStore(lentaStoreId(), "Лента", updatedAt = 0L)
         dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(name) }
             ?.let { return@withTransaction it }
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         ShoppingStore(stableStoreId(name), name, updatedAt = now).also { dao.upsertStore(it) }
     }
 
@@ -149,7 +147,7 @@ class ShoppingRepository(
             }
         }
         if (matching.size > 1) return@withTransaction null
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         val product = matching.singleOrNull() ?: CustomProduct(
             id = UUID.randomUUID().toString(), name = name, barcode = barcode,
             updatedAt = now, isWeighted = isWeighted)
@@ -181,7 +179,7 @@ class ShoppingRepository(
             val canonical = aliases[productKey] ?: productKey
             val matching = dao.getStoreProducts().filter { it.storeId == storeId &&
                 (aliases[it.productKey] ?: it.productKey) == canonical }
-            val now = maxOf(System.currentTimeMillis(), (matching.maxOfOrNull { it.updatedAt } ?: 0L) + 1)
+            val now = maxOf(com.mok.buylist.sync.MutationClock.next(), (matching.maxOfOrNull { it.updatedAt } ?: 0L) + 1)
             // Keep availability links; update all active aliases consistently.
             matching.filterNot { it.deleted }.forEach {
                 dao.upsertStoreProduct(it.copy(priceKopecks = price, updatedAt = now))
@@ -218,7 +216,7 @@ class ShoppingRepository(
             it.storeId == storeId && !it.deleted && (aliases[it.productKey] ?: it.productKey) == canonical
         }
         if (existing.isEmpty()) return@withTransaction "Товар не найден"
-        val now = maxOf(System.currentTimeMillis(), existing.maxOf { it.updatedAt } + 1)
+        val now = maxOf(com.mok.buylist.sync.MutationClock.next(), existing.maxOf { it.updatedAt } + 1)
         existing.forEach { dao.upsertStoreProduct(it.copy(deleted = true, updatedAt = now)) }
         null
     }
@@ -230,7 +228,7 @@ class ShoppingRepository(
         if (name.isEmpty()) return@withTransaction "Введите название"
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction "Товар не найден"
-        val now = maxOf(System.currentTimeMillis(), row.updatedAt + 1)
+        val now = maxOf(com.mok.buylist.sync.MutationClock.next(), row.updatedAt + 1)
         dao.upsertCustomProduct(row.copy(name = name, updatedAt = now))
         // Keep the planned shopping list label consistent with the catalog.
         dao.getItems().filter { it.customProductId == id }.forEach { item ->
@@ -247,7 +245,7 @@ class ShoppingRepository(
                 ?: return@withTransaction "Товар не найден"
             dao.upsertCustomProduct(product.copy(
                 estimatedPriceKopecks = priceKopecks,
-                updatedAt = maxOf(System.currentTimeMillis(), product.updatedAt + 1),
+                updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), product.updatedAt + 1),
             ))
             null
         }
@@ -269,7 +267,7 @@ class ShoppingRepository(
             ?: return@withTransaction "Товар не найден"
         if (row.name == name && row.estimatedPriceKopecks == estimatedPriceKopecks && row.isWeighted == isWeighted)
             return@withTransaction null
-        val now = maxOf(System.currentTimeMillis(), row.updatedAt + 1)
+        val now = maxOf(com.mok.buylist.sync.MutationClock.next(), row.updatedAt + 1)
         dao.upsertCustomProduct(row.copy(name = name,
             estimatedPriceKopecks = estimatedPriceKopecks, isWeighted = isWeighted, updatedAt = now))
         if (row.isWeighted != isWeighted) {
@@ -290,7 +288,7 @@ class ShoppingRepository(
         val row = dao.getCustomProducts().firstOrNull { it.id == id && !it.deleted }
             ?: return@withTransaction false
         dao.upsertCustomProduct(row.copy(deleted = true,
-            updatedAt = maxOf(System.currentTimeMillis(), row.updatedAt + 1)))
+            updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), row.updatedAt + 1)))
         true
     }
 
@@ -314,7 +312,7 @@ class ShoppingRepository(
             if (rows.any { !it.deleted && it.code == code && it.productId == id })
                 return@withTransaction "Штрихкод уже добавлен"
         }
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         if (old != null) dao.upsertCustomProductBarcode(old.copy(
             updatedAt = maxOf(now, old.updatedAt + 1), deleted = true))
         if (code.isNotEmpty()) {
@@ -361,7 +359,7 @@ class ShoppingRepository(
                     dao.upsertCustomProduct(saved.copy(
                         estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
                         isWeighted = saved.isWeighted || isWeighted,
-                        updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
+                        updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), saved.updatedAt + 1)))
                 return addCustomToList(if (isWeighted && !saved.isWeighted)
                     saved.copy(isWeighted = true) else saved)
             }
@@ -377,7 +375,7 @@ class ShoppingRepository(
             val saved = existing.single()
             if (code.isNotEmpty() && saved.barcode.isNotEmpty() && saved.barcode != code) return false
             if (code.isNotEmpty() && saved.barcode.isEmpty()) {
-                val updated = saved.copy(barcode = code, updatedAt = System.currentTimeMillis(),
+                val updated = saved.copy(barcode = code, updatedAt = com.mok.buylist.sync.MutationClock.next(),
                     estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
                     isWeighted = saved.isWeighted || isWeighted)
                 dao.upsertCustomProduct(updated)
@@ -389,13 +387,13 @@ class ShoppingRepository(
                 dao.upsertCustomProduct(saved.copy(
                     estimatedPriceKopecks = estimatedPriceKopecks ?: saved.estimatedPriceKopecks,
                     isWeighted = saved.isWeighted || isWeighted,
-                    updatedAt = maxOf(System.currentTimeMillis(), saved.updatedAt + 1)))
+                    updatedAt = maxOf(com.mok.buylist.sync.MutationClock.next(), saved.updatedAt + 1)))
             }
             return addCustomToList(if (isWeighted && !saved.isWeighted)
                 saved.copy(isWeighted = true) else saved)
         }
         val product = CustomProduct(UUID.randomUUID().toString(), name, code,
-            System.currentTimeMillis(), estimatedPriceKopecks = estimatedPriceKopecks,
+            com.mok.buylist.sync.MutationClock.next(), estimatedPriceKopecks = estimatedPriceKopecks,
             isWeighted = isWeighted)
         return db.withTransaction {
             dao.upsertCustomProduct(product)
@@ -441,7 +439,7 @@ class ShoppingRepository(
             archiveFinishedTrip(allowRemaining = true)
             existing = dao.findByKey(key)
         }
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         when {
             existing == null -> dao.insertItem(ShoppingItem(name = product.name, nameKey = key,
                 customProductId = product.id, createdAt = now, authorId = profile.id,
@@ -480,7 +478,7 @@ class ShoppingRepository(
         val firstRegistration = profile.id.isEmpty()
         val saved = profile.save(name)
         db.withTransaction {
-            dao.upsertUser(AppUser(saved.id, saved.name, System.currentTimeMillis()))
+            dao.upsertUser(AppUser(saved.id, saved.name, com.mok.buylist.sync.MutationClock.next()))
             // Старые локальные товары привязываем только при ПЕРВОЙ регистрации.
             // При смене имени нельзя присваивать себе чужие записи без автора.
             if (firstRegistration) claimLegacyData(saved.id)
@@ -511,7 +509,7 @@ class ShoppingRepository(
         val name = normalizeName(product.name)
         if (name.isEmpty()) return false
         val key = "lenta:${product.id}"
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         val me = profile.id
         val added = db.withTransaction {
             // Все товары куплены: прошлый список уходит в архив, счётчик купленного обнуляется.
@@ -540,7 +538,7 @@ class ShoppingRepository(
         if (product.deleted) return null
         val normalizedStore = normalizeName(storeName).take(100)
         val result = db.withTransaction {
-            val now = System.currentTimeMillis()
+            val now = com.mok.buylist.sync.MutationClock.next()
             val storeId = if (normalizedStore.isBlank()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted && it.nameKey == nameKeyOf(normalizedStore) }
                     ?: ShoppingStore(stableStoreId(normalizedStore), normalizedStore, updatedAt = now)
@@ -579,7 +577,7 @@ class ShoppingRepository(
         val name = normalizeName(product.name)
         if (product.id <= 0 || name.isEmpty()) return null
         val item = db.withTransaction {
-            val now = System.currentTimeMillis()
+            val now = com.mok.buylist.sync.MutationClock.next()
             ensureLentaStore(now)
             val address = context.lentaCatalog.address.value
             val current = dao.getLentaProducts().firstOrNull { it.id == product.id }?.toProduct()?.takeIf {
@@ -613,7 +611,7 @@ class ShoppingRepository(
         db.withTransaction {
             val item = dao.findById(id) ?: return@withTransaction
             if (item.deleted) return@withTransaction
-            val now = System.currentTimeMillis()
+            val now = com.mok.buylist.sync.MutationClock.next()
             val catalog = context.lentaCatalog
             val product = dao.getLentaProducts().firstOrNull { it.id == item.productId }?.toProduct()?.takeIf {
                 catalog.address.value.isNotBlank() && it.address == catalog.address.value && it.channel == "locc"
@@ -651,7 +649,7 @@ class ShoppingRepository(
         if (unitPrice != null && unitPrice < 0) return "Неверная цена"
         val normalizedStore = normalizeName(storeName).take(100)
         return db.withTransaction {
-            val now = System.currentTimeMillis()
+            val now = com.mok.buylist.sync.MutationClock.next()
             val storeId = if (normalizedStore.isEmpty()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted &&
                     it.nameKey == nameKeyOf(normalizedStore) }
@@ -697,13 +695,21 @@ class ShoppingRepository(
     }
 
     suspend fun setQuantity(id: String, quantity: Int) {
-        dao.setQuantity(id, quantity.coerceIn(1, 999), System.currentTimeMillis(), profile.id)
+        db.withTransaction {
+            val item = dao.findById(id) ?: return@withTransaction
+            com.mok.buylist.sync.MutationClock.observe(item.updatedAt)
+            dao.setQuantity(id, quantity.coerceIn(1, 999), com.mok.buylist.sync.MutationClock.next(), profile.id)
+        }
         refreshWidget()
     }
 
     suspend fun setWeight(id: String, grams: Int?) {
         require(grams == null || grams in 1..999000)
-        dao.setWeight(id, grams, System.currentTimeMillis(), profile.id)
+        db.withTransaction {
+            val item = dao.findById(id) ?: return@withTransaction
+            com.mok.buylist.sync.MutationClock.observe(item.updatedAt)
+            dao.setWeight(id, grams, com.mok.buylist.sync.MutationClock.next(), profile.id)
+        }
         refreshWidget()
     }
 
@@ -711,7 +717,7 @@ class ShoppingRepository(
     suspend fun remove(id: String): Pair<ShoppingItem, Long>? {
         val removed = db.withTransaction {
             val item = dao.findById(id)?.takeUnless { it.deleted } ?: return@withTransaction null
-            val at = maxOf(System.currentTimeMillis(), item.updatedAt + 1)
+            val at = maxOf(com.mok.buylist.sync.MutationClock.next(), item.updatedAt + 1)
             dao.deleteById(id)
             dao.upsertTombstone(tomb(TombKind.ITEM, item.nameKey, at))
             item to at
@@ -748,7 +754,7 @@ class ShoppingRepository(
             if (!matchesUndoRevision(before, after, removedAt)) return@withTransaction false
             val current = dao.findById(snapshot.id)
             val marker = dao.getTombstones().firstOrNull { it.kind == TombKind.ITEM.code && it.target == snapshot.nameKey }
-            val now = maxOf(System.currentTimeMillis(), snapshot.updatedAt + 1,
+            val now = maxOf(com.mok.buylist.sync.MutationClock.next(), snapshot.updatedAt + 1,
                 (after?.updatedAt ?: 0L) + 1, (marker?.deletedAt ?: 0L) + 1)
             if (before == null) {
                 dao.deleteById(snapshot.id)
@@ -765,7 +771,7 @@ class ShoppingRepository(
 
     /** Отмена покупки или удаления: товар возвращается на прежнее место. */
     suspend fun restore(item: ShoppingItem) {
-        val now = System.currentTimeMillis()
+        val now = com.mok.buylist.sync.MutationClock.next()
         val me = profile.id
         db.withTransaction {
             if (decodePurchaseEvent(item.purchaseEvent)?.impulsive == true) {
@@ -804,7 +810,7 @@ class ShoppingRepository(
             val uid = dao.archiveUid(id) ?: return@withTransaction
             // Помечаем удаление раньше физического удаления строки. Не допускаем
             // повторного появления архивного списка от отставшего устройства.
-            dao.upsertTombstone(tomb(TombKind.ARCHIVE, uid, System.currentTimeMillis()))
+            dao.upsertTombstone(tomb(TombKind.ARCHIVE, uid, com.mok.buylist.sync.MutationClock.next()))
             dao.deleteArchived(id)
         }
     }
@@ -873,7 +879,7 @@ class ShoppingRepository(
         // Время похода фиксируется один раз — в момент завершения списка.
         val trip = computeTripTime(bought.map { it.updatedAt })
         val lastPurchaseAt = bought.maxOf { it.updatedAt }
-        val completedAt = if (allowRemaining) System.currentTimeMillis() else lastPurchaseAt
+        val completedAt = if (allowRemaining) maxOf(com.mok.buylist.sync.MutationClock.next(), lastPurchaseAt) else lastPurchaseAt
         val uid = archiveUidOf(lastPurchaseAt, bought.map { it.nameKey })
         // Тот же список мог уже прийти от второго телефона: заводить вторую запись не нужно.
         if (dao.archiveIdByUid(uid) == null) {
@@ -884,7 +890,7 @@ class ShoppingRepository(
                 val product = products[item.productId]?.toProduct()?.takeIf {
                     address.isNotBlank() && it.address == address && it.channel == "locc"
                 }
-                purchaseEvent(item, product, System.currentTimeMillis(), "")
+                purchaseEvent(item, product, com.mok.buylist.sync.MutationClock.next(), "")
             }
             dao.insertArchived(
                 ArchivedList(
@@ -910,7 +916,7 @@ class ShoppingRepository(
     // --- Обмен между телефонами (QR) ---
 
     /** Всё, чем делимся со вторым телефоном, одним согласованным снимком. */
-    suspend fun exportSnapshot(): Snapshot = db.withTransaction { buildSnapshot() }
+    suspend fun exportSnapshot(): Snapshot = db.withTransaction { buildSnapshot().also { com.mok.buylist.sync.MutationClock.observe(it) } }
 
     private suspend fun buildSnapshot(): Snapshot {
         return Snapshot(
@@ -948,6 +954,8 @@ class ShoppingRepository(
     suspend fun applyRemote(remote: Snapshot): SyncSummary {
         val summary = db.withTransaction {
             val local = buildSnapshot()
+            com.mok.buylist.sync.MutationClock.observe(local)
+            com.mok.buylist.sync.MutationClock.observe(remote)
             val merged = SyncMerge.merge(local, remote)
             write(merged)
             summarize(local, merged)
@@ -1043,7 +1051,7 @@ class ShoppingRepository(
     /** Must be called within the caller's Room transaction. */
     private suspend fun reassignIdentityInDb(temporary: String, newId: String, name: String) {
         dao.deleteUser(temporary)
-        dao.upsertUser(AppUser(newId, name, System.currentTimeMillis()))
+        dao.upsertUser(AppUser(newId, name, com.mok.buylist.sync.MutationClock.next()))
         dao.reassignItems(temporary, newId)
         for (item in dao.getAllItems()) {
             val event = reassignPurchaseEvent(item.purchaseEvent, temporary, newId)
@@ -1069,8 +1077,6 @@ class ShoppingRepository(
 
     /** Вызывать внутри транзакции: приводит таблицы к слитому состоянию, сохраняя локальные id. */
     private suspend fun write(merged: Snapshot) {
-        val cutoff = System.currentTimeMillis() - TOMBSTONE_TTL_MILLIS
-
         dao.clearProductBarcodes()
         dao.clearLentaProducts()
         dao.upsertLentaProducts(merged.products)
@@ -1147,10 +1153,8 @@ class ShoppingRepository(
 
         dao.clearTombstones()
         dao.upsertTombstones(
-            // Удаления архивов хранятся бессрочно: иначе старый телефон
-            // восстановит удалённый список спустя 400 дней.
-            merged.tombs.filter { it.kind == TombKind.ARCHIVE || it.at >= cutoff }
-                .map { Tombstone(it.kind.code, it.key, it.at) },
+            // Preserve deletion markers for arbitrarily long offline periods.
+            merged.tombs.map { Tombstone(it.kind.code, it.key, it.at) },
         )
     }
 

@@ -33,6 +33,8 @@ internal fun CloudShoppingRoot() {
     val directory by cloud.directory.collectAsStateWithLifecycle()
     val current = cloud.workspace.collectAsStateWithLifecycle().value
     val signedIn by cloud.signedIn.collectAsStateWithLifecycle()
+    val cloudStatus by cloud.status.collectAsStateWithLifecycle()
+    val pendingCount by cloud.pendingCount.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
     val prefs = remember { app.getSharedPreferences("onboarding", android.content.Context.MODE_PRIVATE) }
     var welcome by rememberSaveable { mutableStateOf(!prefs.getBoolean("seen",false) && app.localProfile.profile.value == null) }
@@ -55,6 +57,8 @@ internal fun CloudShoppingRoot() {
                 Icon(painterResource(R.drawable.ic_list_check),null,tint=p.text,modifier=Modifier.size(22.dp))
                 Text(title,
                     Modifier.weight(1f),color=p.text,fontWeight=FontWeight.SemiBold,fontSize=15.sp)
+                if (signedIn && (cloudStatus != null || pendingCount > 0)) Icon(painterResource(R.drawable.ic_sync),
+                    "Изменения ожидают синхронизации",tint=p.textSecondary,modifier=Modifier.size(16.dp))
                 Icon(painterResource(R.drawable.ic_chevron_down),"Выбрать список",tint=p.textSecondary,modifier=Modifier.size(20.dp))
             }
         } else {
@@ -63,6 +67,8 @@ internal fun CloudShoppingRoot() {
                 verticalAlignment=Alignment.CenterVertically, horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 Icon(painterResource(R.drawable.ic_list_check),null,tint=p.textSecondary,modifier=Modifier.size(18.dp))
                 Text(title,color=p.textSecondary,fontWeight=FontWeight.Medium,fontSize=13.sp)
+                if (signedIn && (cloudStatus != null || pendingCount > 0)) Icon(painterResource(R.drawable.ic_sync),
+                    "Изменения ожидают синхронизации",tint=p.textSecondary,modifier=Modifier.size(16.dp))
             }
         }
     }

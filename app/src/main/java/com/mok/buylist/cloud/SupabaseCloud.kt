@@ -9,6 +9,7 @@ import com.mok.buylist.data.LentaCatalog
 import com.mok.buylist.data.ShoppingRepository
 import com.mok.buylist.data.UserProfile
 import com.mok.buylist.sync.Snapshot
+import com.mok.buylist.sync.MutationClock
 import com.mok.buylist.sync.SyncCodec
 import com.mok.buylist.sync.SyncMerge
 import com.mok.buylist.widget.ShoppingWidget
@@ -248,6 +249,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
 
     private fun decodeDirectory(uid: String, profiles: List<JsonObject>, groups: List<JsonObject>,
                                 lists: List<JsonObject>, members: List<JsonObject>): CloudDirectory {
+        (profiles + groups + lists + members).mapNotNull { it["change_at"]?.jsonPrimitive?.longOrNull }.maxOrNull()?.let(MutationClock::observe)
         val people = profiles.map { it.person() }
         val me = people.firstOrNull { it.id == uid && it.active }
         return CloudDirectory(me, people.sortedBy { it.name },
@@ -407,6 +409,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         try {
             // Pull before making a new list editable. Never treat a missing remote row as an empty list.
             if (!cachedOnly) sync(value)
+            repository.exportSnapshot() // Advance the clock before permitting any local edit.
             repository.saveProfile(me.name)
             caches[namespace] = value
             cacheScope.launch {
@@ -458,8 +461,23 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         error("Concurrent update")
     }
 
-    private suspend fun update(table: String, id: String, values: JsonObject) {
-        check(api().from(table).update(body = values) { select(); filter { eq("id", id) } }.rows().size == 1)
+    private fun stamped(values: JsonObject, at: Long, id: String) = JsonObject(values + mapOf(
+        "change_at" to JsonPrimitive(at), "change_id" to JsonPrimitive(id)))
+
+    private fun stampAt(op: JsonObject) = op["at"]?.jsonPrimitive?.longOrNull ?: 0L
+    private fun stampId(op: JsonObject) = requireNotNull(op.string("op"))
+    private fun newerOrEqual(row: JsonObject, at: Long, id: String): Boolean {
+        val stamp = row["change_at"]?.jsonPrimitive?.longOrNull ?: 0L
+        return stamp > at || (stamp == at && row.string("change_id").orEmpty() >= id)
+    }
+    private suspend fun update(table: String, id: String, values: JsonObject,
+        at: Long = MutationClock.next(), opId: String = java.util.UUID.randomUUID().toString()): Boolean {
+        val body = stamped(values, at, opId)
+        val saved = api().from(table).update(body = body) { select(); filter { eq("id", id) } }.rows()
+        if (saved.size == 1) return true
+        val actual = api().from(table).select { filter { eq("id", id) } }.rows().singleOrNull()
+        check(actual != null && newerOrEqual(actual, at, opId)) { "Access denied or missing row" }
+        return false
     }
 
     // Metadata mutations are written locally first. Never persist a password in this queue.
@@ -474,10 +492,10 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     // Save the acknowledged change to the cached directory in the same commit
     // that removes it from the queue. A crash or lost network after acknowledgement
     // must not make an already created list disappear from offline navigation.
-    private fun acknowledge(uid: String, op: JsonObject, remaining: List<JsonObject>) {
+    private fun acknowledge(uid: String, op: JsonObject, remaining: List<JsonObject>, applied: Boolean) {
         val editor = prefs.edit().putString("pending_$uid", JsonArray(remaining).toString())
         val saved = prefs.getString("directory_$uid", null)
-        if (saved != null) {
+        if (saved != null && applied) {
             val json = Json.parseToJsonElement(saved).jsonObject
             fun get(key: String) = json.getValue(key).jsonArray.map { it.jsonObject }
             val base = decodeDirectory(uid, get("profiles"), get("groups"), get("lists"), get("members"))
@@ -544,6 +562,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             check(account == me.id)
             val op = buildJsonObject {
                 put("op", java.util.UUID.randomUUID().toString())
+                put("at", MutationClock.next())
                 put("kind", kind); put("id", id)
                 name?.let { put("name", it) }; group?.let { put("group", it) }
                 user?.let { put("user", it) }; active?.let { put("active", it) }
@@ -565,6 +584,10 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             val id = requireNotNull(op.string("id"))
             val kind = requireNotNull(op.string("kind"))
             val table = if (kind.startsWith("group_")) "groups" else "shopping_lists"
+            val at = stampAt(op)
+            val opId = stampId(op)
+            var applied = true
+            check(authenticated(uid))
             when (kind) {
                 "group_create", "list_create" -> {
                     if (api().from(table).select { filter { eq("id", id) } }.rows().isEmpty()) {
@@ -576,30 +599,37 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                             }
                         }
                         check(authenticated(uid))
-                        api().from(table).insert(body = JsonArray(listOf(values)))
+                        api().from(table).insert(body = JsonArray(listOf(stamped(values, at, opId))))
                     }
                 }
-                "group_rename", "list_rename" -> update(table,id,buildJsonObject { put("name",requireNotNull(op.string("name"))) })
+                "group_rename", "list_rename" -> applied = update(table,id,buildJsonObject { put("name",requireNotNull(op.string("name"))) }, at, opId)
                 "group_remove", "list_remove" -> {
                     // An archived row may no longer be editable; recognize the completed operation on retry.
                     val row = api().from(table).select { filter { eq("id",id) } }.rows().singleOrNull()
-                    if (row != null && !row.flag("archived")) update(table,id,buildJsonObject { put("archived",true) })
+                    if (row != null && !row.flag("archived")) applied = update(table,id,buildJsonObject { put("archived",true) }, at, opId)
                 }
                 "member" -> {
                     val user = requireNotNull(op.string("user"))
                     val values = buildJsonObject { put("group_id",id); put("user_id",user); put("active",op.flag("active")) }
                     val old = api().from("group_members").select { filter { eq("group_id",id); eq("user_id",user) } }.rows().singleOrNull()
-                    if (old == null) api().from("group_members").insert(body = JsonArray(listOf(values)))
-                    else if (old.flag("active") != op.flag("active"))
-                        check(api().from("group_members").update(body = buildJsonObject { put("active",op.flag("active")) }) {
+                    if (old == null) api().from("group_members").insert(body = JsonArray(listOf(stamped(values,at,opId))))
+                    else if (newerOrEqual(old, at, opId)) applied = false
+                    else {
+                        val saved = api().from("group_members").update(body = stamped(buildJsonObject { put("active",op.flag("active")) },at,opId)) {
                             select(); filter { eq("group_id",id); eq("user_id",user) }
-                        }.rows().size == 1)
+                        }.rows()
+                        if (saved.isEmpty()) {
+                            val actual = api().from("group_members").select { filter { eq("group_id",id); eq("user_id",user) } }.rows().singleOrNull()
+                            check(actual != null && newerOrEqual(actual,at,opId))
+                            applied = false
+                        }
+                    }
                 }
                 else -> error("Unknown pending operation")
             }
             mutex.withLock {
                 val rest = pending(uid).filterNot { it.string("op") == op.string("op") }
-                acknowledge(uid, op, rest)
+                acknowledge(uid, op, rest, applied)
             }
         }
     }
