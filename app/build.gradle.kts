@@ -60,7 +60,7 @@ android {
             // Без packageScope: с ним R8 переименовывал классы Kotlin так, что приложение падало при запуске
             // (IllegalAccessError: kotlin.collections.h ... inaccessible).
             optimization {
-                enable = !appVersionName.get().contains("-beta.")
+                enable = true
                 keepRules {
                     files.add(project.file("proguard-rules.pro"))
                 }

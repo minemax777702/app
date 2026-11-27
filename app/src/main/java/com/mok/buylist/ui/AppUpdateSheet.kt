@@ -25,6 +25,7 @@ import androidx.compose.ui.res.painterResource
 import com.mok.buylist.update.DownloadProgress
 import com.mok.buylist.update.downloadSize
 import com.mok.buylist.update.downloadEta
+import com.mok.buylist.update.formatReleaseDate
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -52,6 +53,12 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     val activity = LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val installed = remember { AppUpdater.installedVersion(context) }
+    var installedPublishedAt by remember(installed) { mutableStateOf("") }
+    LaunchedEffect(installed) {
+        try { installedPublishedAt = AppUpdater.installedReleaseDate(context, installed) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* A missing date must not prevent updates. */ }
+    }
     var channel by remember { mutableStateOf(AppUpdater.selectedChannel(context)) }
     var attempt by remember { mutableIntStateOf(0) }
     var release by remember { mutableStateOf<AppRelease?>(null) }
@@ -227,6 +234,10 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text("Текущая версия", color = p.textSecondary, fontSize = 12.sp)
                         Text(installed.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+                        val published = release?.takeIf { it.version.code == installed.code && it.version.name == installed.name }
+                            ?.publishedAt?.takeIf { it.isNotBlank() } ?: installedPublishedAt
+                        val date = formatReleaseDate(published, UpdateChannel.defaultFor(installed.name))
+                        if (date.isNotBlank()) Text(date, color=p.textSecondary, fontSize=12.sp)
                     }
                     FreshCutToolbarAction(R.drawable.ic_bell,
                         if (notificationsEnabled && notificationsAllowed) "Отключить уведомления" else "Включить уведомления",
@@ -275,6 +286,9 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                                 Text(if (!busy && ready == null && update != null) "$version · ${downloadSize(update.size)}" else version,
                                     color = p.textSecondary, fontSize = 13.sp)
                             }
+                            val releaseDate = release?.let { formatReleaseDate(it.publishedAt, it.version.channel) }.orEmpty()
+                            if (releaseDate.isNotBlank() && (update != null || ready != null || release?.version?.code != installed.code))
+                                Text(releaseDate, color=p.textSecondary, fontSize=12.sp)
                         }
                         if (!busy && notes != null) FreshCutToolbarAction(R.drawable.ic_info,
                             if (changelogOpen) "Скрыть изменения" else "Что нового", {
@@ -316,7 +330,8 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                     FreshCutSectionTitle("История версий")
                     history.forEach { entry ->
                         FreshCutListRow(R.drawable.ic_history, entry.version.name,
-                            entry.publishedAt.take(10) + if (entry.version.code == installed.code) " · Установлена" else "",
+                            listOfNotNull(formatReleaseDate(entry.publishedAt, entry.version.channel).takeIf { it.isNotBlank() },
+                                "Установлена".takeIf { entry.version.code == installed.code }).joinToString(" · "),
                             showChevron = false,
                             trailing = {
                                 androidx.compose.material3.Icon(

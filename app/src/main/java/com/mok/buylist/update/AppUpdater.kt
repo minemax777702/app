@@ -24,6 +24,7 @@ internal data class AppRelease(
     val sha256: String,
     val size: Long,
     val changelog: String = "",
+    val publishedAt: String = "",
 )
 
 internal data class ReleaseNotes(val version: ReleaseVersion, val changelog: String, val publishedAt: String)
@@ -74,6 +75,20 @@ internal object AppUpdater {
         error("Не удалось найти канал в пределах списка релизов.")
     }
 
+    suspend fun installedReleaseDate(context: Context, installed: InstalledVersion): String = withContext(Dispatchers.IO) {
+        val version = installed.releaseVersion() ?: return@withContext ""
+        val prefs = context.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
+        val key = "published_${version.tag}"
+        prefs.getString(key, null)?.let { return@withContext it }
+        val entry = JSONObject(readJson("https://api.github.com/repos/$REPO/releases/tags/${version.tag}"))
+        if (entry.optBoolean("draft") || entry.optString("tag_name") != version.tag) return@withContext ""
+        val published = entry.optString("published_at", "")
+        if (runCatching { java.time.Instant.parse(published) }.isSuccess) {
+            prefs.edit().putString(key, published).apply()
+            published
+        } else ""
+    }
+
     suspend fun releaseNotes(channel: UpdateChannel, page: Int): ReleaseNotesPage = withContext(Dispatchers.IO) {
         require(page >= 1)
         val releases = JSONArray(readJson("https://api.github.com/repos/$REPO/releases?per_page=20&page=$page"))
@@ -99,7 +114,8 @@ internal object AppUpdater {
         require(digest.matches(Regex("[a-fA-F0-9]{64}"))) { "Контрольная сумма APK недоступна." }
         val size = asset.optLong("size")
         require(size in 1..MAX_APK_BYTES) { "Недопустимый размер APK." }
-        return AppRelease(version, expected, digest.lowercase(), size, release.optString("body", "").take(32_000))
+        return AppRelease(version, expected, digest.lowercase(), size, release.optString("body", "").take(32_000),
+            release.optString("published_at", "").takeUnless { it == "null" }.orEmpty())
     }
 
     private fun cacheDirectory(context: Context): File =

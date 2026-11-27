@@ -30,3 +30,22 @@ internal data class ReleaseVersion(val channel: UpdateChannel, val base: String,
         }
     }
 }
+
+// Use the release's publication time, never the APK installation or build time.
+internal fun InstalledVersion.releaseVersion(): ReleaseVersion? {
+    val channel = UpdateChannel.defaultFor(name)
+    val base = name.substringBefore("-beta.")
+    val version = ReleaseVersion.parse("${channel.key}-v$base-$code", channel == UpdateChannel.BETA)
+    return version?.takeIf { it.name == name }
+}
+
+internal fun formatReleaseDate(
+    publishedAt: String,
+    channel: UpdateChannel,
+    zone: java.time.ZoneId = java.time.ZoneId.systemDefault(),
+): String {
+    val instant = runCatching { java.time.Instant.parse(publishedAt) }.getOrNull() ?: return ""
+    val pattern = if (channel == UpdateChannel.BETA) "dd.MM.yyyy · HH:mm" else "dd.MM.yyyy"
+    return java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.forLanguageTag("ru-RU"))
+        .format(instant.atZone(zone))
+}
