@@ -69,6 +69,7 @@ internal fun CloudDeviceRequestPanel() {
         request?.let { Text(it.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp) }
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
         FreshCutSecondaryButton("Обновить QR-код", { refresh++ })
+        CloudSshProbePanel()
     }
 }
 

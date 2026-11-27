@@ -115,6 +115,8 @@ dependencies {
     implementation(libs.androidx.camera.view)
     implementation(libs.zxing.core)
     implementation(libs.play.services.nearby)
+    // Pure Java SSH transport diagnostic; no native agent or export of Keystore keys.
+    implementation("com.github.mwiede:jsch:2.28.8")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.espresso.core)
