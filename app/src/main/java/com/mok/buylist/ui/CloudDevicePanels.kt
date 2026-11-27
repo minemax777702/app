@@ -70,6 +70,7 @@ internal fun CloudDeviceRequestPanel() {
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
         FreshCutSecondaryButton("Обновить QR-код", { refresh++ })
         CloudSshProbePanel()
+        CloudIntegrationTestPanel()
     }
 }
 

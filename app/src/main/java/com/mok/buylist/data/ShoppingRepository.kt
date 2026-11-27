@@ -47,6 +47,7 @@ class ShoppingRepository(
     private val context: Context,
     private val db: AppDatabase,
     private val profile: UserProfile,
+    private val isolatedWorkspace: Boolean = false,
 ) {
     private val dao = db.shoppingDao()
     fun observeItems(): Flow<List<ShoppingItem>> = dao.observeItems()
@@ -961,7 +962,10 @@ class ShoppingRepository(
 
     // --- Откат обмена ---
 
-    private val undoFile: File get() = File(context.filesDir, "undo-sync.bin")
+    private val undoFile: File get() {
+        check(!isolatedWorkspace) { "Default undo file is not available in an isolated workspace" }
+        return File(context.filesDir, "undo-sync.bin")
+    }
 
     /** Запоминает состояние до обмена. Вызывается один раз перед первым применением чужих данных. */
     suspend fun saveUndoPoint() {
@@ -1154,7 +1158,9 @@ class ShoppingRepository(
         )
     }
 
-    private suspend fun refreshWidget() = ShoppingWidget().updateAll(context)
+    private suspend fun refreshWidget() {
+        if (!isolatedWorkspace) ShoppingWidget().updateAll(context)
+    }
 
     private companion object {
         const val MAX_NAME_LENGTH = 30
