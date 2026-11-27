@@ -1,13 +1,6 @@
 name: Cloud integration tests
 
 on:
-  push:
-    branches: [beta]
-    paths:
-      - 'app/**'
-      - 'gradle/**'
-      - 'gradle.properties'
-      - '.github/workflows/cloud-integration-tests.yml'
   workflow_dispatch:
 
 permissions:
@@ -55,18 +48,19 @@ jobs:
         run: |
           set -euo pipefail
           export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
-          emulator -avd buylist-cloud-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on > "$RUNNER_TEMP/cloud-emulator.log" 2>&1 &
+          emulator -avd buylist-cloud-ci -port 5554 -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on > "$RUNNER_TEMP/cloud-emulator.log" 2>&1 &
           emulator_pid=$!
-          trap 'adb emu kill || true; kill "$emulator_pid" 2>/dev/null || true' EXIT
+          trap 'adb -s emulator-5554 emu kill || true; kill "$emulator_pid" 2>/dev/null || true; tail -n 150 "$RUNNER_TEMP/cloud-emulator.log" || true' EXIT
           for i in $(seq 1 150); do
             if ! kill -0 "$emulator_pid" 2>/dev/null; then
               cat "$RUNNER_TEMP/cloud-emulator.log"
               exit 1
             fi
-            if adb devices | grep -qE "^emulator-[0-9]+[[:space:]]+device"; then break; fi
+            if adb devices | grep -qE "^emulator-5554[[:space:]]+device"; then break; fi
             sleep 2
           done
-          timeout 20 adb wait-for-device
+          export ANDROID_SERIAL=emulator-5554
+          timeout 60 adb -s "$ANDROID_SERIAL" wait-for-device
           booted=false
           for i in $(seq 1 150); do
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then

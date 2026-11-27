@@ -29,7 +29,10 @@
 -dontwarn java.lang.foreign.**
 
 # JGit uses service descriptors and optional non-Android platform integrations.
--keep class org.eclipse.jgit.internal.storage.file.FileRepository { *; }
 -dontwarn java.lang.management.**
 -dontwarn javax.management.**
 -dontwarn org.ietf.jgss.**
+
+# JGit 7.7+ GC.PidLock.getPID explicitly returns 0 on Android via SystemReader.isAndroid().
+# The desktop-only ProcessHandle branch remains in bytecode, but Android never executes it.
+-dontwarn java.lang.ProcessHandle
