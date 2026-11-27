@@ -46,6 +46,7 @@ internal fun CloudAdminPanel() {
     val context = LocalContext.current
     val vault = remember(context.applicationContext) { CloudAdminVault(context) }
     var saved by remember { mutableStateOf(vault.exists) }
+    var showUsers by remember { mutableStateOf(false) }
     var verifiedToken by remember { mutableStateOf<String?>(null) }
     var authentication by remember { mutableStateOf<CancellationSignal?>(null) }
     var generation by remember { mutableStateOf(0L) }
@@ -59,6 +60,7 @@ internal fun CloudAdminPanel() {
     var task by remember { mutableStateOf<Job?>(null) }
 
     fun lock() {
+        showUsers = false
         generation++
         val previous = authentication
         authentication = null
@@ -163,6 +165,11 @@ internal fun CloudAdminPanel() {
         }
     }
 
+    if (showUsers && session != null && storage?.actionsEnabled == false) {
+        CloudUsersPanel(requireNotNull(session), onBack = { showUsers = false })
+        return
+    }
+
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSectionTitle("Облако")
         Text("Личные профили, группы и синхронизация будут подключены после настройки приватного хранилища. Пока данные остаются только на устройстве.", color = p.textSecondary, fontSize = 14.sp)
@@ -206,6 +213,9 @@ internal fun CloudAdminPanel() {
                     false -> "Отключены"
                     null -> "Не проверены"
                 })
+                if (current.actionsEnabled == false) {
+                    FreshCutSecondaryButton("Пользователи", { showUsers = true }, enabled = !busy)
+                }
                 if (current.actionsEnabled != false) {
                     Text("Перед подключением пользователей отключите Actions в репозитории данных.", color = p.textSecondary, fontSize = 14.sp)
                     FreshCutSecondaryButton("Отключить Actions", {

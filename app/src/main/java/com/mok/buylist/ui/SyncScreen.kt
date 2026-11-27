@@ -179,7 +179,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
                         "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
-                    ProfileMenuRow(R.drawable.ic_sync, "Облачное хранилище", "Настройка GitHub", { page = "cloud" })
+                    ProfileMenuRow(R.drawable.ic_cloud, "Облачное хранилище", "Настройка GitHub", { page = "cloud" })
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }

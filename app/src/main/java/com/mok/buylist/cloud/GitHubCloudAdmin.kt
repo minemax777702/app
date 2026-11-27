@@ -3,6 +3,7 @@ package com.mok.buylist.cloud
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -50,6 +51,51 @@ internal class GitHubCloudAdmin(private val token: String) {
         if (!storage.exists) throw CloudAdminException("Хранилище недоступно.")
         requireSuccess(request("PUT", "$repoPath/actions/permissions", JSONObject().put("enabled", false)))
         inspectStorage()
+    }
+
+    internal data class RegistryFile(val bytes: ByteArray, val sha: String)
+
+    private fun requireRegistryStorage() {
+        verifyOwner()
+        val storage = inspectStorage()
+        if (!storage.exists || storage.actionsEnabled != false)
+            throw CloudAdminException("Проверьте приватное хранилище и отключите Actions.")
+    }
+
+    internal suspend fun readUserRegistry(): RegistryFile? = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        val response = request("GET", "$repoPath/contents/system/admin-users.v1.enc")
+        if (response.status == 404) {
+            // Distinguish an absent file from a token without Contents access.
+            requireSuccess(request("GET", "$repoPath/contents"))
+            return@withContext null
+        }
+        requireSuccess(response)
+        val file = JSONObject(response.body)
+        if (file.optString("type") != "file" || file.optString("encoding") != "base64")
+            throw CloudAdminException("Неизвестный формат реестра.")
+        val sha = file.optString("sha")
+        if (!sha.matches(Regex("[0-9a-f]{40}"))) throw CloudAdminException("Не удалось проверить версию реестра.")
+        val bytes = Base64.decode(file.getString("content"), Base64.DEFAULT)
+        if (bytes.size > CloudRegistryCodec.MAX_BYTES + 29) throw CloudAdminException("Реестр слишком большой.")
+        RegistryFile(bytes, sha)
+    }
+
+    internal suspend fun writeUserRegistry(bytes: ByteArray, expectedSha: String?): String = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        require(bytes.size <= CloudRegistryCodec.MAX_BYTES + 29)
+        require(expectedSha == null || expectedSha.matches(Regex("[0-9a-f]{40}")))
+        val payload = JSONObject()
+            .put("message", "Update encrypted admin user drafts")
+            .put("content", Base64.encodeToString(bytes, Base64.NO_WRAP))
+        if (expectedSha != null) payload.put("sha", expectedSha)
+        val response = request("PUT", "$repoPath/contents/system/admin-users.v1.enc", payload)
+        if (response.status == 409 || response.status == 422)
+            throw CloudAdminException("Реестр изменён или запись отклонена. Обновите список перед повторной попыткой.")
+        requireSuccess(response)
+        val sha = JSONObject(response.body).getJSONObject("content").getString("sha")
+        require(sha.matches(Regex("[0-9a-f]{40}")))
+        sha
     }
 
     private fun verifyOwner() {

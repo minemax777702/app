@@ -101,6 +101,8 @@ jobs:
           chmod +x ./gradlew
           if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
             ./gradlew :app:testDebugUnitTest --stacktrace --build-cache
+          else
+            ./gradlew :app:testDebugUnitTest --tests "com.mok.buylist.cloud.*" --stacktrace --build-cache
           fi
           ./gradlew :app:assembleRelease --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
