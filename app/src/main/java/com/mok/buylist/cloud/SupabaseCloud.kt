@@ -51,7 +51,7 @@ internal data class CloudDirectory(
     fun manages(group: CloudGroup) = me?.let { it.active && (it.id == group.owner || it.admin) } == true
     fun participates(group: CloudGroup) = me?.let { person -> person.active && (group.owner == person.id || members.any { it.group == group.id && it.user == person.id }) } == true
     fun manages(list: CloudList) = me?.let { person ->
-        person.active && (list.owner == person.id || groups.any { it.id == list.group && it.owner == person.id })
+        person.active && (list.owner == person.id || groups.any { it.id == list.group && participates(it) })
     } == true
 }
 internal data class CloudWorkspace(val namespace: String, val userId: String, val listId: String,
@@ -823,7 +823,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         val person = requireNotNull(current.me)
         check(person.active)
         if (id == null) {
-            check(group == null || current.groups.any { it.id == group && it.owner == person.id })
+            check(group == null || current.groups.any { it.id == group && current.participates(it) })
         } else {
             check(current.lists.any { it.id == id && current.manages(it) })
         }

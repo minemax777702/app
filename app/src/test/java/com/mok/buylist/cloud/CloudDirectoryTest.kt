@@ -23,11 +23,11 @@ class CloudDirectoryTest {
         assertTrue(d.participates(group))
     }
 
-    @Test fun memberCanParticipateButCannotManageLists() {
+    @Test fun memberCanManageSharedButNotPersonalLists() {
         val d = directory("member")
         assertTrue(d.participates(group))
         assertFalse(d.manages(group))
-        assertFalse(d.manages(shared))
+        assertTrue(d.manages(shared))
         assertFalse(d.manages(personal))
     }
 
