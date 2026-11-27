@@ -283,12 +283,12 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     private fun authenticated(uid: String): Boolean =
         account == uid && api().auth.currentUserOrNull()?.id == uid
 
-    suspend fun refresh() = refreshMutex.withLock {
-        val uid = account ?: return@withLock
-        if (!authenticated(uid)) { _status.value = "Офлайн"; return@withLock }
+    suspend fun refresh(): Unit = refreshMutex.withLock refresh@ {
+        val uid = account ?: return@refresh
+        if (!authenticated(uid)) { _status.value = "Офлайн"; return@refresh }
         try {
             val profiles = rows("profiles")
-            if (!authenticated(uid)) return@withLock
+            if (!authenticated(uid)) return@refresh
             if (profiles.none { it.string("id") == uid && it.flag("active") }) {
                 mutex.withLock {
                     if (account != uid) return@withLock
@@ -296,14 +296,14 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                     resetWorkspace(); _directory.value = CloudDirectory(); _status.value = "Доступ отключён"
                 }
                 updateWidget()
-                return@withLock
+                return@refresh
             }
             // The queue is durable. A lost HTTP response is safe: created rows have client UUIDs.
             var pendingError: Exception? = null
             try { flushPending(uid) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { pendingError = e; reportFailure("pending CRUD", e) }
-            if (!authenticated(uid)) return@withLock
+            if (!authenticated(uid)) return@refresh
             val groups = rows("groups")
             val listRows = rows("shopping_lists")
             val members = rows("group_members")
@@ -324,6 +324,16 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                 // Open Room without any network wait. Incoming data will be merged afterwards.
                 if (_workspace.value?.listId != selected?.id)
                     publishWorkspace(selected?.let { open(me, it, cachedOnly = true) })
+                // Reopen other existing per-list caches: an offline edit must not require
+                // manually selecting that list again after a process restart.
+                for (list in directory.lists) {
+                    val namespace = "cloud-${me.id}-${list.id}"
+                    if (namespace !in caches && context.getDatabasePath("$namespace.db").exists()) {
+                        try { open(me, list, cachedOnly = true) }
+                        catch (e: CancellationException) { throw e }
+                        catch (e: Exception) { reportFailure("local cache", e) }
+                    }
+                }
                 migrateGuest(me, directory)
                 caches.values.toList()
             }
@@ -331,7 +341,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             val realLists = listRows.mapNotNull { it.string("id") }.toSet()
             var ok = pendingError == null
             for (cache in currentCaches) {
-                if (!authenticated(uid)) return@withLock
+                if (!authenticated(uid)) return@refresh
                 if (cache.listId !in realLists || !cache.job.isActive) continue
                 try {
                     val person = _directory.value.me ?: break
@@ -445,6 +455,40 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         _pendingCount.value = rows.size
     }
 
+    // Save the acknowledged change to the cached directory in the same commit
+    // that removes it from the queue. A crash or lost network after acknowledgement
+    // must not make an already created list disappear from offline navigation.
+    private fun acknowledge(uid: String, op: JsonObject, remaining: List<JsonObject>) {
+        val editor = prefs.edit().putString("pending_$uid", JsonArray(remaining).toString())
+        val saved = prefs.getString("directory_$uid", null)
+        if (saved != null) {
+            val json = Json.parseToJsonElement(saved).jsonObject
+            fun get(key: String) = json.getValue(key).jsonArray.map { it.jsonObject }
+            val base = decodeDirectory(uid, get("profiles"), get("groups"), get("lists"), get("members"))
+            if (base.me != null) {
+                val dir = project(base, op)
+                val value = buildJsonObject {
+                    put("profiles", JsonArray(get("profiles")))
+                    put("groups", JsonArray(dir.groups.map { g -> buildJsonObject {
+                        put("id", g.id); put("name", g.name); put("owner_id", g.owner); put("archived", false)
+                    } }))
+                    put("lists", JsonArray(dir.lists.map { l -> buildJsonObject {
+                        put("id", l.id); put("name", l.name)
+                        put("owner_id", l.owner?.let { JsonPrimitive(it) } ?: JsonNull)
+                        put("group_id", l.group?.let { JsonPrimitive(it) } ?: JsonNull)
+                        put("revision", l.revision); put("archived", false)
+                    } }))
+                    put("members", JsonArray(dir.members.map { m -> buildJsonObject {
+                        put("group_id", m.group); put("user_id", m.user); put("active", true)
+                    } }))
+                }
+                editor.putString("directory_$uid", value.toString())
+            }
+        }
+        check(editor.commit())
+        if (account == uid) _pendingCount.value = remaining.size
+    }
+
     private fun withPending(uid: String, initial: CloudDirectory): CloudDirectory {
         val changes = pending(uid)
         _pendingCount.value = changes.size
@@ -539,8 +583,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             }
             mutex.withLock {
                 val rest = pending(uid).filterNot { it.string("op") == op.string("op") }
-                if (account == uid) storePending(uid, rest)
-                else check(prefs.edit().putString("pending_$uid",JsonArray(rest).toString()).commit())
+                acknowledge(uid, op, rest)
             }
         }
     }
