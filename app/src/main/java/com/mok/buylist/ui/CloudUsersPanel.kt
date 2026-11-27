@@ -81,7 +81,12 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
     }
 
     fun change(transform: (CloudUserRegistry) -> CloudUserRegistry) =
-        perform({ latest -> store.save(admin, latest, transform(latest.registry)) }, "Изменения сохранены")
+        perform({ latest ->
+            val next = CloudMembership.prepare(admin, latest.registry, transform)
+            val saved = store.save(admin, latest, next)
+            CloudMembership.publish(admin, saved.registry)
+            saved
+        }, "Изменения сохранены. Для изменённых списков выдайте новые приглашения.")
 
     fun activate(id: String, enable: Boolean) = perform({ latest ->
         val row = latest.registry.devices.single { it.fingerprint == id }
@@ -91,10 +96,12 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
 
     fun remove(kind: Int, id: String) = perform({ latest ->
         // Validate the resulting structure BEFORE any remote key revocation.
-        val next = when (kind) {
-            0 -> latest.registry.deleteUser(id)
-            1 -> latest.registry.deleteGroup(id)
-            else -> latest.registry.deleteDevice(id)
+        val next = CloudMembership.prepare(admin, latest.registry) { registry ->
+            when (kind) {
+                0 -> registry.deleteUser(id)
+                1 -> registry.deleteGroup(id)
+                else -> registry.deleteDevice(id)
+            }
         }
         val keys = when (kind) {
             0 -> latest.registry.devices.filter { it.userId == id }
@@ -104,8 +111,10 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
         // Removing a record never leaves its managed Deploy Key intentionally active.
         // On an interrupted operation the old record remains, allowing retry.
         keys.forEach { admin.deactivateDevice(it) }
-        store.save(admin, latest, next)
-    }, "Удалено")
+        val saved = store.save(admin, latest, next)
+        CloudMembership.publish(admin, saved.registry)
+        saved
+    }, "Удалено. Для изменённых списков выдайте новые приглашения.")
 
     fun register(request: CloudDeviceRequest) {
         if (!confirmed || busy) return
@@ -121,9 +130,11 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
                 val next = if (request.encryptionPublicKey.isNotEmpty()) latest.registry.updateDeviceEncryption(request, System.currentTimeMillis()) else latest.registry
                 if (next == latest.registry) latest else store.save(admin, latest, next)
             } else {
-                val next = if (id == null) latest.registry.registerNewUser(label, request, System.currentTimeMillis())
-                    else latest.registry.registerDevice(id, request, System.currentTimeMillis())
-                store.save(admin, latest, next)
+                val next = CloudMembership.prepare(admin, latest.registry) { registry ->
+                    if (id == null) registry.registerNewUser(label, request, System.currentTimeMillis())
+                    else registry.registerDevice(id, request, System.currentTimeMillis())
+                }
+                store.save(admin, latest, next).also { CloudMembership.publish(admin, it.registry) }
             }
             val row = registered.registry.devices.single { it.fingerprint == request.fingerprint }
             admin.activateDevice(row, registered.registry.canWriteDevice(row.fingerprint))
@@ -144,10 +155,12 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
                 val row = latest.registry.devices.single { it.fingerprint == target.fingerprint && !it.revoked }
                 require(row.encryptionPublicKey.isNotEmpty()) { "Обновите приложение на телефоне и повторно отсканируйте его QR." }
                 val updated = latest.registry.prepareSpace(space)
-                val invitation = CloudInvitation.create(updated, space, row)
+                val provision = updated.provisions.single { it.space == space && !it.retired }
+                val invitation = CloudInvitation.create(updated, space, row, admin.invitationCheckpoint(provision))
                 // Persist keys and membership before allowing any encrypted invitation to leave the admin.
                 val saved = if (updated == latest.registry) latest else store.save(admin, latest, updated)
                 loaded = saved
+                CloudMembership.publish(admin, saved.registry)
                 admin.activateDevice(row, saved.registry.canWriteDevice(row.fingerprint))
                 access = access + (row.fingerprint to true)
                 notice = "Приглашение готово"
@@ -212,6 +225,9 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
             }
         }
         if (!busy) FreshCutSecondaryButton("Обновить", { scope.launch { reload() } })
+        if (!busy && registry?.provisions?.isNotEmpty() == true) FreshCutSecondaryButton("Обновить доступ к спискам", {
+            perform({ latest -> CloudMembership.publish(admin, latest.registry); latest }, "Версии списков подтверждены")
+        })
     }
 
     if (editing) {
@@ -320,7 +336,7 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit, onExpo
                         FreshCutListRow(if (space.kind == CloudSpaceKind.PERSONAL) R.drawable.ic_user_round else R.drawable.ic_group,
                             title, selected = inviteSpace == space, onClick = { inviteSpace = space })
                     }
-                    Text("Для первого приглашения зарегистрируйте все устройства участников. После активации изменение состава потребует смены ключей.", color = p.textSecondary, fontSize = 13.sp)
+                    Text("При изменении состава выдайте обновлённые приглашения всем участникам. Перед сменой состава синхронизируйте покупки.", color = p.textSecondary, fontSize = 13.sp)
                     Text("Передайте сохранённый файл владельцу этого телефона и сверяйте код администратора.", color = p.textSecondary, fontSize = 13.sp)
                 }
             }, confirmButton = {

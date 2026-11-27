@@ -88,7 +88,9 @@ internal fun CloudUserRegistry.canWriteDevice(id: String): Boolean =
     provisions.any { provision -> !provision.retired && provision.signed().manifest.grants.any { it.deviceId == id && it.canWrite } }
 
 internal fun CloudUserRegistry.prepareSpace(space: CloudSpace): CloudUserRegistry {
-    if (provisions.any { it.space == space }) return this
+    val old = provisions.singleOrNull { it.space == space }
+    require(old?.retired != true) { "Список закрыт. Для восстановления требуется перенос истории." }
+    if (old != null) return this
     val signer = adminSigner ?: CloudAdminSigner.create()
     val grants = grantsFor(space)
     require(grants.isNotEmpty() && grants.any { it.role == CloudGroupRole.OWNER }) {

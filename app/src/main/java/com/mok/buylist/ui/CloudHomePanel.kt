@@ -65,8 +65,9 @@ internal fun CloudHomePanel(onConnect: () -> Unit, onOpen: (CloudSpaceSession) -
         sessions.forEach { session ->
             val status by session.status.collectAsStateWithLifecycle()
             FreshCutListRow(if (session.space.kind == CloudSpaceKind.PERSONAL) R.drawable.ic_user_round else R.drawable.ic_group,
-                session.invitation.label,
+                session.invitation.label + (if (session.historical) " · прежняя версия" else ""),
                 when {
+                    session.historical -> "Сохранено для просмотра"
                     status.syncing -> "Синхронизация…"
                     status.issue != null -> "Сохранено на телефоне"
                     status.lastSuccess > 0 -> "Обновлено " + DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(status.lastSuccess))
@@ -141,8 +142,8 @@ internal fun CloudWorkspacePanel(session: CloudSpaceSession) {
         Text(if (status.syncing) "Синхронизация…" else if (status.issue != null) "Доступно офлайн" else if (status.lastSuccess > 0) "Синхронизировано" else "Ожидает синхронизации",
             color = p.textSecondary, fontSize = 13.sp)
         status.issue?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
-        if (!session.writable) Text("Только просмотр", color = p.textSecondary, fontSize = 13.sp)
-        FreshCutSecondaryButton("Обновить", { cloud.requestSync(session) }, enabled = !status.syncing)
+        if (!session.writable) Text(if (session.historical) "Прежняя версия. Покупки сохранены для просмотра." else "Только просмотр", color = p.textSecondary, fontSize = 13.sp)
+        FreshCutSecondaryButton("Обновить", { cloud.requestSync(session) }, enabled = !status.syncing && !session.historical)
         FreshCutTabs(listOf("Список", "Архив"), section, { section = it })
         if (section == 0) {
             if (session.writable) FreshCutSecondaryButton("Добавить товар", { name = ""; adding = true }, enabled = !busy)
