@@ -73,5 +73,32 @@ internal class CloudUserRegistryStore(context: Context) {
             LoadedCloudUsers(next, sha)
         }
 
+    suspend fun exportRecovery(admin: GitHubCloudAdmin, password: CharArray): ByteArray =
+        withContext(Dispatchers.IO) {
+            val loaded = load(admin)
+            val sha = loaded.sha ?: throw CloudAdminException("Сначала создайте реестр.")
+            CloudRecoveryCodec.encode(CloudRegistryRecovery(loaded.registry, sha), password)
+        }
+
+    /**
+     * Re-encrypt only the exact current remote registry on the new installation.
+     * Never overwrite a newer remote version, or silently recreate a missing file.
+     */
+    suspend fun recover(admin: GitHubCloudAdmin, file: ByteArray, password: CharArray): LoadedCloudUsers =
+        withContext(Dispatchers.IO) {
+            val copy = try { CloudRecoveryCodec.decode(file, password) }
+            catch (_: Exception) { throw CloudAdminException("Неверный пароль или повреждённый файл восстановления.") }
+            val remote = admin.readUserRegistry()
+                ?: throw CloudAdminException("Реестр не найден. Сначала восстановите соответствующий файл из истории GitHub.")
+            if (remote.sha != copy.sha || copy.registry.revision < checkpointRevision())
+                throw CloudAdminException("Копия не соответствует текущей версии реестра. Запись запрещена.")
+            val next = copy.registry.copy(revision = Math.addExact(copy.registry.revision, 1))
+            val encrypted = CloudRegistryCrypto.encrypt(key(true), next)
+            coroutineContext.ensureActive()
+            val sha = admin.writeUserRegistry(encrypted, remote.sha)
+            rememberRevision(next.revision)
+            LoadedCloudUsers(next, sha)
+        }
+
     private companion object { const val KEY_ALIAS = "buylist.cloud.users.draft.v1" }
 }

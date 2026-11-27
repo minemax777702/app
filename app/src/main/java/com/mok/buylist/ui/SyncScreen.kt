@@ -98,10 +98,14 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val scrollState = rememberScrollState()
     var page by rememberSaveable { mutableStateOf("profile") }
     var showBackup by rememberSaveable { mutableStateOf(false) }
+    // Only encrypted bytes are retained when the document picker locks the admin session.
+    var recoveryImport by remember { mutableStateOf<ByteArray?>(null) }
+    var recoveryExport by remember { mutableStateOf<ByteArray?>(null) }
     val installedVersion = remember { com.mok.buylist.update.AppUpdater.installedVersion(context) }
     val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
     LaunchedEffect(page) {
         if (page == "sources") page = "profile"
+        if (page != "cloud") { recoveryImport = null; recoveryExport = null }
         onActiveChange(page != "profile"); scrollState.scrollTo(0)
     }
     BackHandler(enabled = page != "profile") { page = "profile" }
@@ -140,6 +144,41 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             controller.onBackupRead(bytes)
         }
     }
+    val saveRecovery = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val bytes = recoveryExport
+        recoveryExport = null
+        if (uri != null && bytes != null) scope.launch {
+            val ok = runCatching {
+                withContext(Dispatchers.IO) {
+                    val output = context.contentResolver.openOutputStream(uri) ?: error("no output stream")
+                    output.use { it.write(bytes) }
+                }
+            }.isSuccess
+            activity?.notifyUser(if (ok) "Копия реестра сохранена" else "Не удалось сохранить копию реестра")
+        }
+    }
+    val openRecovery = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            val bytes = runCatching {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        val limit = com.mok.buylist.cloud.CloudRecoveryCodec.MAX_FILE_BYTES
+                        val output = java.io.ByteArrayOutputStream()
+                        val buffer = ByteArray(4096)
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            require(output.size() + count <= limit)
+                            output.write(buffer, 0, count)
+                        }
+                        output.toByteArray()
+                    }
+                }
+            }.getOrNull()
+            if (page == "cloud") recoveryImport = bytes
+            if (bytes == null) activity?.notifyUser("Не удалось прочитать копию реестра")
+        }
+    }
     Column(Modifier.fillMaxSize().background(p.background)) {
         when (page) {
             "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
@@ -151,7 +190,15 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "cloud" -> CloudAdminPanel()
+                "cloud" -> CloudAdminPanel(
+                    recoveryFile = recoveryImport,
+                    onChooseRecovery = { openRecovery.launch(arrayOf("*/*")) },
+                    onExportRecovery = { bytes ->
+                        recoveryExport = bytes
+                        saveRecovery.launch("buylist-cloud-recovery-${LocalDate.now()}.blcloud")
+                    },
+                    onClearRecovery = { recoveryImport = null },
+                )
                 "cloud-device" -> CloudDeviceRequestPanel()
                 "nearby" -> {
                     NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)

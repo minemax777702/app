@@ -40,13 +40,19 @@ import javax.crypto.Cipher
 
 /** Admin setup only. The optional saved token is protected by Android Keystore. */
 @Composable
-internal fun CloudAdminPanel() {
+internal fun CloudAdminPanel(
+    recoveryFile: ByteArray? = null,
+    onChooseRecovery: () -> Unit = {},
+    onExportRecovery: (ByteArray) -> Unit = {},
+    onClearRecovery: () -> Unit = {},
+) {
     val p = LocalPalette.current
     val activity = LocalActivity.current
     val context = LocalContext.current
     val vault = remember(context.applicationContext) { CloudAdminVault(context) }
     var saved by remember { mutableStateOf(vault.exists) }
     var showUsers by remember { mutableStateOf(false) }
+    var recoveryMode by remember { mutableStateOf(0) }
     var verifiedToken by remember { mutableStateOf<String?>(null) }
     var authentication by remember { mutableStateOf<CancellationSignal?>(null) }
     var generation by remember { mutableStateOf(0L) }
@@ -61,6 +67,7 @@ internal fun CloudAdminPanel() {
 
     fun lock() {
         showUsers = false
+        recoveryMode = 0
         generation++
         val previous = authentication
         authentication = null
@@ -215,6 +222,15 @@ internal fun CloudAdminPanel() {
                 })
                 if (current.actionsEnabled == false) {
                     FreshCutSecondaryButton("Пользователи, группы и устройства", { showUsers = true }, enabled = !busy)
+                    FreshCutSectionTitle("Восстановление")
+                    FreshCutSecondaryButton("Сохранить копию реестра", { recoveryMode = 1 }, enabled = !busy)
+                    if (recoveryFile == null) {
+                        FreshCutSecondaryButton("Выбрать файл восстановления", onChooseRecovery, enabled = !busy)
+                    } else {
+                        Text("Файл выбран. Подтвердите восстановление.", color = p.textSecondary, fontSize = 14.sp)
+                        FreshCutSecondaryButton("Восстановить реестр", { recoveryMode = 2 }, enabled = !busy)
+                        FreshCutSecondaryButton("Отменить восстановление", onClearRecovery, enabled = !busy)
+                    }
                 }
                 if (current.actionsEnabled != false) {
                     Text("Перед подключением пользователей отключите Actions в репозитории данных.", color = p.textSecondary, fontSize = 14.sp)
@@ -246,5 +262,14 @@ internal fun CloudAdminPanel() {
             if (saved) FreshCutSecondaryButton("Удалить сохранённый вход", { forgetLogin() }, enabled = !busy)
         }
         message?.let { Text(it, color = p.error, fontSize = 14.sp) }
+    }
+    if (recoveryMode != 0 && session != null && (recoveryMode == 1 || recoveryFile != null)) {
+        CloudRecoverySheet(
+            admin = requireNotNull(session),
+            recoveryFile = if (recoveryMode == 2) recoveryFile else null,
+            onExport = { bytes -> recoveryMode = 0; onExportRecovery(bytes) },
+            onRecovered = { recoveryMode = 0; onClearRecovery(); message = "Реестр восстановлен. Создайте новую копию." },
+            onDismiss = { recoveryMode = 0 },
+        )
     }
 }
