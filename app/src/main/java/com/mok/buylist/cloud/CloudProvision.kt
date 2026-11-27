@@ -60,7 +60,8 @@ internal data class CloudAdminSigner(val publicKey: String, val privateKey: Stri
     }
 }
 
-internal data class CloudProvision(val manifest: String, val secret: String) {
+internal data class CloudProvision(val manifest: String, val secret: String, val checkpointSha: String = "", val retired: Boolean = false) {
+    init { require(checkpointSha.isEmpty() || checkpointSha.matches(Regex("[0-9a-f]{40}"))) }
     fun signed() = SignedCloudManifest.decode(CloudInviteCrypto.decode(manifest))
     val space get() = signed().manifest.space
     fun key() = CloudInviteCrypto.decode(secret).let {
@@ -84,7 +85,7 @@ internal fun CloudUserRegistry.grantsFor(space: CloudSpace): List<CloudGrant> {
 }
 
 internal fun CloudUserRegistry.canWriteDevice(id: String): Boolean =
-    provisions.any { provision -> provision.signed().manifest.grants.any { it.deviceId == id && it.canWrite } }
+    provisions.any { provision -> !provision.retired && provision.signed().manifest.grants.any { it.deviceId == id && it.canWrite } }
 
 internal fun CloudUserRegistry.prepareSpace(space: CloudSpace): CloudUserRegistry {
     if (provisions.any { it.space == space }) return this
@@ -115,19 +116,22 @@ internal data class CloudInvitation(
     val signed: SignedCloudManifest,
     val wrapped: ByteArray,
     val signature: ByteArray,
+    val checkpoint: ByteArray = byteArrayOf(),
 ) {
     val space get() = signed.manifest.space
     val adminFingerprint get() = CloudDeviceProtocol.fingerprint(admin)
     private fun body(): ByteArray = CloudWire.bytes {
-        writeUTF("BuyList|invitation|1|minemax777702/app-cloud")
+        writeUTF(if (checkpoint.isEmpty()) "BuyList|invitation|1|minemax777702/app-cloud" else "BuyList|invitation|2|minemax777702/app-cloud")
         writeUTF(admin); writeUTF(recipient); writeUTF(userName); writeUTF(label)
         CloudWire.writeBlob(this, signed.encode(), 32768)
         CloudWire.writeBlob(this, wrapped, 256)
+        if (checkpoint.isNotEmpty()) CloudWire.writeBlob(this, checkpoint, CloudEpochCheckpoint.MAX_BYTES)
     }
     fun verify(deviceId: String): CloudGrant {
         require(recipient == deviceId && userName.length in 1..50 && label.length in 1..100)
         require(CloudInviteCrypto.verify(admin, body(), signature)) { "Подпись приглашения неверна" }
         val manifest = signed.verify(admin, space, 1)
+        require(manifest.epoch == 1L || checkpoint.isNotEmpty()) { "Отсутствует история новой версии списка" }
         return manifest.grants.singleOrNull { it.deviceId == recipient }
             ?: throw IllegalArgumentException("Приглашение для другого устройства")
     }
@@ -142,20 +146,23 @@ internal data class CloudInvitation(
         CloudWire.writeBlob(this, signature, 80)
     }
     companion object {
-        const val MAX_FILE = 36_864
+        const val MAX_FILE = 36_864 + CloudEpochCheckpoint.MAX_BYTES
         fun decode(bytes: ByteArray): CloudInvitation = CloudWire.read(bytes, MAX_FILE) {
             require(readInt() == 0x42495631)
             val body = CloudWire.readBlob(this, MAX_FILE - 128)
             val signature = CloudWire.readBlob(this, 80)
             CloudWire.read(body, MAX_FILE - 128) {
-                require(readUTF() == "BuyList|invitation|1|minemax777702/app-cloud")
+                val version = readUTF()
+                require(version == "BuyList|invitation|1|minemax777702/app-cloud" || version == "BuyList|invitation|2|minemax777702/app-cloud")
                 CloudInvitation(readUTF(), readUTF(), readUTF(), readUTF(),
                     SignedCloudManifest.decode(CloudWire.readBlob(this, 32768)),
-                    CloudWire.readBlob(this, 256), signature)
+                    CloudWire.readBlob(this, 256), signature,
+                    if (version == "BuyList|invitation|2|minemax777702/app-cloud") CloudWire.readBlob(this, CloudEpochCheckpoint.MAX_BYTES) else byteArrayOf())
             }
         }
-        fun create(registry: CloudUserRegistry, space: CloudSpace, device: CloudDeviceDraft): CloudInvitation {
-            val provision = registry.provisions.single { it.space == space }
+        fun create(registry: CloudUserRegistry, space: CloudSpace, device: CloudDeviceDraft, checkpoint: ByteArray = byteArrayOf()): CloudInvitation {
+            val provision = registry.provisions.single { it.space == space && !it.retired }
+            require(if (provision.checkpointSha.isEmpty()) checkpoint.isEmpty() else CloudRegistryBlob.sha(checkpoint) == provision.checkpointSha)
             val signer = requireNotNull(registry.adminSigner)
             val user = registry.users.single { it.id == device.userId && !it.archived }
             val label = if (space.kind == CloudSpaceKind.PERSONAL) "Личный список" else registry.groups.single { it.id == space.id }.name
@@ -164,7 +171,7 @@ internal data class CloudInvitation(
             val rsa = CloudInviteCrypto.encryptionKey(device.encryptionPublicKey)
             val raw = CloudInviteCrypto.decode(provision.secret)
             val wrapped = try { CloudInviteCrypto.wrap(rsa, raw) } finally { raw.fill(0) }
-            val unsigned = CloudInvitation(signer.publicKey, device.fingerprint, user.name, label, provision.signed(), wrapped, byteArrayOf())
+            val unsigned = CloudInvitation(signer.publicKey, device.fingerprint, user.name, label, provision.signed(), wrapped, byteArrayOf(), checkpoint)
             return unsigned.copy(signature = CloudInviteCrypto.sign(signer.signingKey(), unsigned.body())).also { it.verify(device.fingerprint) }
         }
     }

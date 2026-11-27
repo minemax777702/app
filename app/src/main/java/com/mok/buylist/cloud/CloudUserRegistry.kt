@@ -85,9 +85,10 @@ internal data class CloudUserRegistry(
         require(provisions.isEmpty() || adminSigner != null)
         provisions.forEach { provision ->
             val manifest = provision.signed().verify(requireNotNull(adminSigner).publicKey, provision.space, 1)
-            require(manifest.grants.sortedBy { it.deviceId } == grantsFor(provision.space)) {
+            require(provision.retired || manifest.grants.sortedBy { it.deviceId } == grantsFor(provision.space)) {
                 "Состав активированного списка нельзя менять без безопасной смены ключей"
             }
+            require(manifest.epoch == 1L || provision.checkpointSha.isNotEmpty())
             provision.key()
         }
         require(groups.all { group -> group.members.keys.all { it in byId } }) { "Неизвестный участник группы" }
@@ -198,12 +199,13 @@ internal object CloudRegistryCodec {
     private const val MAGIC_V2 = 0x42554332
     private const val MAGIC_V3 = 0x42554333
     private const val MAGIC_V4 = 0x42554334
+    private const val MAGIC_V5 = 0x42554335
     const val MAX_BYTES = 65_536
 
     fun encode(registry: CloudUserRegistry): ByteArray {
         val out = ByteArrayOutputStream()
         DataOutputStream(out).use { data ->
-            data.writeInt(MAGIC_V4)
+            data.writeInt(MAGIC_V5)
             data.writeLong(registry.revision)
             data.writeInt(registry.users.size)
             registry.users.forEach {
@@ -233,7 +235,7 @@ internal object CloudRegistryCodec {
             data.writeBoolean(registry.adminSigner != null)
             registry.adminSigner?.let { data.writeUTF(it.publicKey); data.writeUTF(it.privateKey) }
             data.writeInt(registry.provisions.size)
-            registry.provisions.forEach { data.writeUTF(it.manifest); data.writeUTF(it.secret) }
+            registry.provisions.forEach { data.writeUTF(it.manifest); data.writeUTF(it.secret); data.writeUTF(it.checkpointSha); data.writeBoolean(it.retired) }
         }
         return out.toByteArray().also { require(it.size <= MAX_BYTES) }
     }
@@ -242,7 +244,7 @@ internal object CloudRegistryCodec {
         require(bytes.size in 16..MAX_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { data ->
             val magic = data.readInt()
-            require(magic == MAGIC_V1 || magic == MAGIC_V2 || magic == MAGIC_V3 || magic == MAGIC_V4)
+            require(magic == MAGIC_V1 || magic == MAGIC_V2 || magic == MAGIC_V3 || magic == MAGIC_V4 || magic == MAGIC_V5)
             val revision = data.readLong()
             val count = data.readInt()
             require(count in 0..CloudUserRegistry.MAX_USERS)
@@ -268,15 +270,15 @@ internal object CloudRegistryCodec {
                     CloudGroupDraft(id, name, members, archived)
                 }
             }
-            val devices = if (magic != MAGIC_V3 && magic != MAGIC_V4) emptyList() else {
+            val devices = if (magic != MAGIC_V3 && magic != MAGIC_V4 && magic != MAGIC_V5) emptyList() else {
                 val countDevices = data.readInt()
                 require(countDevices in 0..CloudUserRegistry.MAX_DEVICES)
-                List(countDevices) { CloudDeviceDraft(data.readUTF(), data.readUTF(), data.readLong(), data.readBoolean(), if (magic == MAGIC_V4) data.readUTF() else "") }
+                List(countDevices) { CloudDeviceDraft(data.readUTF(), data.readUTF(), data.readLong(), data.readBoolean(), if (magic == MAGIC_V4 || magic == MAGIC_V5) data.readUTF() else "") }
             }
-            val signer = if (magic == MAGIC_V4 && data.readBoolean()) CloudAdminSigner(data.readUTF(), data.readUTF()) else null
-            val provisions = if (magic == MAGIC_V4) {
+            val signer = if ((magic == MAGIC_V4 || magic == MAGIC_V5) && data.readBoolean()) CloudAdminSigner(data.readUTF(), data.readUTF()) else null
+            val provisions = if (magic == MAGIC_V4 || magic == MAGIC_V5) {
                 val n = data.readInt(); require(n in 0..(CloudUserRegistry.MAX_USERS + CloudUserRegistry.MAX_GROUPS))
-                List(n) { CloudProvision(data.readUTF(), data.readUTF()) }
+                List(n) { CloudProvision(data.readUTF(), data.readUTF(), if (magic == MAGIC_V5) data.readUTF() else "", if (magic == MAGIC_V5) data.readBoolean() else false) }
             } else emptyList()
             require(data.read() == -1)
             CloudUserRegistry(revision, users, groups, devices, signer, provisions)

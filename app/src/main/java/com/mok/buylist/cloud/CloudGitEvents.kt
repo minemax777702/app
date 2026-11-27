@@ -52,6 +52,20 @@ internal class CloudGitEvents(
         return requireNotNull(repository.exactRef(tracking(branch))?.objectId) { "Remote tip unavailable" }
     }
 
+    fun readControl(space: CloudSpace): CloudEpochControl? = synchronized(LOCK) {
+        val tip = fetchTip(CloudEpochControl.branch(space)) ?: return@synchronized null
+        RevWalk(repository).use { walk ->
+            val commit = walk.parseCommit(tip)
+            TreeWalk(repository).use { tree ->
+                tree.addTree(commit.tree)
+                require(tree.next() && tree.pathString == "control.bin" && tree.getFileMode(0) == FileMode.REGULAR_FILE)
+                val bytes = repository.open(tree.getObjectId(0), Constants.OBJ_BLOB).getBytes(CloudEpochControl.MAX_BYTES)
+                require(!tree.next())
+                CloudEpochControl.decode(bytes)
+            }
+        }
+    }
+
     private fun read(commit: RevCommit): CloudSignedEvent {
         TreeWalk(repository).use { tree ->
             tree.addTree(commit.tree)

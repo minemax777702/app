@@ -17,11 +17,11 @@ import javax.crypto.SecretKey
  * Process-local lock covers reading, verification, merge and AtomicFile commit.
  * No automatic initialization after corruption or missing key.
  */
-internal class CloudJournalStore(context: Context, private val testRun: UUID? = null) {
+internal class CloudJournalStore(context: Context, private val testRun: UUID? = null, private val epochNamespace: Long = 1) {
     private val directory = File(context.applicationContext.noBackupFilesDir,
-        if (testRun == null) "cloud-journals-v1" else "cloud-journal-tests/$testRun")
+        if (testRun == null) (if (epochNamespace == 1L) "cloud-journals-v1" else "cloud-journals-v1/epoch-$epochNamespace") else "cloud-journal-tests/$testRun")
     private fun alias(space: CloudSpace): String =
-        if (testRun == null) "buylist.cloud.journal.v1." + space.key else "buylist.cloud.journal.test.$testRun." + space.key
+        if (testRun == null) "buylist.cloud.journal.v1." + (if (epochNamespace == 1L) "" else "epoch-$epochNamespace.") + space.key else "buylist.cloud.journal.test.$testRun." + space.key
     private fun file(space: CloudSpace): AtomicFile {
         check(directory.isDirectory || directory.mkdirs())
         return AtomicFile(File(directory, space.key.replace(':', '-') + ".bin"))
@@ -78,12 +78,13 @@ internal class CloudJournalStore(context: Context, private val testRun: UUID? = 
             }
         }
 
-    suspend fun ensureInitialized(space: CloudSpace, manifest: SignedCloudManifest, pinnedAdmin: String): CloudJournalRecord =
+    suspend fun ensureInitialized(space: CloudSpace, manifest: SignedCloudManifest, pinnedAdmin: String, checkpoint: com.mok.buylist.sync.Snapshot = com.mok.buylist.sync.Snapshot()): CloudJournalRecord =
         withContext(Dispatchers.IO) {
             synchronized(LOCK) {
                 val atomic = file(space)
                 val existing = atomic.baseFile.exists() || File(atomic.baseFile.path + ".bak").exists()
-                val binding = CloudJournalRecord.initialize(space, manifest, pinnedAdmin)
+                val initial = CloudJournalRecord.initialize(space, manifest, pinnedAdmin)
+                val binding = initial.copy(state = initial.state.copy(snapshot = checkpoint))
                 if (existing) {
                     val record = loadLocked(space)
                     require(record.pinnedAdmin == pinnedAdmin && record.manifestHash == binding.manifestHash &&

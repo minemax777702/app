@@ -6,9 +6,9 @@ import java.io.File
 import java.util.UUID
 
 /** Stores the exact already encrypted/signed envelope before the first network attempt. */
-internal class CloudOutbox(context: Context, testRun: UUID? = null) {
+internal class CloudOutbox(context: Context, testRun: UUID? = null, epochNamespace: Long = 1) {
     private val directory = File(context.applicationContext.noBackupFilesDir,
-        if (testRun == null) "cloud-outbox-v1" else "cloud-outbox-tests/$testRun")
+        if (testRun == null) (if (epochNamespace == 1L) "cloud-outbox-v1" else "cloud-outbox-v1/epoch-$epochNamespace") else "cloud-outbox-tests/$testRun")
 
     private fun file(space: CloudSpace, device: String): AtomicFile {
         require(device.matches(Regex("[0-9a-f]{64}")))
