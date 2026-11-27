@@ -81,7 +81,7 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
     }
     LaunchedEffect(Unit){refresh()}
     val busy=loading || deleting || revoking || stage!=PasskeyStage.IDLE
-    AppSheet(onDismissRequest={if(!busy)onClose()},containerColor=p.sheet,title={SheetHeader("Безопасность")},text={
+    AppSheet(onDismissRequest={if(!deleting && !revoking && stage==PasskeyStage.IDLE)onClose()},containerColor=p.sheet,title={SheetHeader("Безопасность")},text={
         Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp)) {
                 Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -93,10 +93,6 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
                         textAlign=androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
-            FreshCutSectionTitle("Сеансы")
-            FreshCutListRow(R.drawable.ic_shield,"Завершить другие сеансы",
-                "Текущий сеанс останется активным",showChevron=true,
-                onClick={if(!busy)confirmSessions=true})
             if(error!=null) {
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
                     Text(error.orEmpty(),Modifier.weight(1f),color=p.textSecondary,fontSize=13.sp)
@@ -119,6 +115,10 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
                         trailing={FreshCutToolbarAction(R.drawable.ic_trash,"Удалить ключ",{removing=key},enabled=!busy)})
                 }
             }
+            FreshCutSectionTitle("Сеансы")
+            FreshCutListRow(R.drawable.ic_shield,"Завершить другие сеансы",
+                "Текущий сеанс останется активным",showChevron=true,
+                onClick={if(!revoking && !deleting && stage==PasskeyStage.IDLE)confirmSessions=true})
         }
     },confirmButton={})
     if(confirmSessions) {
