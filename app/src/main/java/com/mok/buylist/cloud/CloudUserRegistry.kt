@@ -119,6 +119,42 @@ internal data class CloudUserRegistry(
             devices = devices + CloudDeviceDraft(userId, request.publicKey, now))
     }
 
+    fun registerNewUser(name: String, request: CloudDeviceRequest, now: Long): CloudUserRegistry {
+        CloudDeviceProtocol.requireFresh(request, now)
+        require(devices.none { it.fingerprint == request.fingerprint }) { "Устройство уже зарегистрировано" }
+        val user = CloudUserDraft(UUID.randomUUID().toString(), name.trim())
+        return copy(revision = Math.addExact(revision, 1),
+            users = users + user,
+            devices = devices + CloudDeviceDraft(user.id, request.publicKey, now))
+    }
+
+    fun deleteDevice(fingerprint: String): CloudUserRegistry {
+        require(devices.any { it.fingerprint == fingerprint }) { "Устройство не найдено" }
+        return copy(revision = Math.addExact(revision, 1), devices = devices.filterNot { it.fingerprint == fingerprint })
+    }
+
+    fun deleteGroup(id: String): CloudUserRegistry {
+        require(groups.any { it.id == id }) { "Группа не найдена" }
+        return copy(revision = Math.addExact(revision, 1), groups = groups.filterNot { it.id == id })
+    }
+
+    /** Caller must revoke all matching remote deploy keys before saving. Never touches purchases. */
+    fun deleteUser(id: String): CloudUserRegistry {
+        require(users.any { it.id == id }) { "Пользователь не найден" }
+        val owned = groups.filter { it.members[id] == CloudGroupRole.OWNER && it.members.size > 1 }
+        require(owned.isEmpty()) {
+            "Сначала передайте владение группами: " + owned.joinToString(", ") { it.name }
+        }
+        return copy(revision = Math.addExact(revision, 1),
+            users = users.filterNot { it.id == id },
+            devices = devices.filterNot { it.userId == id },
+            groups = groups.mapNotNull { group ->
+                if (id !in group.members) group
+                else if (group.members.size == 1) null
+                else group.copy(members = group.members - id)
+            })
+    }
+
     fun revokeDevice(fingerprint: String): CloudUserRegistry {
         require(devices.any { it.fingerprint == fingerprint && !it.revoked })
         return copy(revision = Math.addExact(revision, 1),

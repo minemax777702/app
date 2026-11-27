@@ -118,7 +118,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
         onActiveChange(page != "profile"); scrollState.scrollTo(0)
     }
     BackHandler(enabled = page != "profile") {
-        page = if (page == "cloud-device" || page == "cloud-help") "cloud" else "profile"
+        page = if (page == "cloud-device") "cloud" else "profile"
     }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) scrollState.scrollTo(0) }
     LaunchedEffect(state.notice) {
@@ -195,7 +195,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
             "cloud" -> SubScreenHeader("Облачное хранилище", { page = "profile" })
             "cloud-device" -> SubScreenHeader("Подключение устройства", { page = "cloud" })
-            "cloud-help" -> SubScreenHeader("Помощь с подключением", { page = "cloud" })
             "cloud-admin" -> SubScreenHeader("Администрирование облака", { page = "profile" })
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
@@ -203,8 +202,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "cloud" -> CloudHomePanel(onConnect = { page = "cloud-device" }, onHelp = { page = "cloud-help" })
-                "cloud-help" -> CloudConnectionHelpPanel()
+                "cloud" -> CloudHomePanel(onConnect = { page = "cloud-device" })
                 "cloud-admin" -> CloudAdminPanel(
                     onHideAdmin = { setAdminVisible(false); page = "profile" },
                     recoveryFile = recoveryImport,
@@ -215,7 +213,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     },
                     onClearRecovery = { recoveryImport = null },
                 )
-                "cloud-device" -> CloudDeviceRequestPanel()
+                "cloud-device" -> CloudDeviceRequestPanel(onDone = { page = "cloud" })
                 "nearby" -> {
                     NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
                 }
@@ -244,7 +242,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
                         "Проверить наличие обновлений", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
-                    ProfileMenuRow(R.drawable.ic_cloud, "Облачное хранилище", "Подключение и синхронизация", { page = "cloud" })
+                    ProfileMenuRow(R.drawable.ic_cloud, "Облако", "Подключение устройства", { page = "cloud" })
                     if (adminVisible) ProfileMenuRow(R.drawable.ic_cloud, "Администрирование облака", "Пользователи, группы и хранилище", { page = "cloud-admin" })
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })

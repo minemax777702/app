@@ -38,7 +38,7 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicBoolean
 
 @Composable
-internal fun CloudDeviceRequestPanel() {
+internal fun CloudDeviceRequestPanel(onDone: () -> Unit) {
     val p = LocalPalette.current
     val context = LocalContext.current
     var refresh by remember { mutableStateOf(0) }
@@ -50,6 +50,7 @@ internal fun CloudDeviceRequestPanel() {
     var accessMessage by remember { mutableStateOf<String?>(null) }
     var accessVerified by remember { mutableStateOf(false) }
     var checkedPort by remember { mutableStateOf(443) }
+    var showDetails by remember { mutableStateOf(false) }
 
     fun checkAccess(port: Int) {
         if (checking || request == null) return
@@ -57,16 +58,22 @@ internal fun CloudDeviceRequestPanel() {
         checkedPort = port
         accessMessage = null
         accessVerified = false
+        showDetails = false
         scope.launch {
             try {
                 // Enrollment only needs an authenticated, read-only Git service.
                 // Do not initialize JGit's JVM filesystem/transport stack here.
                 accessMessage = CloudSshProbe.check(port, registeredDevice = true)
+                if (port == 443) {
+                    val prefs = context.getSharedPreferences("cloud_connection_v1", android.content.Context.MODE_PRIVATE)
+                    prefs.edit().putLong("confirmed_at", System.currentTimeMillis()).apply()
+                }
                 accessVerified = true
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: CloudAdminException) {
-                accessMessage = e.message ?: "SSH $port: доступ не подтверждён."
+                accessMessage = e.message ?: "Подключение не подтверждено."
+                if (accessMessage?.contains("SSH-06") == true) context.getSharedPreferences("cloud_connection_v1", android.content.Context.MODE_PRIVATE).edit().remove("confirmed_at").apply()
             } catch (e: LinkageError) {
                 accessMessage = "SSH $port: несовместимость клиента (${e.javaClass.simpleName})."
             } catch (e: Exception) {
@@ -92,8 +99,8 @@ internal fun CloudDeviceRequestPanel() {
         catch (_: Exception) { message = "Не удалось создать ключ устройства." }
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FreshCutSectionTitle("Подключение устройства")
-        Text("Покажите QR-код администратору. Сравните код безопасности на обоих телефонах. После регистрации понадобится активация облачного доступа.", color = p.textSecondary, fontSize = 14.sp)
+        FreshCutSectionTitle("Приглашение")
+        Text("Покажите QR-код администратору. После подтверждения нажмите «Подключиться».", color = p.textSecondary, fontSize = 14.sp)
         val qr = code?.let { value -> remember(value) { QrEncoder.encode(value) } }
         if (qr != null) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(264.dp).background(Color.White)) {
@@ -105,9 +112,9 @@ internal fun CloudDeviceRequestPanel() {
         }
         request?.let { Text(it.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp) }
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
-        FreshCutSecondaryButton("Обновить QR-код", { refresh++ })
+        FreshCutSecondaryButton("Обновить код", { refresh++ }, enabled = !checking)
         FreshCutSecondaryButton(
-            if (checking) "Проверяем…" else "Проверить подключение",
+            if (checking) "Подключаем…" else "Подключиться",
             { checkAccess(443) },
             enabled = !checking && request != null,
         )
@@ -119,12 +126,15 @@ internal fun CloudDeviceRequestPanel() {
                     color = p.text,
                     fontSize = 15.sp,
                 )
-                Text("Для обмена покупками ещё нужен ключ рабочего пространства.", color = p.textSecondary, fontSize = 13.sp)
+                Text("Обмен покупками через облако пока недоступен.", color = p.textSecondary, fontSize = 13.sp)
+                FreshCutSecondaryButton("Готово", onDone)
             } else {
-                Text("Доступ не подтверждён", color = p.error, fontSize = 15.sp)
+                Text("Не удалось подключиться. Проверьте интернет и подтверждение администратора.", color = p.error, fontSize = 15.sp)
+                FreshCutSecondaryButton(if (showDetails) "Скрыть подробности" else "Подробнее об ошибке", { showDetails = !showDetails })
             }
+            if (showDetails && !accessVerified) {
             Text(report, color = p.textSecondary, fontSize = 13.sp)
-            if (!accessVerified && checkedPort == 443) {
+            if (checkedPort == 443) {
                 FreshCutSecondaryButton("Проверить через порт 22", { checkAccess(22) }, enabled = !checking && request != null)
             }
             FreshCutSecondaryButton("Копировать отчёт", {
@@ -133,6 +143,7 @@ internal fun CloudDeviceRequestPanel() {
                 context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
                     ClipData.newPlainText("Cloud connection diagnostic", text))
             }, enabled = !checking)
+            }
         }
 
     }

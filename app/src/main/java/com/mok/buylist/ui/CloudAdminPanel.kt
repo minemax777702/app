@@ -55,7 +55,6 @@ internal fun CloudAdminPanel(
     var saved by remember { mutableStateOf(vault.exists) }
     var showUsers by remember { mutableStateOf(false) }
     var showCloudBackups by remember { mutableStateOf(false) }
-    var showDiagnostics by remember { mutableStateOf(false) }
     var recoveryMode by remember { mutableStateOf(0) }
     var verifiedToken by remember { mutableStateOf<String?>(null) }
     var authentication by remember { mutableStateOf<CancellationSignal?>(null) }
@@ -72,7 +71,6 @@ internal fun CloudAdminPanel(
     fun lock() {
         showUsers = false
         showCloudBackups = false
-        showDiagnostics = false
         recoveryMode = 0
         generation++
         val previous = authentication
@@ -178,13 +176,8 @@ internal fun CloudAdminPanel(
         }
     }
 
-    BackHandler(enabled = showUsers || showCloudBackups || showDiagnostics) {
-        showUsers = false; showCloudBackups = false; showDiagnostics = false
-    }
-    if (showDiagnostics && session != null) {
-        FreshCutSecondaryButton("К настройкам облака", { showDiagnostics = false })
-        CloudConnectionHelpPanel()
-        return
+    BackHandler(enabled = showUsers || showCloudBackups) {
+        showUsers = false; showCloudBackups = false
     }
     if (showCloudBackups && session != null && storage?.actionsEnabled == false) {
         CloudBackupPanel(requireNotNull(session), onBack = { showCloudBackups = false })
@@ -196,9 +189,7 @@ internal fun CloudAdminPanel(
     }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FreshCutSectionTitle("Хранилище")
-        FreshCutDetailLine("Репозиторий", CloudAccessPolicy.REPOSITORY)
-        FreshCutSectionTitle("Администрирование", Modifier.padding(top = 8.dp))
+        FreshCutSectionTitle("Управление облаком")
         val admin = session
         val current = storage
         if (admin == null || current == null) {
@@ -227,16 +218,8 @@ internal fun CloudAdminPanel(
                 login(value)
             }, enabled = token.isNotBlank() && !busy)
         } else {
-            FreshCutDetailLine("Владелец", CloudAccessPolicy.OWNER)
-            FreshCutDetailLine("Доступ", "Подтверждён")
-            FreshCutDetailLine("Хранилище", if (current.exists) "Приватное" else "Не найдено")
+            FreshCutDetailLine("Хранилище", if (current.exists && current.actionsEnabled == false) "Готово" else "Требует настройки")
             if (current.exists) {
-                FreshCutDetailLine("Размер, КиБ", current.sizeKiB.toString())
-                FreshCutDetailLine("GitHub Actions", when (current.actionsEnabled) {
-                    true -> "Включены"
-                    false -> "Отключены"
-                    null -> "Не проверены"
-                })
                 if (current.actionsEnabled == false) {
                     FreshCutSecondaryButton("Пользователи, группы и устройства", { showUsers = true }, enabled = !busy)
                     FreshCutSecondaryButton("Резервные копии покупок", { showCloudBackups = true }, enabled = !busy)
@@ -262,8 +245,7 @@ internal fun CloudAdminPanel(
                     execute(admin::createPrivateStorage) { storage = it }
                 }, enabled = !busy)
             }
-            FreshCutSectionTitle("Подключение")
-            FreshCutSecondaryButton("Диагностика и самопроверка", { showDiagnostics = true }, enabled = !busy)
+            FreshCutSectionTitle("Безопасность")
             FreshCutSecondaryButton(if (busy) "Проверяем…" else "Обновить статус", {
                 execute(admin::inspect) { storage = it }
             }, enabled = !busy)

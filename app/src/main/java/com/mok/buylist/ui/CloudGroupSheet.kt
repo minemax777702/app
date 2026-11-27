@@ -30,6 +30,7 @@ internal fun CloudGroupSheet(
     onDismiss: () -> Unit,
     onSave: (String, Map<String, CloudGroupRole>) -> Unit,
     onArchive: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val p = LocalPalette.current
     var name by remember(group?.id) { mutableStateOf(group?.name.orEmpty()) }
@@ -64,7 +65,6 @@ internal fun CloudGroupSheet(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SheetTextField(name, { name = it.filterNot(Char::isISOControl).take(50) }, "Название", readOnly = archived)
-                Text("Роли пока предварительные: владелец управляет группой, участник изменяет данные, просмотр — только чтение. Доступ к облаку ещё не выдаётся.", color = p.textSecondary, fontSize = 13.sp)
                 FreshCutDetailLine("Владелец", registry.users.firstOrNull { it.id == ownerId }?.name ?: "Не выбран")
                 FreshCutDetailLine("Участников", members.size.toString())
                 if (archived) {
@@ -97,10 +97,8 @@ internal fun CloudGroupSheet(
                     if (candidates.size > visibleLimit) FreshCutSecondaryButton("Показать ещё", { visibleLimit += 12 })
                     if (ownerId == null) Text("Выберите владельца группы.", color = p.textSecondary, fontSize = 13.sp)
                 }
-                if (group != null) FreshCutSecondaryButton(
-                    if (archived) "Восстановить группу" else "Архивировать группу",
-                    onArchive, enabled = !archived || !hasArchivedMembers,
-                )
+                if (group != null && archived) FreshCutSecondaryButton("Восстановить группу", onArchive, enabled = !hasArchivedMembers)
+                if (group != null) FreshCutSecondaryButton("Удалить группу", onDelete)
             }
         },
         confirmButton = {

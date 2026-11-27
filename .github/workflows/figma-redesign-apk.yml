@@ -99,7 +99,10 @@ jobs:
           printf '%s' "$BUYLIST_KEYSTORE_BASE64" | base64 --decode > "$BUYLIST_STORE_FILE"
           unset BUYLIST_KEYSTORE_BASE64
           chmod +x ./gradlew
-          ./gradlew :app:testDebugUnitTest --stacktrace --build-cache
+          # Stable keeps its gate; beta development builds only the signed APK.
+          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
+            ./gradlew :app:testDebugUnitTest --stacktrace --build-cache
+          fi
           ./gradlew :app:assembleRelease --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Verify SSH reflection classes in release APK

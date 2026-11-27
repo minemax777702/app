@@ -4,26 +4,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
-import com.mok.buylist.cloud.CloudAdminException
-import com.mok.buylist.cloud.CloudUserDraft
-import com.mok.buylist.cloud.CloudGroupDraft
-import com.mok.buylist.cloud.CloudDeviceRequest
-import com.mok.buylist.cloud.CloudUserRegistry
-import com.mok.buylist.cloud.CloudUserRegistryStore
-import com.mok.buylist.cloud.GitHubCloudAdmin
-import com.mok.buylist.cloud.LoadedCloudUsers
+import com.mok.buylist.cloud.*
 import com.mok.buylist.ui.theme.LocalPalette
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -35,246 +22,266 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
     val store = remember(context.applicationContext) { CloudUserRegistryStore(context) }
     val scope = rememberCoroutineScope()
     var loaded by remember(admin) { mutableStateOf<LoadedCloudUsers?>(null) }
+    var access by remember(admin) { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     var busy by remember(admin) { mutableStateOf(true) }
     var error by remember(admin) { mutableStateOf<String?>(null) }
-    var editing by remember(admin) { mutableStateOf(false) }
-    var selected by remember(admin) { mutableStateOf<CloudUserDraft?>(null) }
-    var name by remember(admin) { mutableStateOf("") }
-    var showArchived by remember(admin) { mutableStateOf(false) }
+    var notice by remember(admin) { mutableStateOf<String?>(null) }
     var section by remember(admin) { mutableStateOf(0) }
-    var scanningDevice by remember(admin) { mutableStateOf(false) }
-    var deviceRequest by remember(admin) { mutableStateOf<CloudDeviceRequest?>(null) }
-    var deviceUser by remember(admin) { mutableStateOf<String?>(null) }
-    var confirmedFingerprint by remember(admin) { mutableStateOf(false) }
-    var accessStatus by remember(admin) { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
+    var editing by remember(admin) { mutableStateOf(false) }
+    var user by remember(admin) { mutableStateOf<CloudUserDraft?>(null) }
+    var name by remember(admin) { mutableStateOf("") }
     var groupEditing by remember(admin) { mutableStateOf(false) }
-    var selectedGroup by remember(admin) { mutableStateOf<CloudGroupDraft?>(null) }
+    var group by remember(admin) { mutableStateOf<CloudGroupDraft?>(null) }
+    var device by remember(admin) { mutableStateOf<CloudDeviceDraft?>(null) }
+    var scanning by remember(admin) { mutableStateOf(false) }
+    var pending by remember(admin) { mutableStateOf<CloudDeviceRequest?>(null) }
+    var chosenUser by remember(admin) { mutableStateOf<String?>(null) }
+    var newName by remember(admin) { mutableStateOf("") }
+    var confirmed by remember(admin) { mutableStateOf(false) }
+    var confirmDelete by remember(admin) { mutableStateOf<Pair<Int, String>?>(null) }
 
     suspend fun reload() {
         busy = true
         error = null
         loaded = null
+        access = emptyMap()
         try {
             val current = store.load(admin)
             loaded = current
-            accessStatus = emptyMap()
-            if (current.registry.devices.isNotEmpty()) accessStatus = admin.deviceAccesses(current.registry.devices)
-        }
-        catch (e: CancellationException) { throw e }
+            if (current.registry.devices.isNotEmpty()) access = admin.deviceAccesses(current.registry.devices)
+        } catch (e: CancellationException) { throw e }
         catch (e: CloudAdminException) { error = e.message }
-        catch (_: Exception) { error = "Не удалось загрузить реестр. Проверьте интернет и права Contents." }
+        catch (_: Exception) { error = "Не удалось загрузить данные. Повторите попытку." }
         finally { busy = false }
     }
 
     LaunchedEffect(admin) { reload() }
 
-    fun change(transform: (LoadedCloudUsers) -> com.mok.buylist.cloud.CloudUserRegistry) {
-        val previous = loaded ?: return
-        if (busy) return
-        val next = try { transform(previous) } catch (e: IllegalArgumentException) {
-            error = e.message ?: "Некорректные данные"
-            return
-        }
-        busy = true
-        error = null
-        scope.launch {
-            try { loaded = store.save(admin, previous, next) }
-            catch (e: CancellationException) { throw e }
-            catch (e: CloudAdminException) { loaded = null; error = e.message }
-            catch (_: Exception) { loaded = null; error = "Запись не подтверждена. Обновите реестр перед повторной попыткой." }
-            finally { busy = false }
-        }
-    }
-
-    fun access(device: com.mok.buylist.cloud.CloudDeviceDraft, enable: Boolean) {
+    fun perform(operation: suspend (LoadedCloudUsers) -> LoadedCloudUsers, success: String) {
         if (busy || loaded == null) return
         busy = true
         error = null
+        notice = null
         scope.launch {
             try {
-                // Re-read the registry before granting access; do not act on a stale UI row.
-                val current = store.load(admin)
-                val verified = current.registry.devices.single { it.fingerprint == device.fingerprint }
-                if (enable) admin.activateDeviceReadOnly(verified) else admin.deactivateDevice(verified)
-                accessStatus = accessStatus + (device.fingerprint to admin.deviceAccess(verified))
-                loaded = current
+                val latest = store.load(admin)
+                loaded = operation(latest)
+                notice = success
+                access = emptyMap()
+                val devices = requireNotNull(loaded).registry.devices
+                if (devices.isNotEmpty()) access = admin.deviceAccesses(devices)
             } catch (e: CancellationException) { throw e }
-            catch (e: CloudAdminException) { error = e.message }
-            catch (_: Exception) { error = "Не удалось подтвердить изменение SSH-ключа. Проверьте права токена и обновите статус." }
+            catch (e: IllegalArgumentException) { error = e.message ?: "Проверьте данные."; loaded = null }
+            catch (e: CloudAdminException) { error = e.message; loaded = null }
+            catch (_: Exception) { error = "Операция не подтверждена. Обновите список."; loaded = null }
             finally { busy = false }
         }
     }
 
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FreshCutSecondaryButton("К настройкам облака", onBack)
-        FreshCutSectionTitle("Пользователи и группы")
-        FreshCutTabs(listOf("Пользователи", "Группы", "Устройства"), section, { section = it; showArchived = false })
-        Text("Имена и настройки реестра зашифрованы. Сохраняйте актуальную копию .blcloud после изменений. SSH-доступ и доступ к покупкам — разные разрешения.", color = p.textSecondary, fontSize = 14.sp)
-        val current = loaded
-        if (busy) Text("Загрузка…", color = p.textSecondary, fontSize = 14.sp)
-        error?.let {
-            Text(it, color = p.error, fontSize = 14.sp)
-            if (loaded == null && (it.startsWith("REG-") || it.contains("Ключ реестра отсутствует"))) {
-                Text("Не удаляйте приложение, его данные или файл реестра на GitHub. Для восстановления вернитесь в настройки облака и выберите актуальный файл .blcloud.", color = p.textSecondary, fontSize = 13.sp)
-            }
+    fun change(transform: (CloudUserRegistry) -> CloudUserRegistry) =
+        perform({ latest -> store.save(admin, latest, transform(latest.registry)) }, "Изменения сохранены")
+
+    fun activate(id: String, enable: Boolean) = perform({ latest ->
+        val row = latest.registry.devices.single { it.fingerprint == id }
+        if (enable) admin.activateDeviceReadOnly(row) else admin.deactivateDevice(row)
+        latest
+    }, if (enable) "Доступ предоставлен" else "Доступ отключён")
+
+    fun remove(kind: Int, id: String) = perform({ latest ->
+        // Validate the resulting structure BEFORE any remote key revocation.
+        val next = when (kind) {
+            0 -> latest.registry.deleteUser(id)
+            1 -> latest.registry.deleteGroup(id)
+            else -> latest.registry.deleteDevice(id)
         }
-        if (current != null && section == 0) {
-            val users = current.registry.users
-            FreshCutDetailLine("Активные записи", users.count { !it.archived }.toString())
-            FreshCutDetailLine("В архиве", users.count { it.archived }.toString())
-            FreshCutSecondaryButton("Добавить пользователя", {
-                selected = null
-                name = ""
-                editing = true
-            }, enabled = !busy && users.size < com.mok.buylist.cloud.CloudUserRegistry.MAX_USERS)
-            FreshCutTabs(listOf("Активные", "Архив"), if (showArchived) 1 else 0, { showArchived = it == 1 })
-            val visible = users.filter { it.archived == showArchived }.sortedBy { it.name.lowercase() }
-            if (visible.isEmpty()) Text("Нет пользователей", color = p.textSecondary, fontSize = 14.sp)
-            visible.forEach { user ->
-                FreshCutListRow(R.drawable.ic_user_round, user.name,
-                    if (user.archived) "В архиве" else "Ожидает подключения",
-                    onClick = {
-                        if (!busy) {
-                            selected = user
-                            name = user.name
-                            editing = true
-                        }
-                    })
-            }
+        val keys = when (kind) {
+            0 -> latest.registry.devices.filter { it.userId == id }
+            2 -> latest.registry.devices.filter { it.fingerprint == id }
+            else -> emptyList()
         }
-        if (current != null && section == 1) {
-            val groups = current.registry.groups
-            FreshCutDetailLine("Активные группы", groups.count { !it.archived }.toString())
-            FreshCutDetailLine("В архиве", groups.count { it.archived }.toString())
-            FreshCutSecondaryButton("Создать группу", {
-                selectedGroup = null
-                groupEditing = true
-            }, enabled = !busy && groups.size < CloudUserRegistry.MAX_GROUPS && current.registry.users.any { !it.archived })
-            if (current.registry.users.none { !it.archived }) Text("Сначала добавьте пользователя.", color = p.textSecondary, fontSize = 14.sp)
-            FreshCutTabs(listOf("Активные", "Архив"), if (showArchived) 1 else 0, { showArchived = it == 1 })
-            val visible = groups.filter { it.archived == showArchived }.sortedBy { it.name.lowercase() }
-            if (visible.isEmpty()) Text("Нет групп", color = p.textSecondary, fontSize = 14.sp)
-            visible.forEach { group ->
-                FreshCutListRow(R.drawable.ic_group, group.name, "Участников: ${group.members.size}", onClick = {
-                    if (!busy) { selectedGroup = group; groupEditing = true }
-                })
+        // Removing a record never leaves its managed Deploy Key intentionally active.
+        // On an interrupted operation the old record remains, allowing retry.
+        keys.forEach { admin.deactivateDevice(it) }
+        store.save(admin, latest, next)
+    }, "Удалено")
+
+    fun register(request: CloudDeviceRequest) {
+        if (!confirmed || busy) return
+        val id = chosenUser
+        val label = newName.trim()
+        if (id == null && label.isBlank()) return
+        pending = null
+        perform({ latest ->
+            CloudDeviceProtocol.requireFresh(request, System.currentTimeMillis())
+            val existing = latest.registry.devices.singleOrNull { it.fingerprint == request.fingerprint }
+            val registered = if (existing != null) {
+                require(existing.userId == id && !existing.revoked) { "Устройство уже принадлежит другому пользователю или отозвано." }
+                latest
+            } else {
+                val next = if (id == null) latest.registry.registerNewUser(label, request, System.currentTimeMillis())
+                    else latest.registry.registerDevice(id, request, System.currentTimeMillis())
+                store.save(admin, latest, next)
             }
-        }
-        if (current != null && section == 2) {
-            val devices = current.registry.devices
-            FreshCutSecondaryButton("Сканировать QR устройства", {
-                scanningDevice = true
-            }, enabled = !busy && current.registry.users.any { !it.archived } && devices.size < CloudUserRegistry.MAX_DEVICES)
-            Text("После регистрации можно выдать устройству SSH-доступ для чтения. Доступ к покупкам потребует отдельного ключа пространства.", color = p.textSecondary, fontSize = 14.sp)
-            devices.forEach { device ->
-                val active = accessStatus[device.fingerprint]
-                val owner = current.registry.users.firstOrNull { it.id == device.userId }?.name.orEmpty()
-                FreshCutListRow(R.drawable.ic_scan_barcode, owner,
-                    when {
-                        device.revoked && active == true -> "Отозвано · ключ ещё доступен"
-                        device.revoked -> "Отозвано"
-                        active == true -> "SSH-доступ предоставлен"
-                        active == false -> "Ожидает активации"
-                        else -> "Статус SSH не проверен"
-                    }, showChevron = false)
-                Text(device.fingerprint.chunked(8).joinToString(" "), color = p.textSecondary, fontSize = 12.sp)
-                if (!device.revoked && active != true) FreshCutSecondaryButton("Разрешить SSH-чтение", {
-                    access(device, true)
-                }, enabled = !busy)
-                if (active != false) FreshCutSecondaryButton("Отключить SSH-доступ", { access(device, false) }, enabled = !busy)
-                if (!device.revoked) FreshCutSecondaryButton("Отозвать регистрацию", {
-                    if (!busy) {
-                        busy = true
-                        scope.launch {
-                            try {
-                                val latest = store.load(admin)
-                                val verified = latest.registry.devices.single { it.fingerprint == device.fingerprint }
-                                admin.deactivateDevice(verified)
-                                loaded = store.save(admin, latest, latest.registry.revokeDevice(verified.fingerprint))
-                                accessStatus = accessStatus + (device.fingerprint to false)
-                            } catch (e: CancellationException) { throw e }
-                            catch (_: Exception) { loaded = null; error = "Отзыв не подтверждён. Обновите реестр и повторите." }
-                            finally { busy = false }
-                        }
-                    }
-                }, enabled = !busy)
-            }
-        }
-        FreshCutSecondaryButton("Обновить список", { scope.launch { reload() } }, enabled = !busy)
+            val row = registered.registry.devices.single { it.fingerprint == request.fingerprint }
+            admin.activateDeviceReadOnly(row)
+            registered
+        }, "Доступ предоставлен. Пользователь может завершить подключение.")
     }
 
-    if (scanningDevice) CloudDeviceScanSheet(onRequest = {
-        scanningDevice = false
-        deviceRequest = it
-        deviceUser = null
-        confirmedFingerprint = false
-    }, onDismiss = { scanningDevice = false })
-    val pendingDevice = deviceRequest
-    if (pendingDevice != null && loaded != null) {
-        AppSheet(onDismissRequest = { deviceRequest = null }, containerColor = p.sheet,
-            title = { SheetHeader("Регистрация устройства") }, text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(pendingDevice.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 14.sp)
-                    FreshCutSecondaryButton(if (confirmedFingerprint) "Отпечаток совпадает ✓" else "Подтвердить совпадение отпечатка", {
-                        confirmedFingerprint = !confirmedFingerprint
-                    })
-                    FreshCutSectionTitle("Пользователь")
-                    loaded?.registry?.users?.filterNot { it.archived }?.forEach { user ->
-                        FreshCutListRow(R.drawable.ic_user_round, user.name, selected = deviceUser == user.id,
-                            value = if (deviceUser == user.id) "Выбран" else null, onClick = { deviceUser = user.id })
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FreshCutSecondaryButton("Назад", onBack)
+        FreshCutTabs(listOf("Пользователи", "Группы", "Устройства"), section, { section = it })
+        if (busy) Text("Загрузка…", color = p.textSecondary, fontSize = 14.sp)
+        notice?.let { Text(it, color = p.text, fontSize = 14.sp) }
+        error?.let { Text(it, color = p.error, fontSize = 13.sp) }
+        val registry = loaded?.registry
+        if (registry != null) when (section) {
+            0 -> {
+                FreshCutSecondaryButton("Добавить пользователя", {
+                    user = null; name = ""; editing = true
+                }, enabled = !busy && registry.users.size < CloudUserRegistry.MAX_USERS)
+                if (registry.users.isEmpty()) Text("Нет пользователей", color = p.textSecondary, fontSize = 14.sp)
+                registry.users.sortedBy { it.name.lowercase() }.forEach { row ->
+                    val count = registry.devices.count { it.userId == row.id && !it.revoked && access[it.fingerprint] == true }
+                    FreshCutListRow(R.drawable.ic_user_round, row.name,
+                        if (row.archived) "В архиве" else "Подключённых устройств: $count",
+                        onClick = { if (!busy) { user = row; name = row.name; editing = true } })
+                }
+            }
+            1 -> {
+                FreshCutSecondaryButton("Создать группу", { group = null; groupEditing = true },
+                    enabled = !busy && registry.groups.size < CloudUserRegistry.MAX_GROUPS && registry.users.any { !it.archived })
+                if (registry.groups.isEmpty()) Text("Нет групп", color = p.textSecondary, fontSize = 14.sp)
+                registry.groups.sortedBy { it.name.lowercase() }.forEach { row ->
+                    FreshCutListRow(R.drawable.ic_group, row.name,
+                        if (row.archived) "В архиве" else "Участников: ${row.members.size}",
+                        onClick = { if (!busy) { group = row; groupEditing = true } })
+                }
+            }
+            2 -> {
+                FreshCutSecondaryButton("Подключить устройство", { scanning = true },
+                    enabled = !busy && registry.devices.size < CloudUserRegistry.MAX_DEVICES)
+                if (registry.devices.isEmpty()) Text("Нет устройств", color = p.textSecondary, fontSize = 14.sp)
+                registry.devices.forEach { row ->
+                    val active = access[row.fingerprint]
+                    FreshCutListRow(R.drawable.ic_scan_barcode,
+                        registry.users.firstOrNull { it.id == row.userId }?.name ?: "Устройство",
+                        when {
+                            row.revoked && active == true -> "Отозвано · требуется отключение"
+                            row.revoked -> "Отозвано"
+                            active == true -> "Доступ предоставлен"
+                            active == false -> "Не подключено"
+                            else -> "Статус неизвестен"
+                        }, onClick = { if (!busy) device = row })
+                }
+            }
+        }
+        if (!busy) FreshCutSecondaryButton("Обновить", { scope.launch { reload() } })
+    }
+
+    if (editing) {
+        val row = user
+        AppSheet(onDismissRequest = { editing = false }, containerColor = p.sheet,
+            title = { SheetHeader(if (row == null) "Новый пользователь" else "Пользователь") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SheetTextField(name, { name = it.filterNot(Char::isISOControl).take(50) }, "Имя")
+                    if (row != null) {
+                        if (row.archived) FreshCutSecondaryButton("Восстановить", {
+                            editing = false; change { it.archive(row.id, false) }
+                        }, enabled = !busy)
+                        FreshCutSecondaryButton("Подключить устройство", {
+                            editing = false; section = 2; chosenUser = row.id; scanning = true
+                        }, enabled = !busy && !row.archived)
+                        FreshCutSecondaryButton("Удалить пользователя", {
+                            editing = false; confirmDelete = 0 to row.id
+                        }, enabled = !busy)
                     }
                 }
             }, confirmButton = {
                 SheetActionButton(onClick = {
-                    val user = deviceUser ?: return@SheetActionButton
-                    deviceRequest = null
-                    change { it.registry.registerDevice(user, pendingDevice, System.currentTimeMillis()) }
-                }, enabled = !busy && confirmedFingerprint && deviceUser != null) { Text("Зарегистрировать") }
+                    editing = false
+                    change { if (row == null) it.add(name) else it.rename(row.id, name) }
+                }, enabled = !busy && name.isNotBlank()) { Text("Сохранить") }
             })
     }
 
-    if (groupEditing && loaded != null) {
-        val group = selectedGroup
-        CloudGroupSheet(
-            registry = requireNotNull(loaded).registry,
-            group = group,
-            onDismiss = { groupEditing = false },
-            onSave = { groupName, members ->
-                groupEditing = false
-                change { it.registry.saveGroup(group?.id, groupName, members) }
+    val registry = loaded?.registry
+    if (groupEditing && registry != null) {
+        val row = group
+        CloudGroupSheet(registry, row, onDismiss = { groupEditing = false },
+            onSave = { title, members ->
+                groupEditing = false; change { it.saveGroup(row?.id, title, members) }
             },
-            onArchive = {
-                groupEditing = false
-                if (group != null) change { it.registry.archiveGroup(group.id, !group.archived) }
-            },
-        )
+            onArchive = { groupEditing = false; if (row != null) change { it.archiveGroup(row.id, false) } },
+            onDelete = { groupEditing = false; if (row != null) confirmDelete = 1 to row.id })
     }
 
-    if (editing) {
-        val user = selected
-        AppSheet(
-            onDismissRequest = { editing = false },
-            containerColor = p.sheet,
-            title = { SheetHeader(if (user == null) "Новый пользователь" else "Пользователь") },
-            text = {
+    device?.let { row ->
+        AppSheet(onDismissRequest = { device = null }, containerColor = p.sheet,
+            title = { SheetHeader("Устройство") }, text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SheetTextField(name, { name = it.filterNot(Char::isISOControl).take(50) }, "Имя")
-                    if (user != null) {
-                        Text("ID: ${user.id}", color = p.textSecondary, fontSize = 12.sp)
-                        FreshCutSecondaryButton(if (user.archived) "Восстановить запись" else "В архив", {
-                            editing = false
-                            change { it.registry.archive(user.id, !user.archived) }
-                        }, enabled = !busy)
-                    }
+                    Text(registry?.users?.firstOrNull { it.id == row.userId }?.name.orEmpty(), color = p.text, fontSize = 16.sp)
+                    if (!row.revoked && access[row.fingerprint] != true) FreshCutSecondaryButton("Предоставить доступ", {
+                        device = null; activate(row.fingerprint, true)
+                    }, enabled = !busy)
+                    if (access[row.fingerprint] != false) FreshCutSecondaryButton("Отключить", {
+                        device = null; activate(row.fingerprint, false)
+                    }, enabled = !busy)
+                    FreshCutSecondaryButton("Удалить устройство", {
+                        device = null; confirmDelete = 2 to row.fingerprint
+                    }, enabled = !busy)
+                    Text("Код безопасности", color = p.textSecondary, fontSize = 12.sp)
+                    Text(row.fingerprint.chunked(8).joinToString(" "), color = p.textSecondary, fontSize = 12.sp)
                 }
-            },
-            confirmButton = {
-                SheetActionButton(onClick = {
-                    editing = false
-                    val value = name.trim()
-                    change { if (user == null) it.registry.add(value) else it.registry.rename(user.id, value) }
-                }, enabled = !busy && name.isNotBlank()) { Text("Сохранить") }
-            },
-        )
+            }, confirmButton = {})
+    }
+
+    if (scanning) CloudDeviceScanSheet(onRequest = { request ->
+        scanning = false
+        val existing = registry?.devices?.singleOrNull { it.fingerprint == request.fingerprint }
+        chosenUser = existing?.userId ?: chosenUser?.takeIf { id -> registry?.users?.any { it.id == id && !it.archived } == true }
+        newName = ""
+        confirmed = false
+        pending = request
+    }, onDismiss = { scanning = false; chosenUser = null })
+
+    pending?.let { request ->
+        AppSheet(onDismissRequest = { pending = null; chosenUser = null }, containerColor = p.sheet,
+            title = { SheetHeader("Подключение устройства") }, text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Сверьте код безопасности на обоих телефонах.", color = p.textSecondary, fontSize = 13.sp)
+                    Text(request.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp)
+                    FreshCutSecondaryButton(if (confirmed) "Код совпадает ✓" else "Подтвердить код", { confirmed = !confirmed })
+                    FreshCutSectionTitle("Пользователь")
+                    registry?.users?.filterNot { it.archived }?.forEach { row ->
+                        FreshCutListRow(R.drawable.ic_user_round, row.name, selected = chosenUser == row.id,
+                            onClick = { chosenUser = row.id })
+                    }
+                    if (chosenUser != null) FreshCutSecondaryButton("Новый пользователь", { chosenUser = null })
+                    else SheetTextField(newName, { newName = it.filterNot(Char::isISOControl).take(50) }, "Имя нового пользователя")
+                }
+            }, confirmButton = {
+                SheetActionButton(onClick = { register(request); chosenUser = null },
+                    enabled = !busy && confirmed && (chosenUser != null || newName.isNotBlank())) { Text("Подключить") }
+            })
+    }
+
+    confirmDelete?.let { (kind, id) ->
+        val label = when (kind) {
+            0 -> "Удалить пользователя?"
+            1 -> "Удалить группу?"
+            else -> "Удалить устройство?"
+        }
+        AppSheet(onDismissRequest = { confirmDelete = null }, containerColor = p.sheet,
+            title = { SheetHeader(label) }, text = {
+                Text(when (kind) {
+                    0 -> "Устройства будут отключены, пользователь исключён из групп. Группы, где он единственный участник, будут удалены. Если у группы есть другие участники, сначала передайте владение. Покупки не удаляются."
+                    1 -> "Группа исчезнет из настроек. Пользователи и покупки сохранятся."
+                    else -> "Доступ этого устройства будет отозван. Покупки на телефоне не удаляются. Повторное подключение потребует подтверждения администратора."
+                }, color = p.textSecondary, fontSize = 14.sp)
+            }, confirmButton = {
+                SheetActionButton(onClick = { confirmDelete = null; remove(kind, id) }, enabled = !busy) { Text("Удалить") }
+            })
     }
 }
