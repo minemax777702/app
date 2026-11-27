@@ -48,7 +48,7 @@ internal data class CloudDirectory(
     val groups: List<CloudGroup> = emptyList(), val lists: List<CloudList> = emptyList(),
     val members: List<CloudMember> = emptyList(),
 ) {
-    fun manages(group: CloudGroup) = me?.let { it.id == group.owner || it.admin } == true
+    fun manages(group: CloudGroup) = me?.let { it.active && (it.id == group.owner || it.admin) } == true
     fun participates(group: CloudGroup) = me?.let { person -> group.owner == person.id || members.any { it.group == group.id && it.user == person.id } } == true
     fun manages(list: CloudList) = me?.let { person ->
         person.active && (list.owner == person.id || groups.any { it.id == list.group && it.owner == person.id })
@@ -798,7 +798,20 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         check(directory.value.manages(row) && row.owner != person)
         enqueue("member", group, user = person, active = active)
     }
-    suspend fun saveList(id: String?, name: String, group: String?) =
+    suspend fun saveList(id: String?, name: String, group: String?) {
+        val current = directory.value
+        val person = requireNotNull(current.me)
+        check(person.active)
+        if (id == null) {
+            check(group == null || current.groups.any { it.id == group && it.owner == person.id })
+        } else {
+            check(current.lists.any { it.id == id && current.manages(it) })
+        }
         enqueue(if (id == null) "list_create" else "list_rename", id ?: java.util.UUID.randomUUID().toString(), name.trim().take(100), group)
-    suspend fun removeList(id: String) = enqueue("list_remove", id)
+    }
+    suspend fun removeList(id: String) {
+        val current = directory.value
+        check(current.lists.any { it.id == id && current.manages(it) })
+        enqueue("list_remove", id)
+    }
 }

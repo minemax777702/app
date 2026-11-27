@@ -177,7 +177,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
             Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
                 SheetTextField(title,{title=it.take(100)},"Название")
                 if(row==null){
-                    val choices=directory.groups.filter{directory.participates(it)}
+                    val choices=directory.groups.filter{it.owner==directory.me?.id}
                     FilterSelect("Группа",choices.firstOrNull{it.id==group}?.name ?: "Личный",listOf("Личный")+choices.map{it.name}) { index -> group=choices.getOrNull(index-1)?.id }
                 }else SheetDeleteButton("Удалить список",{listSheet=false;deletion="Удалить список?" to suspend { cloud.removeList(row.id);notifyPending("Список удалён · ${row.name}") }},enabled=!busy)
             }
@@ -243,11 +243,11 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                 FreshCutSectionTitle("Списки",Modifier.weight(1f))
                                 FreshCutToolbarAction(R.drawable.ic_plus,"Создать список",{
                                     groupSheet=false;editingList=null;newListGroup=row.id;listSheet=true
-                                },enabled=!busy)
+                                },enabled=!busy && row.owner==directory.me?.id)
                             }
                             directory.lists.filter{it.group==row.id}.forEach{item ->
                                 FreshCutListRow(R.drawable.ic_list_check,item.name,selected=workspace?.listId==item.id,showChevron=false,
-                                    onClick={groupSheet=false;editingList=item;newListGroup=row.id;listSheet=true})
+                                    onClick={if(directory.manages(item)){groupSheet=false;editingList=item;newListGroup=row.id;listSheet=true}})
                             }
                             if(directory.lists.none{it.group==row.id}) Text("Нет списков",color=p.textSecondary,fontSize=13.sp)
                         }
