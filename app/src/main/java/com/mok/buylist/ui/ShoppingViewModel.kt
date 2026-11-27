@@ -477,6 +477,13 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         } }
     }
 
+    /** Explicitly confirmed full cleanup; also forfeits the remaining undo history. */
+    internal fun clearAllNotifications() {
+        viewModelScope.launch { actionMutex.withLock {
+            journal.clear(actions.value.mapTo(HashSet()) { it.id })
+        } }
+    }
+
     internal fun undoAction(id: String) {
         viewModelScope.launch { actionMutex.withLock {
             val action = undoableRecentActions(actions.value).firstOrNull { it.id == id } ?: return@withLock

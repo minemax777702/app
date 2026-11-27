@@ -30,6 +30,7 @@ internal fun NotificationsScreen(
     onBack: () -> Unit,
     onUndo: (String) -> Unit,
     onClear: (NotificationGroup?) -> Unit,
+    onClearAll: () -> Unit,
 ) {
     val p = LocalPalette.current
     val zone = ZoneId.systemDefault()
@@ -40,6 +41,7 @@ internal fun NotificationsScreen(
     val grouped = remember(visible, undoIds) {
         visible.filterNot { it.id in undoIds }.groupBy { it.group() }
     }
+    var confirmClearAll by rememberSaveable { mutableStateOf(false) }
     var completedLimit by rememberSaveable { mutableIntStateOf(3) }
     var pricesLimit by rememberSaveable { mutableIntStateOf(3) }
     var actionsLimit by rememberSaveable { mutableIntStateOf(5) }
@@ -47,7 +49,7 @@ internal fun NotificationsScreen(
 
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("Уведомления", onBack) {
-            if (grouped.isNotEmpty()) TextButton(onClick = { onClear(null) }) {
+            if (visible.isNotEmpty()) TextButton(onClick = { confirmClearAll = true }) {
                 Text("Очистить", color = p.text)
             }
         }
@@ -107,6 +109,24 @@ internal fun NotificationsScreen(
                 }
             }
         }
+    }
+    if (confirmClearAll) {
+        AppSheet(
+            onDismissRequest = { confirmClearAll = false },
+            containerColor = p.sheet,
+            title = { SheetHeader("Очистить все уведомления?") },
+            minBodyHeight = 230.dp,
+            text = {
+                Text("История уведомлений будет очищена, включая действия, которые ещё можно отменить. Списки покупок, товары и архив останутся без изменений.",
+                    color = p.textSecondary)
+            },
+            confirmButton = {
+                SheetActionButton(destructive = true, onClick = {
+                    confirmClearAll = false
+                    onClearAll()
+                }) { Text("Очистить всё") }
+            },
+        )
     }
 }
 

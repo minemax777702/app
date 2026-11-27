@@ -230,7 +230,8 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel()) {
             BackHandler { showNotifications = false }
             val availableUndoIds by viewModel.availableUndoIds.collectAsStateWithLifecycle()
             NotificationsScreen(actions, availableUndoIds, onBack = { showNotifications = false },
-                onUndo = viewModel::undoAction, onClear = viewModel::clearNotifications)
+                onUndo = viewModel::undoAction, onClear = viewModel::clearNotifications,
+                onClearAll = viewModel::clearAllNotifications)
         } else Column(Modifier.fillMaxSize()) {
             val shoppingListState = rememberLazyListState()
             Header(

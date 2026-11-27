@@ -36,6 +36,30 @@ class ProductSearchMatchTest {
         assertTrue(matchesProductName("Гречка ядрица", "греч"))
     }
 
+    @Test fun unrelatedFoodAndNonFoodTypesDoNotMatchMilk() {
+        val unrelated = listOf(
+            "Аромадиффузор, клубничное молоко",
+            "Аромадиффузор «Клубничное молоко»",
+            "Диффузор ароматический Клубничное молоко",
+            "Вспениватель молока",
+            "Капучинатор для молока",
+            "Сироп Топлёное молоко",
+            "Вино Клубничное молоко",
+            "Спрей Кокосовое молоко",
+            "Устройство вспенивания молока",
+        )
+        unrelated.forEach { title ->
+            assertFalse(title, matchesProductName(title, "молоко"))
+            assertFalse(title, matchesProductName(title, "мол"))
+        }
+        assertTrue(matchesProductName("Клубничное молоко 500 мл", "молоко"))
+        assertTrue(matchesProductName("Молоко клубничное 500 мл", "молоко"))
+        assertTrue(matchesProductName("Аромадиффузор, клубничное молоко", "аромадиффузор молоко"))
+        assertTrue(matchesProductName("Вспениватель молока", "вспениватель молоко"))
+        assertTrue(matchesProductName("Сироп Топлёное молоко", "сироп молоко"))
+        assertTrue(matchesProductName("Вино Клубничное молоко", "вино молоко"))
+    }
+
     @Test fun prefixAndExplicitQualifierQueriesRemainAvailable() {
         assertTrue(matchesProductName("Молоко пастеризованное", "мол"))
         assertTrue(matchesProductName("Печенье со сгущённым молоком", "печенье"))

@@ -103,9 +103,14 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 scrollCallback()
             })
             if (fullSort && state.loading) {
-                Text("Загружаем все результаты · страниц: ${state.pagesLoaded}", color = p.textSecondary,
-                    fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
-                LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 8.dp), color = p.accent)
+                Column(
+                    Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Загружаем все результаты · страниц: ${state.pagesLoaded}",
+                        color = p.textSecondary, fontSize = 12.sp)
+                    LinearProgressIndicator(Modifier.fillMaxWidth(), color = p.accent)
+                }
             }
             // Вспомогательные действия прокручиваются вместе с результатами.
             LazyColumn(

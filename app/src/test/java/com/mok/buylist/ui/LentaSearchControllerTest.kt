@@ -63,7 +63,10 @@ class LentaSearchControllerTest {
         val controller = LentaSearchController({ _, _, page, _ ->
             pages += page
             when (page) {
-                1 -> listOf(product(1, "Печенье со сгущенным молоком"), product(4, "Конфеты Птичье молоко"), product(5, "Вафли Топленое молоко"))
+                1 -> listOf(product(1, "Печенье со сгущенным молоком"), product(4, "Конфеты Птичье молоко"), product(5, "Вафли Топленое молоко"),
+                    product(6, "Аромадиффузор, клубничное молоко"),
+                    product(7, "Вспениватель молока"), product(8, "Сироп Топленое молоко"),
+                    product(9, "Вино Клубничное молоко"))
                 2 -> listOf(product(2, "Молоко 1 л"), product(3, "Шоколад с молоком"))
                 else -> emptyList()
             }
