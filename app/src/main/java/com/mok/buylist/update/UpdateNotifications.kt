@@ -75,7 +75,9 @@ internal object UpdateNotifications {
     /** Called only by the foreground Activity. No periodic or background work. */
     @SuppressLint("MissingPermission")
     suspend fun check(context: Context, force: Boolean = false) {
-        if (!enabled(context) || !canPost(context)) return
+        val pendingCache = AppUpdater.hasPendingCache(context)
+        val mayNotify = enabled(context) && canPost(context)
+        if (!mayNotify && !pendingCache) return
         val channel = AppUpdater.selectedChannel(context)
         val state = prefs(context)
         val checkKey = "checked_${channel.key}"
@@ -86,12 +88,15 @@ internal object UpdateNotifications {
         if (!force && !shouldCheckUpdates(System.currentTimeMillis(), state.getLong(checkKey, 0L))) return
         val release = AppUpdater.latest(channel)
         coroutineContext.ensureActive()
-        if (channel != AppUpdater.selectedChannel(context) || !enabled(context) || !canPost(context)) return
+        if (channel != AppUpdater.selectedChannel(context)) return
+        if (pendingCache) AppUpdater.cachedUpdate(context, release)
+        coroutineContext.ensureActive()
         state.edit().putLong(checkKey, System.currentTimeMillis()).apply()
         if (release == null || !release.version.isNewerThan(installed)) {
             clearNotification(context)
             return
         }
+        if (!enabled(context) || !canPost(context)) return
         if (!shouldNotifyUpdate(installed.code, release.version.code, lastNotified)) return
         val pending = PendingIntent.getActivity(context, NOTIFICATION_ID,
             Intent(context, MainActivity::class.java).setAction(OPEN_UPDATES)

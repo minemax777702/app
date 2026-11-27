@@ -68,7 +68,6 @@ class MainActivity : ComponentActivity() {
 
     internal fun checkUpdatesOnEntry(force: Boolean = false) {
         if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
-        if (!UpdateNotifications.enabled(this) || !UpdateNotifications.canPost(this)) return
         if (updateCheck?.isActive == true) return
         updateCheck = lifecycleScope.launch {
             try {

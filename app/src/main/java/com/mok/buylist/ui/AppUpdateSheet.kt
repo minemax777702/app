@@ -43,6 +43,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     var release by remember { mutableStateOf<AppRelease?>(null) }
     var checking by remember { mutableStateOf(true) }
     var downloading by remember { mutableStateOf(false) }
+    var installing by remember { mutableStateOf(false) }
     var progress by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf<File?>(null) }
@@ -75,10 +76,20 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     }
 
     fun install(file: File) {
-        try {
-            AppUpdater.install(context, file)
-        } catch (e: Exception) {
-            error = e.message ?: "Не удалось открыть установщик."
+        val target = release ?: return
+        if (installing) return
+        installing = true
+        scope.launch {
+            try {
+                AppUpdater.install(context, file, target)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ready = null
+                error = e.message ?: "Не удалось открыть установщик."
+            } finally {
+                installing = false
+            }
         }
     }
 
@@ -106,7 +117,9 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
         ready = null
         error = null
         try {
-            release = AppUpdater.latest(channel)
+            val latest = AppUpdater.latest(channel)
+            ready = AppUpdater.cachedUpdate(context, latest)
+            release = latest
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -125,7 +138,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 Text("Сборка ${installed.code}", color = p.textSecondary, fontSize = 13.sp)
                 FreshCutSectionTitle("Канал обновлений")
                 FreshCutSegments(UpdateChannel.entries.map { it.label }, channel.ordinal, { index ->
-                    if (!downloading && !checking) {
+                    if (!downloading && !checking && !installing) {
                         channel = UpdateChannel.entries[index]
                         AppUpdater.selectChannel(context, channel)
                     }
@@ -161,7 +174,15 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                             Text("Проверяем GitHub…", color = p.text)
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
                         }
-                        ready != null -> Text("APK проверен и готов к установке.", color = p.text)
+                        installing -> {
+                            Text("Проверяем APK…", color = p.text)
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = p.accent)
+                        }
+                        ready != null -> {
+                            Text("Обновление загружено", color = p.text, fontWeight = FontWeight.SemiBold)
+                            Text(release?.version?.name.orEmpty(), color = p.textSecondary, fontSize = 13.sp)
+                            Text("APK сохранён в кэше. Повторная загрузка не нужна.", color = p.textSecondary, fontSize = 13.sp)
+                        }
                         update != null -> {
                             Text("Доступна версия ${update.version.name}", color = p.text, fontWeight = FontWeight.SemiBold)
                             Text("Сборка ${update.version.code} · ${(update.size + 1_048_575) / 1_048_576} МБ", color = p.textSecondary, fontSize = 13.sp)
@@ -175,7 +196,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
             }
         },
         confirmButton = {
-            SheetActionButton(enabled = !checking && !downloading, onClick = {
+            SheetActionButton(enabled = !checking && !downloading && !installing, onClick = {
                 val file = ready
                 when {
                     file != null -> { error = null; requestInstall(file) }
@@ -200,6 +221,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
             }) {
                 Text(when {
                     downloading -> "Загрузка…"
+                    installing -> "Проверка APK…"
                     checking -> "Проверка…"
                     ready != null -> "Установить"
                     update != null -> "Обновить"

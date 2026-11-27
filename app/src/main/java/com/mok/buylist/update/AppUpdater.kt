@@ -4,9 +4,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -27,6 +30,7 @@ internal object AppUpdater {
     private const val APK_NAME = "app-release.apk"
     private const val MAX_APK_BYTES = 200L * 1024 * 1024
     private const val MAX_JSON_BYTES = 8 * 1024 * 1024
+    private val cacheMutex = Mutex()
 
     @Suppress("DEPRECATION")
     fun installedVersion(context: Context): InstalledVersion {
@@ -80,52 +84,143 @@ internal object AppUpdater {
         return AppRelease(version, expected, digest.lowercase(), size)
     }
 
+    private fun cacheDirectory(context: Context): File =
+        File(context.cacheDir, "updates").apply { mkdirs() }
+
+    private fun cacheFile(dir: File, release: AppRelease): File =
+        File(dir, updateCacheFileName(release.version, release.sha256))
+
+    private suspend fun validateCached(context: Context, apk: File, release: AppRelease): Boolean {
+        if (!apk.isFile || apk.length() != release.size) return false
+        return try {
+            val digest = MessageDigest.getInstance("SHA-256")
+            apk.inputStream().buffered().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    coroutineContext.ensureActive()
+                    val count = input.read(buffer)
+                    if (count == -1) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            if (digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) } != release.sha256) {
+                false
+            } else {
+                verifyPackage(context, apk, release.version)
+                true
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    private fun pruneInstalled(context: Context, dir: File) {
+        val installed = installedVersion(context).code
+        dir.listFiles()?.forEach { file ->
+            val code = cachedUpdateVersionCode(file.name)
+            if (code != null && code <= installed) file.delete()
+            else if (file.name.endsWith(".part")) file.delete()
+        }
+    }
+
+    /** Drop the previous APK as soon as a newer release is discovered, not after downloading it. */
+    private suspend fun findCachedLocked(context: Context, dir: File, release: AppRelease): File? {
+        val expected = cacheFile(dir, release)
+        var found: File? = null
+        if (release.version.isNewerThan(installedVersion(context))) {
+            if (validateCached(context, expected, release)) found = expected
+            else if (expected.exists()) expected.delete()
+            // Migrate a verified download from versions that used randomly named APKs.
+            if (found == null) {
+                for (legacy in dir.listFiles().orEmpty().filter { it.name.startsWith("update-") && it.extension == "apk" }) {
+                    coroutineContext.ensureActive()
+                    if (validateCached(context, legacy, release)) {
+                        if (expected.exists()) expected.delete()
+                        found = if (legacy.renameTo(expected)) expected else legacy
+                        break
+                    }
+                }
+            }
+        }
+        val installed = installedVersion(context).code
+        dir.listFiles()?.filter { it != found && it.extension == "apk" }?.forEach { file ->
+            if (shouldRemoveCachedUpdate(file.name, installed, release.version.code, expected.name)) file.delete()
+        }
+        return found
+    }
+
+    /** Also run after app replacement, even when update notifications are turned off. */
+    suspend fun hasPendingCache(context: Context): Boolean = withContext(Dispatchers.IO) {
+        cacheMutex.withLock {
+            val dir = cacheDirectory(context)
+            pruneInstalled(context, dir)
+            dir.listFiles().orEmpty().any { it.isFile && it.extension == "apk" }
+        }
+    }
+
+    suspend fun cachedUpdate(context: Context, release: AppRelease?): File? = withContext(Dispatchers.IO) {
+        cacheMutex.withLock {
+            val dir = cacheDirectory(context)
+            pruneInstalled(context, dir)
+            if (release == null) null else findCachedLocked(context, dir, release)
+        }
+    }
+
     suspend fun download(context: Context, release: AppRelease, progress: suspend (Int) -> Unit): File =
         withContext(Dispatchers.IO) {
-            require(release.version.isNewerThan(installedVersion(context))) { "Установлена такая же или более новая версия." }
-            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-            dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 86_400_000L }
-                ?.forEach { it.delete() }
-            val temp = File.createTempFile("update-", ".part", dir)
-            val apk = File(dir, temp.nameWithoutExtension + ".apk")
-            var ready = false
-            try {
-                val connection = openDownload(release.url)
-                val digest = MessageDigest.getInstance("SHA-256")
-                var bytes = 0L
-                var previous = -1
+            cacheMutex.withLock {
+                require(release.version.isNewerThan(installedVersion(context))) { "Установлена такая же или более новая версия." }
+                val dir = cacheDirectory(context)
+                pruneInstalled(context, dir)
+                findCachedLocked(context, dir, release)?.let { cached ->
+                    withContext(Dispatchers.Main.immediate) { progress(100) }
+                    return@withLock cached
+                }
+                val temp = File.createTempFile("update-", ".part", dir)
+                val apk = cacheFile(dir, release)
+                var ready = false
                 try {
-                    connection.inputStream.use { input ->
-                        temp.outputStream().buffered().use { output ->
-                            val buffer = ByteArray(64 * 1024)
-                            while (true) {
-                                coroutineContext.ensureActive()
-                                val count = input.read(buffer)
-                                if (count == -1) break
-                                bytes += count
-                                check(bytes <= release.size) { "Размер APK не совпадает." }
-                                output.write(buffer, 0, count)
-                                digest.update(buffer, 0, count)
-                                val percent = (bytes * 100 / release.size).toInt()
-                                if (percent != previous) {
-                                    previous = percent
-                                    withContext(Dispatchers.Main.immediate) { progress(percent) }
+                    val connection = openDownload(release.url)
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    var bytes = 0L
+                    var previous = -1
+                    try {
+                        connection.inputStream.use { input ->
+                            temp.outputStream().buffered().use { output ->
+                                val buffer = ByteArray(64 * 1024)
+                                while (true) {
+                                    coroutineContext.ensureActive()
+                                    val count = input.read(buffer)
+                                    if (count == -1) break
+                                    bytes += count
+                                    check(bytes <= release.size) { "Размер APK не совпадает." }
+                                    output.write(buffer, 0, count)
+                                    digest.update(buffer, 0, count)
+                                    val percent = (bytes * 100 / release.size).toInt()
+                                    if (percent != previous) {
+                                        previous = percent
+                                        withContext(Dispatchers.Main.immediate) { progress(percent) }
+                                    }
                                 }
                             }
                         }
-                    }
-                } finally { connection.disconnect() }
-                check(bytes == release.size) { "APK загружен не полностью." }
-                val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
-                check(hash == release.sha256) { "Контрольная сумма APK не совпадает." }
-                check(temp.renameTo(apk)) { "Не удалось сохранить APK." }
-                verifyPackage(context, apk, release.version)
-                coroutineContext.ensureActive()
-                ready = true
-                apk
-            } finally {
-                temp.delete()
-                if (!ready) apk.delete()
+                    } finally { connection.disconnect() }
+                    check(bytes == release.size) { "APK загружен не полностью." }
+                    val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+                    check(hash == release.sha256) { "Контрольная сумма APK не совпадает." }
+                    check(temp.renameTo(apk)) { "Не удалось сохранить APK." }
+                    verifyPackage(context, apk, release.version)
+                    coroutineContext.ensureActive()
+                    ready = true
+                    // Only one pending update needs to occupy disk space.
+                    dir.listFiles()?.filter { it != apk && it.extension == "apk" }?.forEach { it.delete() }
+                    apk
+                } finally {
+                    temp.delete()
+                    if (!ready) apk.delete()
+                }
             }
         }
 
@@ -144,7 +239,13 @@ internal object AppUpdater {
         check(current.isNotEmpty() && current == incoming) { "Подпись APK не совпадает с установленным приложением." }
     }
 
-    fun install(context: Context, apk: File) {
+    suspend fun install(context: Context, apk: File, release: AppRelease) {
+        withContext(Dispatchers.IO) {
+            cacheMutex.withLock {
+                check(validateCached(context, apk, release)) { "APK отсутствует или повреждён. Загрузите обновление повторно." }
+            }
+        }
+        coroutineContext.ensureActive()
         check(context.packageManager.canRequestPackageInstalls()) { "Разрешите установку приложений из этого источника." }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", apk)
         val intent = Intent(Intent.ACTION_VIEW).apply {

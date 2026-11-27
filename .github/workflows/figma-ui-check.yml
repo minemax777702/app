@@ -66,7 +66,7 @@ jobs:
           printf '%s' "$BUYLIST_KEYSTORE_BASE64" | base64 --decode > "$BUYLIST_STORE_FILE"
           unset BUYLIST_KEYSTORE_BASE64
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease :app:lintRelease :app:testDebugUnitTest --stacktrace --build-cache -Pbuylist.fastBeta=false
+          ./gradlew :app:assembleRelease :app:lintRelease :app:testDebugUnitTest --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Upload quality reports
         if: always()

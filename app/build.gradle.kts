@@ -19,8 +19,6 @@ val releaseKeyPassword = signingValue("BUYLIST_KEY_PASSWORD")
 val appVersion = providers.gradleProperty("buylist.version").get()
 val appVersionCode = providers.environmentVariable("BUYLIST_VERSION_CODE").orElse("3").map { it.toInt() }
 val appVersionName = providers.environmentVariable("BUYLIST_VERSION_NAME").orElse("$appVersion-beta.local")
-// Explicit opt-in for the fast CI Beta build; local and Stable builds remain optimized.
-val fastBeta = providers.gradleProperty("buylist.fastBeta").map { it.toBooleanStrict() }.orElse(false).get()
 
 android {
     namespace = "com.mok.buylist"
@@ -54,19 +52,12 @@ android {
             // Без packageScope: с ним R8 переименовывал классы Kotlin так, что приложение падало при запуске
             // (IllegalAccessError: kotlin.collections.h ... inaccessible).
             optimization {
-                enable = !fastBeta
-                if (!fastBeta) {
-                    keepRules {
-                        files.add(project.file("proguard-rules.pro"))
-                    }
+                enable = true
+                keepRules {
+                    files.add(project.file("proguard-rules.pro"))
                 }
             }
         }
-    }
-    lint {
-        // Full lint and optimized APK are checked in the separate quality workflow.
-        // Stable builds keep the release fatal-error gate enabled.
-        checkReleaseBuilds = !fastBeta
     }
     buildFeatures {
         compose = true
