@@ -649,6 +649,13 @@ class ShoppingRepository(
         if (unitPrice != null && unitPrice < 0) return "Неверная цена"
         val normalizedStore = normalizeName(storeName).take(100)
         return db.withTransaction {
+            val bought = dao.getBought().firstOrNull {
+                decodePurchaseEvent(it.purchaseEvent)?.id == eventId
+            }
+            val archive = if (bought == null) dao.getArchives().firstOrNull { list ->
+                list.events.any { decodePurchaseEvent(it)?.id == eventId }
+            } else null
+            if (bought == null && archive == null) return@withTransaction "Покупка не найдена"
             val now = com.mok.buylist.sync.MutationClock.next()
             val storeId = if (normalizedStore.isEmpty()) "" else {
                 val store = dao.getStores().firstOrNull { !it.deleted &&
@@ -656,9 +663,6 @@ class ShoppingRepository(
                     ?: ShoppingStore(stableStoreId(normalizedStore), normalizedStore, updatedAt = now)
                         .also { dao.upsertStore(it) }
                 store.id
-            }
-            val bought = dao.getBought().firstOrNull {
-                decodePurchaseEvent(it.purchaseEvent)?.id == eventId
             }
             if (bought != null) {
                 val amended = amendPurchaseEvent(bought.purchaseEvent, unitPrice, storeId, now)
@@ -673,9 +677,7 @@ class ShoppingRepository(
                 }
                 return@withTransaction null
             }
-            val archive = dao.getArchives().firstOrNull { list ->
-                list.events.any { decodePurchaseEvent(it)?.id == eventId }
-            } ?: return@withTransaction "Покупка не найдена"
+            if (archive == null) return@withTransaction "Покупка не найдена"
             val updatedEvents = archive.events.map { encoded ->
                 if (decodePurchaseEvent(encoded)?.id != eventId) encoded
                 else amendPurchaseEvent(encoded, unitPrice, storeId, now) ?: encoded
