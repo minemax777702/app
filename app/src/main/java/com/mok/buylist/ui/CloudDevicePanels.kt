@@ -76,10 +76,11 @@ internal fun CloudDeviceRequestPanel() {
             checking = true
             scope.launch {
                 try {
-                    com.mok.buylist.cloud.CloudSshProbe.check(443, registeredDevice = true)
+                    com.mok.buylist.cloud.CloudGitSsh.verifyRepository()
                     accessMessage = "SSH-доступ подтверждён. Для обмена покупками ещё нужен ключ рабочего пространства."
                 } catch (e: kotlinx.coroutines.CancellationException) { throw e }
                 catch (e: com.mok.buylist.cloud.CloudAdminException) { accessMessage = e.message }
+                catch (_: LinkageError) { accessMessage = "Git-транспорт несовместим с этой версией Android. Передайте версию системы разработчику." }
                 catch (_: Exception) { accessMessage = "Подключение не подтверждено. Проверьте сеть и разрешение администратора." }
                 finally { checking = false }
             }

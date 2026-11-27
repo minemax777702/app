@@ -21,11 +21,16 @@ import org.eclipse.jgit.treewalk.TreeWalk
  * callers must verify the manifest, signature, role and key before accepting events.
  * Never checks out remote files or uses the source repository.
  */
+internal interface CloudEventTransport {
+    fun append(event: CloudSignedEvent)
+    fun readAfter(space: CloudSpace, epoch: Long, device: String, cursor: CloudCursor): List<CloudSignedEvent>
+}
+
 internal class CloudGitEvents(
     private val repository: Repository,
     private val remote: String,
     private val configure: TransportConfigCallback? = null,
-) {
+) : CloudEventTransport {
     init { require(repository.isBare) }
     private val git = Git(repository)
 
@@ -62,7 +67,7 @@ internal class CloudGitEvents(
     }
 
     /** Returns oldest first; no gap, divergent chain or missing acknowledged cursor may be ignored. */
-    fun readAfter(space: CloudSpace, epoch: Long, device: String, cursor: CloudCursor): List<CloudSignedEvent> = synchronized(LOCK) {
+    override fun readAfter(space: CloudSpace, epoch: Long, device: String, cursor: CloudCursor): List<CloudSignedEvent> = synchronized(LOCK) {
         val tip = fetchTip(branch(space, epoch, device))
         if (tip == null) {
             require(cursor.sequence == 0L) { "Remote event history disappeared" }
@@ -99,7 +104,7 @@ internal class CloudGitEvents(
      * Retry with the exact same signed bytes. Remote rejection or a conflicting tip is never
      * resolved by force-push. A durable outbox must persist bytes BEFORE calling this method.
      */
-    fun append(event: CloudSignedEvent) = synchronized(LOCK) {
+    override fun append(event: CloudSignedEvent): Unit = synchronized(LOCK) {
         val header = event.header
         val branch = branch(header.space, header.epoch, header.deviceId)
         val tip = fetchTip(branch)
@@ -125,10 +130,10 @@ internal class CloudGitEvents(
             }
             inserter.insert(commit).also { inserter.flush() }
         }
-        val local = "refs/heads/outbox/" + header.deviceId
+        val local = branch.replace("refs/heads/", "refs/heads/outbox/")
         val update = repository.updateRef(local)
         update.setNewObjectId(id)
-        update.isForceUpdate = true // local staging ref only; remote push is never forced.
+        update.setForceUpdate(true) // local staging ref only; remote push is never forced.
         val updated = update.update()
         require(updated in setOf(org.eclipse.jgit.lib.RefUpdate.Result.NEW, org.eclipse.jgit.lib.RefUpdate.Result.FAST_FORWARD,
             org.eclipse.jgit.lib.RefUpdate.Result.FORCED, org.eclipse.jgit.lib.RefUpdate.Result.NO_CHANGE))

@@ -15,6 +15,11 @@ import java.io.IOException
 internal object CloudGitSsh {
     const val REMOTE = "ssh://git@ssh.github.com:443/minemax777702/app-cloud.git"
 
+    suspend fun verifyRepository(): Int = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        org.eclipse.jgit.api.Git.lsRemoteRepository().setRemote(REMOTE).setHeads(true).setTags(false)
+            .setTransportConfigCallback(configure).setTimeout(30).call().size
+    }
+
     val configure = TransportConfigCallback { transport ->
         require(transport is SshTransport)
         transport.sshSessionFactory = Factory
@@ -48,7 +53,11 @@ internal object CloudGitSsh {
                     override fun getOutputStream() = output
                     override fun getErrorStream() = error
                     override fun waitFor(): Int {
-                        while (!channel.isClosed) Thread.sleep(25)
+                        val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(30)
+                        while (!channel.isClosed) {
+                            if (System.nanoTime() >= deadline) { channel.disconnect(); return -1 }
+                            Thread.sleep(25)
+                        }
                         return channel.exitStatus
                     }
                     override fun exitValue(): Int {

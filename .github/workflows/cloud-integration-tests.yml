@@ -58,7 +58,15 @@ jobs:
           emulator -avd buylist-cloud-ci -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on > "$RUNNER_TEMP/cloud-emulator.log" 2>&1 &
           emulator_pid=$!
           trap 'adb emu kill || true; kill "$emulator_pid" 2>/dev/null || true' EXIT
-          timeout 300 adb wait-for-device
+          for i in $(seq 1 150); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then
+              cat "$RUNNER_TEMP/cloud-emulator.log"
+              exit 1
+            fi
+            if adb devices | grep -qE "^emulator-[0-9]+[[:space:]]+device"; then break; fi
+            sleep 2
+          done
+          timeout 20 adb wait-for-device
           booted=false
           for i in $(seq 1 150); do
             if [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; then
@@ -73,7 +81,7 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           chmod +x ./gradlew
-          ./gradlew :app:connectedDebugAndroidTest --stacktrace --build-cache -Pandroid.testInstrumentationRunnerArguments.class=com.mok.buylist.cloud.CloudIntegrationProbeTest,com.mok.buylist.SyncRepositoryTest
+          ./gradlew :app:connectedDebugAndroidTest --stacktrace --build-cache -Pandroid.testInstrumentationRunnerArguments.class=com.mok.buylist.cloud.CloudIntegrationProbeTest,com.mok.buylist.cloud.CloudGitDeliveryTest,com.mok.buylist.SyncRepositoryTest
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v6
