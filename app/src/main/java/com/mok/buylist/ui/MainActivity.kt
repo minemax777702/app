@@ -23,8 +23,9 @@ import com.mok.buylist.ui.theme.ShoppingTheme
 import com.mok.buylist.ui.theme.isDarkTheme
 
 class MainActivity : ComponentActivity() {
-    internal var notice by mutableStateOf<NoticePayload?>(null)
+    internal var noticePresentation by mutableStateOf(NoticePresentation())
         private set
+    internal val notice: NoticePayload? get() = noticePresentation.current
     private var noticeId = 0L
     private val noticeSheets = mutableStateListOf<Any>()
     internal var noticeOwner by mutableStateOf<Any?>(null)
@@ -32,7 +33,15 @@ class MainActivity : ComponentActivity() {
     internal fun notifyUser(message: String) {
         ActionJournal.get(applicationContext).notice(message)
         noticeOwner = noticeSheets.lastOrNull()
-        notice = noticePayload(++noticeId, message)
+        noticePresentation = noticePresentation.enqueue(noticePayload(++noticeId, message))
+    }
+
+    internal fun toggleNotice(id: Long) {
+        noticePresentation = noticePresentation.toggle(id)
+    }
+
+    internal fun dismissNotice(id: Long) {
+        noticePresentation = noticePresentation.dismiss(id)
     }
 
     internal fun registerNoticeSheet(owner: Any) {
@@ -71,18 +80,23 @@ class MainActivity : ComponentActivity() {
             ShoppingTheme(mode) {
                 Box(Modifier.fillMaxSize()) {
                     ShoppingScreen()
-                    val current = notice
+                    val presentation = noticePresentation
+                    val current = presentation.current
                     val accessibility = LocalAccessibilityManager.current
                     if (current != null) {
-                        if (noticeOwner == null) NoticeOverlay(current)
-                        LaunchedEffect(current.id) {
-                            val duration = current.style.durationMillis
-                            delay(accessibility?.calculateRecommendedTimeoutMillis(
-                                originalTimeoutMillis = duration,
-                                containsIcons = true,
-                                containsText = true,
-                            ) ?: duration)
-                            if (notice?.id == current.id) notice = null
+                        if (noticeOwner == null) NoticeOverlay(presentation, ::toggleNotice, ::dismissNotice)
+                        LaunchedEffect(current.id, presentation.expanded) {
+                            if (!presentation.expanded) {
+                                val duration = current.style.durationMillis
+                                delay(accessibility?.calculateRecommendedTimeoutMillis(
+                                    originalTimeoutMillis = duration,
+                                    containsIcons = true,
+                                    containsText = true,
+                                    containsControls = true,
+                                ) ?: duration)
+                                // A click can pin the notice just as the timer expires.
+                                if (!noticePresentation.expanded) dismissNotice(current.id)
+                            }
                         }
                     }
                 }

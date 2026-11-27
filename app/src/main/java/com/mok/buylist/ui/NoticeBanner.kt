@@ -3,6 +3,7 @@ package com.mok.buylist.ui
 import androidx.activity.compose.LocalActivity
 import android.view.WindowManager
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
@@ -12,9 +13,13 @@ import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -25,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -112,15 +118,22 @@ internal fun NoticeInSheet() {
         activity.registerNoticeSheet(owner)
         onDispose { activity.unregisterNoticeSheet(owner) }
     }
-    val notice = activity.notice
-    if (notice != null && activity.noticeOwner === owner) NoticeOverlay(notice)
+    val presentation = activity.noticePresentation
+    if (presentation.current != null && activity.noticeOwner === owner) {
+        NoticeOverlay(presentation, activity::toggleNotice, activity::dismissNotice)
+    }
 }
 
 /** Один экранный якорь для Activity и любых нижних панелей. Popup не занимает место в layout. */
 @Composable
-internal fun NoticeOverlay(notice: NoticePayload) {
+internal fun NoticeOverlay(
+    presentation: NoticePresentation,
+    onToggle: (Long) -> Unit,
+    onDismiss: (Long) -> Unit,
+) {
+    val notice = presentation.current ?: return
     val density = LocalDensity.current
-    val top = WindowInsets.statusBars.getTop(density) + with(density) { 8.dp.roundToPx() }
+    val top = WindowInsets.statusBars.getTop(density) + with(density) { 12.dp.roundToPx() }
     val position = remember(top) {
         object : PopupPositionProvider {
             override fun calculatePosition(
@@ -135,20 +148,29 @@ internal fun NoticeOverlay(notice: NoticePayload) {
         popupPositionProvider = position,
         properties = PopupProperties(
             flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             dismissOnBackPress = false,
             dismissOnClickOutside = false,
             excludeFromSystemGesture = false,
         ),
     ) {
-        NoticeBanner(notice)
+        androidx.compose.runtime.key(notice.id) {
+            NoticeBanner(notice, presentation.expanded, presentation.pending.size,
+                onToggle = { onToggle(notice.id) }, onDismiss = { onDismiss(notice.id) })
+        }
     }
 }
 
-/** Только визуальное сообщение: не меняет размеры экрана и не принимает ввод. */
+/** Нажатие закрепляет/раскрывает карточку. За её пределами работает обычный интерфейс. */
 @Composable
-private fun NoticeBanner(notice: NoticePayload) {
+private fun NoticeBanner(
+    notice: NoticePayload,
+    expanded: Boolean,
+    pendingCount: Int,
+    onToggle: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val p = LocalPalette.current
     val style = notice.style
     val tint = when (style) {
@@ -162,11 +184,17 @@ private fun NoticeBanner(notice: NoticePayload) {
         NoticeStyle.WARNING -> R.drawable.ic_info
     }
     val shape = RoundedCornerShape(20.dp)
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        contentAlignment = Alignment.Center) {
-        Row(Modifier.widthIn(max = 560.dp).fillMaxWidth().shadow(4.dp, shape, clip = false).clip(shape)
+    val configuration = LocalConfiguration.current
+    // Do not create a full-width touch target: only the visible card receives input.
+    val cardWidth = (configuration.screenWidthDp.dp - 40.dp).coerceIn(1.dp, 560.dp)
+    val bodyMaxHeight = (configuration.screenHeightDp.dp * 0.42f).coerceIn(80.dp, 360.dp)
+    Box(Modifier.width(cardWidth + 8.dp).padding(4.dp), contentAlignment = Alignment.Center) {
+        Row(Modifier.fillMaxWidth().shadow(4.dp, shape, clip = false).clip(shape)
             .background(p.card).border(1.dp, p.line, shape)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .clickable(role = Role.Button,
+                onClickLabel = if (expanded) "Свернуть уведомление" else "Раскрыть и задержать уведомление",
+                onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -178,9 +206,29 @@ private fun NoticeBanner(notice: NoticePayload) {
                 Text(notice.title, color = p.text, fontSize = 14.sp,
                     lineHeight = 19.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(notice.message, color = p.textSecondary, fontSize = 12.sp,
-                    lineHeight = 17.sp, fontWeight = FontWeight.Normal,
-                    maxLines = 5, overflow = TextOverflow.Ellipsis)
+                if (expanded) {
+                    Text(notice.message, modifier = Modifier.heightIn(max = bodyMaxHeight)
+                        .verticalScroll(rememberScrollState()),
+                        color = p.textSecondary, fontSize = 12.sp,
+                        lineHeight = 17.sp, fontWeight = FontWeight.Normal)
+                    Text("Нажмите, чтобы свернуть", color = p.textSecondary, fontSize = 11.sp)
+                } else {
+                    Text(notice.message, color = p.textSecondary, fontSize = 12.sp,
+                        lineHeight = 17.sp, fontWeight = FontWeight.Normal,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                if (pendingCount > 0) {
+                    Text("В очереди: $pendingCount", color = p.textSecondary, fontSize = 11.sp)
+                }
+            }
+            if (expanded) {
+                IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
+                    Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть уведомление",
+                        modifier = Modifier.size(18.dp), tint = p.textSecondary)
+                }
+            } else {
+                Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = null,
+                    modifier = Modifier.padding(top = 8.dp).size(18.dp), tint = p.textSecondary)
             }
         }
     }
