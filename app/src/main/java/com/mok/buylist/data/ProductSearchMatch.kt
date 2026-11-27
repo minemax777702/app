@@ -1,31 +1,151 @@
 package com.mok.buylist.data
 
 private val searchToken = Regex("""[\p{L}\p{N}]+""")
+private val quotedName = Regex("""«[^»]*»|"[^"]*"|„[^“]*“|“[^”]*”""")
 private val ingredientMarkers = setOf("с", "со", "из", "без", "на", "для", "под", "в", "во")
 
 private fun searchWords(value: String): List<String> =
     searchToken.findAll(value.lowercase().replace('ё', 'е')).map { it.value }.toList()
 
-/** Match words rather than arbitrary substrings. A query must refer to the main
- * product, not only to an ingredient, flavor, filling or accompanying product.
- * Explicit multiword requests can still match qualifiers after the main name.
+// Product nouns, not brands or exclusions specific to a search phrase.
+// Explicit inflections avoid treating adjectives ("молочный") as product types.
+private val productTypeByWord = listOf(
+    "молоко молока молоку молоком молоке",
+    "конфеты конфета конфет конфету конфетами конфетой конфетах",
+    "вафли вафля вафель вафлю вафлями вафлях",
+    "печенье печенья печеньем печенью",
+    "шоколад шоколада шоколадом шоколаде",
+    "батончик батончики батончиков батончиком",
+    "торт торты торта тортов тортом",
+    "пирожное пирожные пирожных пирожного",
+    "мороженое мороженого мороженым",
+    "зефир зефира зефиром",
+    "мармелад мармелада мармеладом",
+    "пряник пряники пряников пряником",
+    "кекс кексы кексов кекса",
+    "рулет рулеты рулетов рулета",
+    "десерт десерты десертов десерта",
+    "пудинг пудинги пудингов",
+    "трубочки трубочка трубочек",
+    "круассан круассаны круассанов",
+    "булочка булочки булочек",
+    "сыр сыра сыром сыре сыры сыров",
+    "сырок сырки сырка сырков",
+    "творог творога творогом",
+    "йогурт йогурты йогурта йогуртов",
+    "кефир кефира кефиром",
+    "ряженка ряженки ряженкой",
+    "сметана сметаны сметаной",
+    "сливки сливок сливками",
+    "масло масла маслом масле",
+    "напиток напитки напитка напитков",
+    "коктейль коктейли коктейля коктейлей",
+    "сок соки сока соков",
+    "вода воды водой",
+    "чай чая чаем",
+    "кофе",
+    "какао",
+    "хлеб хлеба хлебом",
+    "батон батоны батона",
+    "сухарики сухариков сухарик",
+    "чипсы чипсов",
+    "крекер крекеры крекеров",
+    "хлебцы хлебцев",
+    "каша каши кашей",
+    "хлопья хлопьев",
+    "мюсли",
+    "гранола гранолы",
+    "смесь смеси смесей",
+    "мука муки мукой",
+    "сахар сахара сахаром",
+    "соль соли солью",
+    "рис риса рисом",
+    "макароны макарон",
+    "лапша лапши лапшой",
+    "колбаса колбасы колбасой",
+    "сосиски сосисок сосиска",
+    "сардельки сарделек",
+    "ветчина ветчины",
+    "мясо мяса мясом",
+    "котлеты котлета котлет",
+    "пельмени пельменей",
+    "паштет паштеты паштета",
+    "салат салаты салата",
+    "соус соусы соуса",
+    "майонез майонеза",
+    "кетчуп кетчупа",
+    "яйца яйцо яиц",
+    "яблоко яблоки яблок яблока",
+    "банан бананы бананов",
+    "груша груши груш",
+    "картофель картофеля",
+    "томат томаты томатов помидор помидоры помидоров",
+    "огурец огурцы огурцов",
+    "морковь моркови",
+    "шампунь шампуни шампуня",
+    "мыло мыла мылом",
+    "крем кремы крема кремов",
+    "гель гели геля гелей",
+    "порошок порошки порошка",
+    "корм корма кормов",
+).flatMap { forms ->
+    val words = forms.split(' ')
+    words.map { it to words.first() }
+}.toMap()
+
+private fun primaryWords(words: List<String>): List<String> {
+    val index = words.indexOfFirst { it in ingredientMarkers }
+    return if (index > 0) words.take(index) else words
+}
+
+private fun productType(word: String, allowPrefix: Boolean): String? {
+    productTypeByWord[word]?.let { return it }
+    if (!allowPrefix || word.length < 2) return null
+    return productTypeByWord.asSequence()
+        .filter { (form, _) -> form.startsWith(word) }
+        .map { it.value }.distinct().take(2).toList().singleOrNull()
+}
+
+private fun primaryProductType(words: List<String>, allowPrefix: Boolean): String? {
+    val main = primaryWords(words)
+    return main.indices.firstNotNullOfOrNull { i ->
+        val word = main[i]
+        // A conventional confectionery name, not a literal type of milk.
+        if (word == "молоко" && main.getOrNull(i - 1) == "птичье") null
+        else productType(word, allowPrefix && i == words.lastIndex)
+    }
+}
+
+private fun titleProductType(name: String): String? {
+    val unquoted = searchWords(quotedName.replace(name, " "))
+    return primaryProductType(unquoted.ifEmpty { searchWords(name) }, allowPrefix = false)
+}
+
+/** Prefer the primary product noun. A named product may contain another product
+ * as an ingredient, flavor or marketing name. Unknown product nouns retain
+ * ordinary word matching, so new/unlisted categories and brands remain searchable.
  */
 internal fun matchesProductName(name: String, query: String): Boolean {
     val wanted = searchWords(query)
     if (wanted.isEmpty()) return query.isBlank()
     val words = searchWords(name)
     if (words.isEmpty()) return false
-    val qualifier = words.indexOfFirst { it in ingredientMarkers }.let { if (it > 0) it else words.size }
-    fun matches(index: Int, word: String): Boolean =
-        word == wanted[index] ||
-            (index == wanted.lastIndex && wanted[index].length >= 2 && word.startsWith(wanted[index]))
-    // Require at least one substantive search word in the main title.
-    // A numeric modifier or preposition alone must not qualify an unrelated item.
+
+    val requestedType = primaryProductType(wanted, allowPrefix = true)
+    if (requestedType != null && titleProductType(name) != requestedType) return false
+
+    fun matches(index: Int, word: String): Boolean {
+        val term = wanted[index]
+        val type = productTypeByWord[term]
+        return word == term ||
+            (type != null && productTypeByWord[word] == type) ||
+            (index == wanted.lastIndex && term.length >= 2 && word.startsWith(term))
+    }
     val substantive = wanted.indices.filter { i ->
         wanted[i] !in ingredientMarkers && wanted[i].any { it.isLetter() }
     }
     val anchors = substantive.ifEmpty { wanted.indices.toList() }
-    if (anchors.none { i -> words.take(qualifier).any { matches(i, it) } }) return false
+    if (anchors.none { i -> primaryWords(words).any { matches(i, it) } }) return false
     return wanted.indices.all { i -> words.any { matches(i, it) } }
 }
 
