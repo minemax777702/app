@@ -11,11 +11,17 @@ class UpdateNotificationPolicyTest {
         assertTrue(shouldNotifyUpdate(1042, 1045, 1043))
     }
 
-    @Test fun foregroundChecksAreThrottledAndClockChangesRecover() {
-        val now = 1_000_000L
-        assertTrue(shouldCheckUpdates(now, 0))
-        assertFalse(shouldCheckUpdates(now, now - 1000))
-        assertTrue(shouldCheckUpdates(now, now - UPDATE_CHECK_INTERVAL_MS))
-        assertTrue(shouldCheckUpdates(now, now + 1000))
+    @Test fun dismissedNotificationCanReappearOnNextEntryButNotWhileActive() {
+        assertTrue(shouldNotifyUpdate(1042, 1043, 1043, allowRepeat = true))
+        assertFalse(shouldNotifyUpdate(1042, 1043, 1043, active = true, allowRepeat = true))
+        assertFalse(shouldNotifyUpdate(1043, 1043, 1043, allowRepeat = true))
+    }
+
+    @Test fun aFailedPostDoesNotConsumeTheVersion() {
+        // The stored code changes only after the posted notification is confirmed.
+        val lastConfirmed = 1042L
+        assertTrue(shouldNotifyUpdate(1042, 1043, lastConfirmed))
+        assertTrue(shouldNotifyUpdate(1042, 1043, lastConfirmed))
+        assertFalse(shouldNotifyUpdate(1042, 1043, 1043))
     }
 }

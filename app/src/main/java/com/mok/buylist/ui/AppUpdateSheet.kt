@@ -120,6 +120,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
             val latest = AppUpdater.latest(channel)
             ready = AppUpdater.cachedUpdate(context, latest)
             release = latest
+            UpdateNotifications.confirmPosted(context, UpdateNotifications.report(context, channel, latest))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

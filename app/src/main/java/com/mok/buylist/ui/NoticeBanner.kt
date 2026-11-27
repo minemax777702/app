@@ -66,6 +66,7 @@ internal data class NoticePayload(
     val title: String,
     val message: String,
     val style: NoticeStyle,
+    val opensUpdates: Boolean = false,
 )
 
 /** Разделяем текст только для баннера: журнал получает исходное сообщение. */
@@ -120,7 +121,7 @@ internal fun NoticeInSheet() {
     }
     val presentation = activity.noticePresentation
     if (presentation.current != null && activity.noticeOwner === owner) {
-        NoticeOverlay(presentation, activity::toggleNotice, activity::dismissNotice)
+        NoticeOverlay(presentation, activity::toggleNotice, activity::dismissNotice, activity::activateNotice)
     }
 }
 
@@ -130,6 +131,7 @@ internal fun NoticeOverlay(
     presentation: NoticePresentation,
     onToggle: (Long) -> Unit,
     onDismiss: (Long) -> Unit,
+    onAction: (Long) -> Unit,
 ) {
     val notice = presentation.current ?: return
     val density = LocalDensity.current
@@ -157,7 +159,7 @@ internal fun NoticeOverlay(
     ) {
         androidx.compose.runtime.key(notice.id) {
             NoticeBanner(notice, presentation.expanded, presentation.pending.size,
-                onToggle = { onToggle(notice.id) }, onDismiss = { onDismiss(notice.id) })
+                onToggle = { onToggle(notice.id) }, onDismiss = { onDismiss(notice.id) }, onAction = { onAction(notice.id) })
         }
     }
 }
@@ -170,6 +172,7 @@ private fun NoticeBanner(
     pendingCount: Int,
     onToggle: () -> Unit,
     onDismiss: () -> Unit,
+    onAction: () -> Unit,
 ) {
     val p = LocalPalette.current
     val style = notice.style
@@ -221,7 +224,12 @@ private fun NoticeBanner(
                     Text("В очереди: $pendingCount", color = p.textSecondary, fontSize = 11.sp)
                 }
             }
-            if (expanded) {
+            if (notice.opensUpdates) {
+                androidx.compose.material3.TextButton(onClick = onAction,
+                    contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text("Обновить", color = p.text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            } else if (expanded) {
                 IconButton(onClick = onDismiss, modifier = Modifier.size(40.dp)) {
                     Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть уведомление",
                         modifier = Modifier.size(18.dp), tint = p.textSecondary)

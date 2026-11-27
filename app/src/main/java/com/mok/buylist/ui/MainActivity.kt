@@ -3,9 +3,14 @@ package com.mok.buylist.ui
 import android.content.Intent
 import android.graphics.Color
 import android.os.Build
+import android.util.Log
+import com.mok.buylist.update.AppRelease
+import com.mok.buylist.update.AppUpdater
+import com.mok.buylist.update.UpdateDiscovery
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import com.mok.buylist.update.UpdateNotifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -39,6 +44,32 @@ class MainActivity : ComponentActivity() {
     private var noticeId = 0L
     private var showUpdates by mutableStateOf(false)
     private var updateCheck: Job? = null
+    private var shownUpdateCode: Long? = null
+
+    internal fun acceptUpdateDiscovery(discovery: UpdateDiscovery?) {
+        val result = discovery ?: return
+        val release = result.release ?: return
+        if (release.version.channel != AppUpdater.selectedChannel(this) ||
+            showUpdates || !UpdateNotifications.enabled(this) ||
+            shownUpdateCode == release.version.code) return
+        // A system notification may be blocked or silent. Show a compact actionable in-app notice as fallback.
+        if (!result.systemPosted) {
+            shownUpdateCode = release.version.code
+            noticeOwner = noticeSheets.lastOrNull()
+            noticePresentation = noticePresentation.enqueue(NoticePayload(
+                id = ++noticeId, title = "Доступно обновление",
+                message = "Версия ${release.version.name} готова к загрузке.",
+                style = NoticeStyle.INFO, opensUpdates = true,
+            ))
+        }
+    }
+
+    internal fun activateNotice(id: Long) {
+        if (notice?.id == id && notice?.opensUpdates == true) {
+            dismissNotice(id)
+            openUpdates()
+        }
+    }
 
     internal fun openUpdates() {
         showUpdates = true
@@ -59,24 +90,20 @@ class MainActivity : ComponentActivity() {
         handleUpdateIntent(intent)
     }
 
-    override fun onResume() {
-        super.onResume()
-        checkUpdatesOnEntry()
-    }
-
     internal fun checkUpdatesOnEntry(force: Boolean = false) {
-        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return
         if (updateCheck?.isActive == true) {
             if (!force) return
             updateCheck?.cancel()
         }
         updateCheck = lifecycleScope.launch {
             try {
-                UpdateNotifications.check(applicationContext, force)
+                val discovery = UpdateNotifications.check(applicationContext, allowRepeat = !showUpdates)
+                acceptUpdateDiscovery(UpdateNotifications.confirmPosted(applicationContext, discovery))
             } catch (e: CancellationException) {
                 throw e
-            } catch (_: Exception) {
-                // A failed release check must never interrupt the shopping list.
+            } catch (e: Exception) {
+                Log.w("BuyListUpdates", "Foreground update check failed", e)
             }
         }
     }
@@ -111,9 +138,13 @@ class MainActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
     }
 
-    override fun onStop() {
+    override fun onPause() {
         updateCheck?.cancel()
         updateCheck = null
+        super.onPause()
+    }
+
+    override fun onStop() {
         nearbySync.stop()
         super.onStop()
     }
@@ -122,6 +153,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         showUpdates = savedInstanceState?.getBoolean("show_updates") == true
         handleUpdateIntent(intent)
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                checkUpdatesOnEntry()
+                kotlinx.coroutines.awaitCancellation()
+            }
+        }
         setContent {
             val notificationPermission = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
@@ -158,10 +195,10 @@ class MainActivity : ComponentActivity() {
                     val current = presentation.current
                     val accessibility = LocalAccessibilityManager.current
                     if (current != null) {
-                        if (noticeOwner == null) NoticeOverlay(presentation, ::toggleNotice, ::dismissNotice)
+                        if (noticeOwner == null) NoticeOverlay(presentation, ::toggleNotice, ::dismissNotice, ::activateNotice)
                         LaunchedEffect(current.id, presentation.expanded) {
                             if (!presentation.expanded) {
-                                val duration = current.style.durationMillis
+                                val duration = if (current.opensUpdates) 8000L else current.style.durationMillis
                                 delay(accessibility?.calculateRecommendedTimeoutMillis(
                                     originalTimeoutMillis = duration,
                                     containsIcons = true,
