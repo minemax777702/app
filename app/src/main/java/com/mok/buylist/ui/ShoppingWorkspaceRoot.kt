@@ -50,6 +50,13 @@ internal fun ShoppingWorkspaceRoot() {
     // Do not reopen a cloud space implicitly after process recreation.
     var selectedKey by remember { mutableStateOf<String?>(null) }
     var selector by remember { mutableStateOf(false) }
+    val requested = activity?.widgetWorkspaceRequest
+    LaunchedEffect(requested, sessions) {
+        if (requested == "local") { selectedKey = null; activity?.selectNoticeWorkspace(null); activity?.consumeWidgetWorkspaceRequest() }
+        else if (requested != null && sessions.any { it.localKey == requested }) {
+            selectedKey = requested; activity?.selectNoticeWorkspace(requested); activity?.consumeWidgetWorkspaceRequest()
+        }
+    }
     val selected = sessions.firstOrNull { it.localKey == selectedKey }
     val historical = if (selected != null) selected.historicalState.collectAsStateWithLifecycle().value else false
     val status = if (selected != null) selected.status.collectAsStateWithLifecycle().value else null
@@ -133,6 +140,7 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
     val app = LocalContext.current.applicationContext as ShoppingApp
     val status by session.status.collectAsStateWithLifecycle()
     val address by session.catalog.address.collectAsStateWithLifecycle()
+    val widgetKey by app.cloudSpaces.widgetKey.collectAsStateWithLifecycle()
     var showAddress by remember { mutableStateOf(false) }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) showAddress = true }
     Column(Modifier.fillMaxSize().background(p.background)) {
@@ -148,6 +156,8 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
             }, onClick = { app.cloudSpaces.requestSync(session) })
             status.issue?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
             FreshCutListRow(R.drawable.ic_store, "Магазин Ленты", address.ifBlank { "Адрес не выбран" }, onClick = { showAddress = true })
+            FreshCutListRow(R.drawable.ic_list_check, "Список в виджете", if (widgetKey == session.localKey) "Этот список" else "Выбрать этот список",
+                onClick = { app.cloudSpaces.selectWidget(if (widgetKey == session.localKey) null else session) })
             FreshCutListRow(R.drawable.ic_sun, "Оформление", onClick = onOpenTheme)
             FreshCutListRow(R.drawable.ic_archive, "На телефоне", "Локальный список и управление облаком", onClick = { select(null) })
         }

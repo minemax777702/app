@@ -50,6 +50,15 @@ class MainActivity : ComponentActivity() {
     internal val notice: NoticePayload? get() = noticePresentation.current
     private var noticeId = 0L
     private var noticeWorkspace: String? = null
+    internal var widgetWorkspaceRequest by mutableStateOf<String?>(null)
+        private set
+    internal fun consumeWidgetWorkspaceRequest() { widgetWorkspaceRequest = null }
+    private fun handleWidgetIntent(intent: Intent) {
+        if (intent.action == "com.mok.buylist.OPEN_WIDGET_LIST") {
+            widgetWorkspaceRequest = intent.getStringExtra("workspace") ?: "local"
+            intent.action = null
+        }
+    }
 
     internal fun selectNoticeWorkspace(key: String?) {
         if (noticeWorkspace == key) return
@@ -103,6 +112,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleUpdateIntent(intent)
+        handleWidgetIntent(intent)
     }
 
     internal fun checkUpdatesOnEntry(force: Boolean = false) {
@@ -174,6 +184,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         showUpdates = savedInstanceState?.getBoolean("show_updates") == true
         handleUpdateIntent(intent)
+        handleWidgetIntent(intent)
         val initialMode = themeSettings.app.value
         val initialDark = when (initialMode) {
             ThemeMode.DARK -> true

@@ -2,6 +2,7 @@ package com.mok.buylist.cloud
 
 import android.content.Context
 import android.util.AtomicFile
+import androidx.glance.appwidget.updateAll
 import com.mok.buylist.data.AppDatabase
 import com.mok.buylist.data.ShoppingRepository
 import com.mok.buylist.data.UserProfile
@@ -49,6 +50,21 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
     private val ready = CompletableDeferred<Unit>()
     private var foregroundJob: Job? = null
     private val syncAllMutex = Mutex()
+    val widgetKey = MutableStateFlow(prefs.getString("widget_workspace", null))
+
+    fun selectWidget(session: CloudSpaceSession?) {
+        val key = session?.localKey
+        if (session != null) require(!session.historical)
+        prefs.edit().putString("widget_workspace", key).apply()
+        widgetKey.value = key
+        scope.launch { refreshWidgets() }
+    }
+
+    private suspend fun refreshWidgets() {
+        try { com.mok.buylist.widget.ShoppingWidget().updateAll(context) }
+        catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* Widget failure must not affect committed purchases. */ }
+    }
 
     @Synchronized fun start() {
         if (started) return
@@ -180,6 +196,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
         // Room writes remain available offline; applyRemote merges in a transaction.
         withContext(Dispatchers.IO) { action(session.repository) }
         requestSync(session)
+        if (widgetKey.value == session.localKey) refreshWidgets()
     }
 
     private suspend fun sync(session: CloudSpaceSession) {
@@ -207,6 +224,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                         val keyName = "minimum_epoch_" + session.space.key
                         check(prefs.edit().putLong(keyName, maxOf(minimum, prefs.getLong(keyName, 1L))).commit())
                         session.historical = true
+                        if (widgetKey.value == session.localKey) refreshWidgets()
                         session.status.value = previous.copy(syncing = false, issue = "Версия списка изменилась. Получите новое приглашение.")
                         return
                     }
@@ -225,6 +243,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 }
             }
             session.status.value = CloudSpaceStatus(lastSuccess = System.currentTimeMillis())
+            if (widgetKey.value == session.localKey) refreshWidgets()
         } catch (e: CancellationException) { throw e }
         catch (e: LinkageError) { session.status.value = previous.copy(syncing = false, issue = "Облачный транспорт несовместим с этой сборкой. Данные сохранены.") }
         catch (e: AssertionError) { session.status.value = previous.copy(syncing = false, issue = "Ошибка облачного транспорта. Данные сохранены.") }
