@@ -207,11 +207,17 @@ class ShoppingRepository(
 
     suspend fun removeStoreProduct(storeId: String, productKey: String): String? = db.withTransaction {
         if (storeId == lentaStoreId() && productKey.startsWith("lenta:")) return@withTransaction "Для товара каталога сбросьте ручную цену"
-        val existing = dao.getStoreProducts().firstOrNull {
-            it.storeId == storeId && it.productKey == productKey && !it.deleted
-        } ?: return@withTransaction "Товар не найден"
-        dao.upsertStoreProduct(existing.copy(deleted = true,
-            updatedAt = maxOf(System.currentTimeMillis(), existing.updatedAt + 1)))
+        val aliases = sharedCatalogIdentities(dao.getLentaProducts().map { it.toProduct() }, dao.getCustomProducts(),
+            dao.getProductBarcodes(), dao.getCustomProductBarcodes())
+        val canonical = aliases[productKey] ?: productKey
+        if (storeId == lentaStoreId() && canonical.startsWith("lenta:"))
+            return@withTransaction "Для товара каталога сбросьте ручную цену"
+        val existing = dao.getStoreProducts().filter {
+            it.storeId == storeId && !it.deleted && (aliases[it.productKey] ?: it.productKey) == canonical
+        }
+        if (existing.isEmpty()) return@withTransaction "Товар не найден"
+        val now = maxOf(System.currentTimeMillis(), existing.maxOf { it.updatedAt } + 1)
+        existing.forEach { dao.upsertStoreProduct(it.copy(deleted = true, updatedAt = now)) }
         null
     }
 

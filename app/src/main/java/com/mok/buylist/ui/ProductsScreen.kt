@@ -149,7 +149,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         }
         if (products.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("${ownRows.size + rows.size} товаров", color = p.textSecondary, fontSize = 12.sp)
+            Text(productCountLabel(ownRows.size + rows.size), color = p.textSecondary, fontSize = 12.sp)
             val running = batch?.takeIf { it.running }
             if (running != null) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

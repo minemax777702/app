@@ -42,7 +42,6 @@ import com.mok.buylist.data.ArchivedList
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.lentaStoreId
-import com.mok.buylist.data.parsePriceKopecks
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.lentaCatalog
 import androidx.compose.ui.platform.LocalContext
@@ -101,17 +100,21 @@ internal fun StoresScreen(
     var removingLink by remember { mutableStateOf<String?>(null) }
     val active = stores.filterNot { it.deleted }.distinctBy { it.id }.sortedBy { it.nameKey }
     val store = active.firstOrNull { it.id == openedStore }
+    val currentProducts = remember(lenta, custom, storeLinks, identities, active) {
+        val lentaKeys = lenta.mapTo(HashSet()) { "lenta:${it.id}" }
+        val activeKeys = lentaKeys + custom.filterNot { it.deleted }.map { "custom:${it.id}" }
+        active.associate { shop ->
+            shop.id to currentStoreProductKeys(shop.id, storeLinks, activeKeys, lentaKeys, identities)
+        }
+    }
     LaunchedEffect(store?.id) { onDetailChange(store != null) }
     BackHandler(enabled = store != null && !choosingProduct && !creatingStoreProduct) { openedStore = null }
 
     Column(Modifier.fillMaxSize().background(p.background)) {
         if (store != null) {
             SubScreenHeader(store.name, { openedStore = null })
-            val storePurchases = products.filter { it.storeId == store.id }
-            val storeCount = (storePurchases.map { it.productKey } +
-                storeLinks.filter { it.storeId == store.id && !it.deleted }.map { it.productKey } +
-                if (store.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList()).map { identities[it] ?: it }.distinct().size
-            Text("$storeCount товаров",
+            val storeCount = currentProducts[store.id].orEmpty().size
+            Text(productCountLabel(storeCount),
                 Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp), color = p.textSecondary, fontSize = 13.sp)
         }
         if (store == null) {
@@ -121,13 +124,9 @@ internal fun StoresScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(active, key = { it.id }) { shop ->
-                    val entries = products.filter { it.storeId == shop.id }
-                    val linked = storeLinks.filter { it.storeId == shop.id && !it.deleted }
-                    val productCount = (entries.map { it.productKey } + linked.map { it.productKey } +
-                        if (shop.id == lentaStoreId()) lenta.map { "lenta:${it.id}" } else emptyList())
-                        .map { identities[it] ?: it }.distinct().size
+                    val productCount = currentProducts[shop.id].orEmpty().size
                     var menu by remember { mutableStateOf(false) }
-                    FreshCutListRow(R.drawable.ic_store, shop.name, "$productCount товаров",
+                    FreshCutListRow(R.drawable.ic_store, shop.name, productCountLabel(productCount),
                         onClick = { openedStore = shop.id }, trailing = {
                             if (shop.id != lentaStoreId()) androidx.compose.foundation.layout.Box {
                                 IconButton(onClick = { menu = true }) {
@@ -153,46 +152,24 @@ internal fun StoresScreen(
                 SheetActionButton(onClick = { shopName = ""; error = null; creating = true }) { Text("Добавить магазин") }
             }
         } else {
-            val entries = remember(store.id, products, lenta, custom, storeLinks, address, identities, stores) {
+            val entries = remember(store.id, currentProducts, products, lenta, custom, storeLinks, address, identities, stores) {
                 val history = products.filter { it.storeId == store.id }
-                    .groupBy { it.productKey }
-                    .map { (key, purchases) ->
-                        val latest = purchases.maxBy { it.at }
-                        val known = purchases.filter { it.unitPrice != null }.maxByOrNull { it.at }
-                        StoreProductLine(key, latest.name, latest.at, known?.unitPrice,
-                            known?.weightGrams != null)
-                    }
-                val historyKeys = history.mapTo(HashSet()) { it.key }
-                val fromLenta = if (store.id == lentaStoreId()) lenta.filter { item ->
-                    "lenta:${item.id}" !in historyKeys
-                }.map { item ->
-                    StoreProductLine("lenta:${item.id}", item.name, null,
-                        parsePriceKopecks(item.price), false)
-                } else emptyList()
-                val knownKeys = (history + fromLenta).mapTo(HashSet()) { it.key }
-                val linked = storeLinks.filter { !it.deleted && it.storeId == store.id }
-                    .mapNotNull { link ->
-                        val match = custom.firstOrNull { "custom:${it.id}" == link.productKey && !it.deleted }
-                        val catalogProduct = lenta.firstOrNull { "lenta:${it.id}" == link.productKey }
-                        if (match == null && catalogProduct == null) null
-                        else StoreProductLine(link.productKey, match?.name ?: catalogProduct!!.name,
-                            null, link.priceKopecks, match?.isWeighted == true)
-                    }
-                val additions = linked.filter { it.key !in knownKeys }
-                val updatedHistory = history.map { line ->
-                    val manual = linked.firstOrNull { it.key == line.key }
-                    if (manual != null && manual.price != null) line.copy(price = manual.price)
-                    else line
-                }
-                (updatedHistory + fromLenta + additions)
-                    .distinctBy { identities[it.key] ?: it.key }.map { line ->
-                        val price = productShopPrices(line.key, stores, storeLinks, products, identities, lenta, address)
-                            .firstOrNull { it.storeId == store.id }?.priceKopecks
-                        line.copy(price = price)
-                    }.sortedWith(
-                    compareByDescending<StoreProductLine> { it.purchasedAt != null }
-                        .thenByDescending { it.purchasedAt ?: 0L }
-                        .thenBy { it.name.lowercase() })
+                    .groupBy { identities[it.productKey] ?: it.productKey }
+                val catalogByKey = lenta.associateBy { "lenta:${it.id}" }
+                val customByKey = custom.filterNot { it.deleted }.associateBy { "custom:${it.id}" }
+                currentProducts[store.id].orEmpty().mapNotNull { key ->
+                    val own = customByKey[key]
+                    val catalogItem = catalogByKey[key]
+                    val name = own?.name ?: catalogItem?.name ?: return@mapNotNull null
+                    val purchases = history[identities[key] ?: key].orEmpty()
+                    val latest = purchases.maxByOrNull { it.at }
+                    val price = productShopPrices(key, stores, storeLinks, products, identities, lenta, address)
+                        .firstOrNull { it.storeId == store.id }?.priceKopecks
+                    StoreProductLine(key, name, latest?.at, price,
+                        own?.isWeighted ?: (latest?.weightGrams != null))
+                }.sortedWith(compareByDescending<StoreProductLine> { it.purchasedAt != null }
+                    .thenByDescending { it.purchasedAt ?: 0L }
+                    .thenBy { it.name.lowercase() })
             }
             val visibleEntries = remember(entries, productQuery) {
                 entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
@@ -231,7 +208,8 @@ internal fun StoresScreen(
                             else LentaImage(catalogItem?.image.orEmpty(), Modifier.size(44.dp))
                         },
                         trailing = {
-                            val attached = storeLinks.any { !it.deleted && it.storeId == store.id && it.productKey == entry.key }
+                            val attached = storeLinks.any { !it.deleted && it.storeId == store.id &&
+                                (identities[it.productKey] ?: it.productKey) == (identities[entry.key] ?: entry.key) }
                             androidx.compose.foundation.layout.Box {
                                 IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
                                     Icon(painterResource(R.drawable.ic_more), "Действия с ценой", Modifier.size(20.dp), tint = p.textSecondary)
