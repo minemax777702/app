@@ -170,16 +170,18 @@ object SyncMerge {
             val b = root(second)
             if (a != b) parent[b] = a
         }
-        val events = ordered.map { archive ->
-            archive.purchaseEvents.mapNotNull { encoded ->
+        // Index each purchase ID once per archive. Connecting consecutive
+        // occurrences is sufficient to build the same transitive components.
+        val lastSeen = HashMap<String, Int>()
+        for ((index, archive) in ordered.withIndex()) {
+            val ids = archive.purchaseEvents.mapNotNull { encoded ->
                 decodePurchaseEvent(encoded)?.id?.takeIf(String::isNotBlank)
             }.toSet()
-        }
-        for (i in ordered.indices) {
-            if (events[i].isEmpty()) continue
-            for (j in i + 1 until ordered.size) {
-                if (ordered[j].completedAt - ordered[i].completedAt > TRIP_JOIN_WINDOW_MS) break
-                if (events[j].any { it in events[i] }) union(i, j)
+            for (id in ids) {
+                val previous = lastSeen.put(id, index) ?: continue
+                if (archive.completedAt - ordered[previous].completedAt <= TRIP_JOIN_WINDOW_MS) {
+                    union(previous, index)
+                }
             }
         }
         return ordered.indices.groupBy(::root).values.map { indices ->
