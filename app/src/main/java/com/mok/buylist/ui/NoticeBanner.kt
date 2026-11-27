@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -54,6 +55,39 @@ internal fun noticeStyle(message: String): NoticeStyle {
     }
 }
 
+internal data class NoticePayload(
+    val id: Long,
+    val title: String,
+    val message: String,
+    val style: NoticeStyle,
+)
+
+/** Разделяем текст только для баннера: журнал получает исходное сообщение. */
+internal fun noticePayload(id: Long, raw: String): NoticePayload {
+    val style = noticeStyle(raw)
+    val normalized = raw.lowercase().replace('ё', 'е')
+    val (title, message) = when {
+        normalized.startsWith("данные товара обновлены") -> "Товар обновлён" to
+            raw.substringAfter(" · ", "Информация из каталога актуализирована.")
+        normalized.startsWith("данные каталога обновлены:") -> "Каталог обновлён" to
+            ("Обновлено " + raw.substringAfter(": ").replaceFirstChar { it.lowercase() })
+        normalized.startsWith("обновление остановлено:") -> "Обновление остановлено" to
+            if (normalized.contains("адрес магазина изменился")) raw.substringAfter(": ").replaceFirstChar { it.uppercase() }
+            else "Обновлено " + raw.substringAfter(": ")
+        normalized == "добавлено в список" -> "Товар добавлен" to "Товар появился в списке покупок."
+        normalized == "уже в списке" -> "Товар уже в списке" to "Повторное добавление не требуется."
+        normalized == "покупка отмечена" -> "Товар куплен" to "Покупка сохранена."
+        normalized == "товар сохранен" -> "Товар сохранён" to "Товар добавлен в базу продуктов."
+        normalized.startsWith("список завершен") -> "Покупки завершены" to raw
+        else -> when (style) {
+            NoticeStyle.SUCCESS -> "Готово"
+            NoticeStyle.INFO -> "Информация"
+            NoticeStyle.WARNING -> "Внимание"
+        } to raw
+    }
+    return NoticePayload(id, title, message.replaceFirstChar { it.uppercase() }, style)
+}
+
 /** Регистрируется единожды в общей оболочке панели, включая вложенные панели. */
 @Composable
 internal fun NoticeInSheet() {
@@ -64,12 +98,12 @@ internal fun NoticeInSheet() {
         onDispose { activity.unregisterNoticeSheet(owner) }
     }
     val notice = activity.notice
-    if (notice != null && activity.noticeOwner === owner) NoticeOverlay(notice.second)
+    if (notice != null && activity.noticeOwner === owner) NoticeOverlay(notice)
 }
 
 /** Один экранный якорь для Activity и любых нижних панелей. Popup не занимает место в layout. */
 @Composable
-internal fun NoticeOverlay(message: String) {
+internal fun NoticeOverlay(notice: NoticePayload) {
     val density = LocalDensity.current
     val top = WindowInsets.statusBars.getTop(density) + with(density) { 8.dp.roundToPx() }
     val position = remember(top) {
@@ -93,15 +127,15 @@ internal fun NoticeOverlay(message: String) {
             excludeFromSystemGesture = false,
         ),
     ) {
-        NoticeBanner(message)
+        NoticeBanner(notice)
     }
 }
 
 /** Только визуальное сообщение: не меняет размеры экрана и не принимает ввод. */
 @Composable
-private fun NoticeBanner(message: String) {
+private fun NoticeBanner(notice: NoticePayload) {
     val p = LocalPalette.current
-    val style = noticeStyle(message)
+    val style = notice.style
     val tint = when (style) {
         NoticeStyle.SUCCESS -> p.accent
         NoticeStyle.INFO -> p.textSecondary
@@ -112,22 +146,27 @@ private fun NoticeBanner(message: String) {
         NoticeStyle.INFO -> R.drawable.ic_info
         NoticeStyle.WARNING -> R.drawable.ic_info
     }
-    val shape = RoundedCornerShape(16.dp)
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    val shape = RoundedCornerShape(20.dp)
+    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center) {
-        Row(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(shape)
+        Row(Modifier.widthIn(max = 560.dp).fillMaxWidth().shadow(4.dp, shape, clip = false).clip(shape)
             .background(p.card).border(1.dp, p.line, shape)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
             .semantics { liveRegion = LiveRegionMode.Polite },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(28.dp).clip(RoundedCornerShape(10.dp))
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
                 .background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(17.dp), tint = tint)
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp), tint = tint)
             }
-            Text(message, Modifier.weight(1f), color = p.text, fontSize = 13.sp,
-                lineHeight = 17.sp, fontWeight = FontWeight.Medium,
-                maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(notice.title, color = p.text, fontSize = 14.sp,
+                    lineHeight = 19.sp, fontWeight = FontWeight.SemiBold,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(notice.message, color = p.textSecondary, fontSize = 12.sp,
+                    lineHeight = 17.sp, fontWeight = FontWeight.Normal,
+                    maxLines = 4, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }

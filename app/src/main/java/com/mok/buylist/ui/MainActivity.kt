@@ -23,7 +23,7 @@ import com.mok.buylist.ui.theme.ShoppingTheme
 import com.mok.buylist.ui.theme.isDarkTheme
 
 class MainActivity : ComponentActivity() {
-    internal var notice by mutableStateOf<Pair<Long, String>?>(null)
+    internal var notice by mutableStateOf<NoticePayload?>(null)
         private set
     private var noticeId = 0L
     private val noticeSheets = mutableStateListOf<Any>()
@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
     internal fun notifyUser(message: String) {
         ActionJournal.get(applicationContext).notice(message)
         noticeOwner = noticeSheets.lastOrNull()
-        notice = ++noticeId to message
+        notice = noticePayload(++noticeId, message)
     }
 
     internal fun registerNoticeSheet(owner: Any) {
@@ -74,15 +74,15 @@ class MainActivity : ComponentActivity() {
                     val current = notice
                     val accessibility = LocalAccessibilityManager.current
                     if (current != null) {
-                        if (noticeOwner == null) NoticeOverlay(current.second)
-                        LaunchedEffect(current.first) {
-                            val duration = noticeStyle(current.second).durationMillis
+                        if (noticeOwner == null) NoticeOverlay(current)
+                        LaunchedEffect(current.id) {
+                            val duration = current.style.durationMillis
                             delay(accessibility?.calculateRecommendedTimeoutMillis(
                                 originalTimeoutMillis = duration,
                                 containsIcons = true,
                                 containsText = true,
                             ) ?: duration)
-                            if (notice?.first == current.first) notice = null
+                            if (notice?.id == current.id) notice = null
                         }
                     }
                 }
