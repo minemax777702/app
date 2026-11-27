@@ -241,8 +241,22 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             resetWorkspace(); _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
             _pendingCount.value = 0
         }
-        api().auth.clearSession()
-        updateWidget()
+        try {
+            withTimeoutOrNull(4_000L) {
+                try {
+                    api().auth.signOut(io.github.jan.supabase.auth.SignOutScope.LOCAL)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Offline sign-out must still remove local credentials.
+                }
+            }
+        } finally {
+            withContext(NonCancellable) {
+                api().auth.clearSession()
+                updateWidget()
+            }
+        }
     }
     private suspend fun resetWorkspace() {
         publishWorkspace(null)
