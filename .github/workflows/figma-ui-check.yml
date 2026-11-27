@@ -41,7 +41,7 @@ jobs:
           fi
           test -f "$sdk_root/platforms/android-37.0/android.jar"
           echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: false
           cache-encryption-key: ${{ secrets.GRADLE_ENCRYPTION_KEY }}
@@ -70,7 +70,7 @@ jobs:
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Upload quality reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: fresh-cut-quality-reports
           path: |
