@@ -166,8 +166,10 @@ internal fun ItemDetailsSheet(
                         ?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() }.orEmpty()
                     editPrice = true
                 }) { Text("Изменить цену Ленты") }
-                if (product != null && !shopPrices.any { it.storeId == com.mok.buylist.data.lentaStoreId() && it.manual })
-                    TextButton(onClick = onRefresh, enabled = refresh != "Загрузка") { Text(if (refresh == "Загрузка") "Обновление…" else "Обновить из каталога", color = p.text) }
+                if (product != null)
+                    TextButton(onClick = onRefresh, enabled = refresh != "Загрузка", modifier = Modifier.fillMaxWidth()) {
+                        Text(if (refresh == "Загрузка") "Обновление…" else "Обновить информацию", color = p.text)
+                    }
             }
         }
     }

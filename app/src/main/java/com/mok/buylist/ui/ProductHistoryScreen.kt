@@ -580,6 +580,17 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }
                     }
                     if (!historyOpen) {
+                        if (product != null) {
+                            TextButton(
+                                onClick = { viewModel.refreshPrice(product.id) },
+                                enabled = refresh?.second != "Загрузка",
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(18.dp), tint = p.text)
+                                Text(if (refresh?.first == product.id && refresh?.second == "Загрузка")
+                                    "  Обновление…" else "  Обновить информацию", color = p.text)
+                            }
+                        }
                         CompactProductLine("Упаковка", product?.pack?.takeIf { it.isNotBlank() }
                             ?: if (ownProduct?.isWeighted == true) "Весовой товар" else "Штучный товар")
                         CompactProductLine("Последняя покупка", rows.firstOrNull()?.let {

@@ -80,10 +80,16 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val barcodeRows by catalog.barcodeRows.collectAsStateWithLifecycle()
     val customBarcodeRows by viewModel.customBarcodes.collectAsStateWithLifecycle()
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
+    val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     androidx.compose.runtime.LaunchedEffect(batch) {
         val result = batch
         if (result != null && !result.running) {
-            activity?.notifyUser(if (result.failed == 0) "Цены обновлены" else "Не обновлено: ${result.failed} из ${result.total}")
+            activity?.notifyUser(buildList {
+                add("Данные каталога обновлены: ${result.total - result.failed} из ${result.total}")
+                if (result.failed > 0) add("ошибок: ${result.failed}")
+                if (result.missingBarcodes > 0) add("без штрихкода: ${result.missingBarcodes}")
+                if (result.missingPrices > 0) add("без новой цены: ${result.missingPrices}")
+            }.joinToString(" · "))
             viewModel.batchPriceRefresh.value = null
         }
     }
@@ -143,7 +149,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             Text("${ownRows.size + rows.size} товаров", color = p.textSecondary, fontSize = 12.sp)
             TextButton(onClick = viewModel::refreshAllPrices, enabled = batch?.running != true) {
                 Icon(painterResource(R.drawable.ic_sync), null, Modifier.size(18.dp), tint = p.text)
-                Text(if (batch?.running == true) "  ${batch!!.completed}/${batch!!.total}" else "  Обновить цены", color = p.text)
+                Text(if (batch?.running == true) "  ${batch!!.completed}/${batch!!.total}" else "  Обновить данные", color = p.text)
             }
         }
         if (rows.isEmpty() && ownRows.isEmpty()) {
@@ -201,6 +207,9 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                             }
                             AppDropdownMenu(menu, { menu = false }) {
                                 AppDropdownMenuItem(text = { Text("Добавить в список") }, onClick = { menu = false; onAdd(product) })
+                                if (refresh?.second != "Загрузка") AppDropdownMenuItem(
+                                    text = { Text("Обновить информацию") },
+                                    onClick = { menu = false; viewModel.refreshPrice(product.id) })
                                 AppDropdownMenuItem(text = { Text("Удалить товар", color = p.error) },
                                     onClick = { menu = false; pendingDelete = product })
                             }

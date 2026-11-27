@@ -51,7 +51,8 @@ data class ListRow(val item: ShoppingItem, val state: RowState)
 /** Сколько куплено из всего текущего списка. */
 data class Progress(val bought: Int, val total: Int)
 
-data class BatchPriceRefresh(val completed: Int, val total: Int, val failed: Int, val running: Boolean)
+data class BatchPriceRefresh(val completed: Int, val total: Int, val failed: Int, val running: Boolean,
+    val missingBarcodes: Int = 0, val missingPrices: Int = 0)
 
 /** Сколько миллисекунд после покупки или удаления на строке остаётся кнопка «Отменить». */
 private const val UNDO_WINDOW_MS = 1_500L
@@ -193,17 +194,21 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             var failed = 0
             var completed = 0
+            var missingBarcodes = 0
+            var missingPrices = 0
             for (id in ids) {
                 if (lenta.address.value != address) { failed += ids.size - completed; break }
                 try {
-                    if (!lenta.hasManualPrice(id)) lenta.refreshPrice(id)
+                    val result = lenta.refreshProduct(id)
+                    if (!result.hasBarcode) missingBarcodes++
+                    if (!result.manualPrice && !result.priceAvailable) missingPrices++
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (_: Exception) { failed++ }
                 completed++
-                batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, true)
+                batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, true, missingBarcodes, missingPrices)
             }
-            batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, false)
+            batchPriceRefresh.value = BatchPriceRefresh(completed, ids.size, failed, false, missingBarcodes, missingPrices)
         }
     }
 
@@ -212,12 +217,18 @@ class ShoppingViewModel(application: Application) : AndroidViewModel(application
         priceRefresh.value = id to "Загрузка"
         viewModelScope.launch {
             priceRefresh.value = try {
-                if (lenta.hasManualPrice(id)) id to "Установлена ручная цена"
-                else { lenta.refreshPrice(id); id to "Цена обновлена" }
+                val result = lenta.refreshProduct(id)
+                val message = buildList {
+                    add("Данные товара обновлены")
+                    if (!result.hasBarcode) add("штрихкод отсутствует")
+                    if (result.manualPrice) add("ручная цена сохранена")
+                    else if (!result.priceAvailable) add("цена недоступна")
+                }.joinToString(" · ")
+                id to message
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                id to (e.message ?: "Не удалось обновить цену")
+                id to (e.message ?: "Не удалось обновить товар")
             }
         }
     }
