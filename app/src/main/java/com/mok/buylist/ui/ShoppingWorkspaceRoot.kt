@@ -53,9 +53,14 @@ internal fun ShoppingWorkspaceRoot() {
     var selector by remember { mutableStateOf(false) }
     val requested = activity?.widgetWorkspaceRequest
     LaunchedEffect(requested, sessions) {
-        if (requested == "local") { selectedKey = null; activity?.selectNoticeWorkspace(null); activity?.consumeWidgetWorkspaceRequest() }
-        else if (requested != null && sessions.any { it.localKey == requested }) {
-            selectedKey = requested; activity?.selectNoticeWorkspace(requested); activity?.consumeWidgetWorkspaceRequest()
+        if (requested == "local") {
+            selectedKey = null
+            activity.selectNoticeWorkspace(null)
+            activity.consumeWidgetWorkspaceRequest()
+        } else if (requested != null && sessions.any { it.localKey == requested }) {
+            selectedKey = requested
+            activity.selectNoticeWorkspace(requested)
+            activity.consumeWidgetWorkspaceRequest()
         }
     }
     val selected = sessions.firstOrNull { it.localKey == selectedKey }
