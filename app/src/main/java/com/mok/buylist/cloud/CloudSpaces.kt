@@ -15,7 +15,7 @@ import kotlinx.coroutines.sync.withLock
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder
 import java.io.File
 
-internal data class CloudSpaceStatus(val syncing: Boolean = false, val lastSuccess: Long = 0, val issue: String? = null)
+internal data class CloudSpaceStatus(val syncing: Boolean = false, val lastSuccess: Long = 0, val issue: String? = null, val photoIssue: String? = null)
 
 internal class CloudSpaceSession(
     val invitation: CloudInvitation,
@@ -201,6 +201,22 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
         CloudLateChanges.plan(baseline, source.repository.exportSnapshot(), target.repository.exportSnapshot())
     }
 
+    suspend fun transferPhotos(source: CloudSpaceSession, target: CloudSpaceSession): Int = withContext(Dispatchers.IO) {
+        require(source.historical && target.writable && source.space == target.space && source.epoch < target.epoch)
+        require(source.grant.canWrite && source.grant.userId == target.grant.userId)
+        var count = 0
+        val products = target.repository.exportSnapshot().customProducts.filterNot { it.deleted }
+        for (product in products) {
+            val photo = com.mok.buylist.ui.CustomProductPreviews.cloudPhoto(context, product.id, source.localKey) ?: continue
+            if (com.mok.buylist.ui.CustomProductPreviews.cloudPhoto(context, product.id, target.localKey) == null) {
+                com.mok.buylist.ui.CustomProductPreviews.installCloudPhoto(context, photo, target.localKey)
+                count++
+            }
+        }
+        requestSync(target)
+        count
+    }
+
     suspend fun transferLate(source: CloudSpaceSession, target: CloudSpaceSession, plan: CloudLatePlan): Boolean {
         require(source.historical && target.writable && source.space == target.space && source.epoch < target.epoch)
         require(source.grant.canWrite && source.grant.userId == target.grant.userId)
@@ -242,6 +258,7 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 else CloudEpochCheckpoint.open(invitation.checkpoint, invitation.signed.manifest, key)
             journals.ensureInitialized(session.space, invitation.signed, invitation.admin, checkpoint)
             val directory = File(context.noBackupFilesDir, "cloud-git-v1/" + session.space.key.replace(':', '-'))
+            var photoIssue: String? = null
             FileRepositoryBuilder().setGitDir(directory).setBare().build().use { git ->
                 if (!git.objectDatabase.exists()) git.create(true)
                 val transport = CloudGitEvents(git, CloudGitSsh.REMOTE, CloudGitSsh.configure)
@@ -271,8 +288,11 @@ internal class CloudSpaces(private val context: Context, private val scope: Coro
                 } else {
                     session.repository.applyRemote(remote.state.snapshot)
                 }
+                try { CloudPhotoSync.sync(context, session, transport, identity, key) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { photoIssue = "Не все фотографии обновлены. Повторите синхронизацию." }
             }
-            session.status.value = CloudSpaceStatus(lastSuccess = System.currentTimeMillis())
+            session.status.value = CloudSpaceStatus(lastSuccess = System.currentTimeMillis(), photoIssue = photoIssue)
             if (widgetKey.value == session.localKey) refreshWidgets()
         } catch (e: CancellationException) { throw e }
         catch (e: LinkageError) { session.status.value = previous.copy(syncing = false, issue = "Облачный транспорт несовместим с этой сборкой. Данные сохранены.") }

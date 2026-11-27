@@ -147,6 +147,7 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
     var transferPlan by remember { mutableStateOf<com.mok.buylist.cloud.CloudLatePlan?>(null) }
     var transferBusy by remember { mutableStateOf(false) }
     var transferMessage by remember { mutableStateOf<String?>(null) }
+    var photoSource by remember { mutableStateOf<CloudSpaceSession?>(null) }
     var showAddress by remember { mutableStateOf(false) }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) showAddress = true }
     Column(Modifier.fillMaxSize().background(p.background)) {
@@ -161,6 +162,7 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
                 else -> "Ожидает синхронизации"
             }, onClick = { app.cloudSpaces.requestSync(session) })
             status.issue?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
+            status.photoIssue?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
             FreshCutListRow(R.drawable.ic_store, "Магазин Ленты", address.ifBlank { "Адрес не выбран" }, onClick = { showAddress = true })
             sessions.filter { it.space == session.space && it.epoch < session.epoch && it.historical && it.grant.canWrite && it.grant.userId == session.grant.userId }.forEach { source ->
                 FreshCutListRow(R.drawable.ic_repeat, "Перенести изменения", "Прежняя версия списка · ${source.epoch}", onClick = {
@@ -175,6 +177,7 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
                         }
                     }
                 })
+                FreshCutListRow(R.drawable.ic_repeat, "Перенести фотографии", "Из версии ${source.epoch}", onClick = { if (!transferBusy) photoSource = source })
             }
             transferMessage?.let { Text(it, color = p.textSecondary, fontSize = 13.sp) }
             FreshCutListRow(R.drawable.ic_list_check, "Список в виджете", if (widgetKey == session.localKey) "Этот список" else "Выбрать этот список",
@@ -184,6 +187,22 @@ internal fun CloudWorkspaceProfile(session: CloudSpaceSession, addressRequest: I
         }
     }
     if (showAddress) LentaSettings { showAddress = false }
+    photoSource?.let { source ->
+        AppSheet(onDismissRequest = { if (!transferBusy) photoSource = null }, containerColor = p.sheet,
+            title = { SheetHeader("Перенос фотографий") }, text = {
+                Text("Будут добавлены только отсутствующие фотографии товаров этого списка. Существующие фото не изменятся.", color = p.textSecondary, fontSize = 14.sp)
+            }, confirmButton = {
+                SheetActionButton(onClick = {
+                    transferBusy = true
+                    scope.launch {
+                        try { transferMessage = "Перенесено фотографий: ${app.cloudSpaces.transferPhotos(source, session)}" }
+                        catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                        catch (_: Exception) { transferMessage = "Не удалось перенести все фото. Оригиналы сохранены." }
+                        finally { transferBusy = false; photoSource = null }
+                    }
+                }, enabled = !transferBusy) { Text("Перенести") }
+            })
+    }
     val plan = transferPlan
     val source = transferSource
     if (plan != null && source != null) AppSheet(

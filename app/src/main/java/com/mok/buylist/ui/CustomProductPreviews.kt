@@ -28,6 +28,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.File
+import android.util.AtomicFile
+import com.mok.buylist.cloud.CloudPhoto
 
 /** Local files are independent from purchases; API errors never prevent adding a product. */
 internal object CustomProductPreviews {
@@ -39,7 +41,7 @@ internal object CustomProductPreviews {
     }
     fun image(context: Context, id: String, workspace: String? = null): Bitmap? =
         runCatching { BitmapFactory.decodeFile(file(context, id, workspace).path) }.getOrNull()
-    private fun save(context: Context, id: String, bytes: ByteArray, workspace: String?): Boolean {
+    @Synchronized private fun save(context: Context, id: String, bytes: ByteArray, workspace: String?): Boolean {
         if (bytes.size > 4_000_000) return false
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
@@ -49,15 +51,56 @@ internal object CustomProductPreviews {
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
             BitmapFactory.Options().apply { inSampleSize = sample }) ?: return false
         val destination = file(context, id, workspace)
-        val tmp = File(destination.parentFile, id + ".tmp")
-        val success = runCatching {
-            tmp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-            if (!tmp.renameTo(destination)) { tmp.copyTo(destination, overwrite = true); tmp.delete() }
-        }.isSuccess
-        bitmap.recycle()
-        if (!success) tmp.delete()
+        val success = try {
+            val output = ByteArrayOutputStream()
+            var quality = 85
+            do {
+                output.reset()
+                check(bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output))
+                quality -= 10
+            } while (workspace != null && output.size() > CloudPhoto.MAX_JPEG && quality >= 25)
+            if (workspace != null && output.size() > CloudPhoto.MAX_JPEG) {
+                val small = Bitmap.createScaledBitmap(bitmap, maxOf(1, bitmap.width / 2), maxOf(1, bitmap.height / 2), true)
+                try { output.reset(); check(small.compress(Bitmap.CompressFormat.JPEG, 65, output)) }
+                finally { if (small !== bitmap) small.recycle() }
+            }
+            check(workspace == null || output.size() <= CloudPhoto.MAX_JPEG)
+            val at = maxOf(System.currentTimeMillis(), destination.lastModified() + 1)
+            atomicWrite(destination, output.toByteArray(), at)
+            true
+        } catch (_: Exception) { false } finally { bitmap.recycle() }
         return success
     }
+    private fun atomicWrite(destination: File, bytes: ByteArray, at: Long) {
+        val atomic = AtomicFile(destination)
+        val out = atomic.startWrite()
+        try { out.write(bytes); atomic.finishWrite(out) }
+        catch (e: Exception) { atomic.failWrite(out); throw e }
+        check(destination.setLastModified(at)) { "Photo timestamp not saved" }
+    }
+
+    @Synchronized fun cloudPhoto(context: Context, id: String, workspace: String): CloudPhoto? {
+        val f = file(context, id, workspace)
+        if (!f.exists()) return null
+        require(f.length() in 4L..CloudPhoto.MAX_JPEG.toLong()) { "Фото нужно сохранить заново в уменьшенном размере" }
+        return CloudPhoto(id, f.lastModified(), f.readBytes())
+    }
+
+    suspend fun installCloudPhoto(context: Context, photo: CloudPhoto, workspace: String) {
+        val saved = withContext(Dispatchers.IO) {
+            synchronized(this@CustomProductPreviews) {
+                val current = cloudPhoto(context, photo.product, workspace)
+                if (current != null && current.compare(photo) >= 0) return@synchronized false
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(photo.jpeg, 0, photo.jpeg.size, bounds)
+                require(bounds.outWidth in 1..1024 && bounds.outHeight in 1..1024 && bounds.outMimeType == "image/jpeg")
+                atomicWrite(file(context, photo.product, workspace), photo.jpeg, photo.at)
+                true
+            }
+        }
+        if (saved) withContext(Dispatchers.Main) { revisions["$workspace/${photo.product}"] = version(photo.product, workspace) + 1 }
+    }
+
     suspend fun setFromUri(context: Context, id: String, uri: Uri, workspace: String? = null): Boolean = withContext(Dispatchers.IO) {
         val bytes = runCatching {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -95,7 +138,8 @@ internal fun CustomProductImage(productId: String, modifier: Modifier = Modifier
 @Composable
 internal fun CustomProductImageActions(productId: String) {
     val context = LocalContext.current
-    val workspace = LocalShoppingWorkspace.current?.localKey
+    val session = LocalShoppingWorkspace.current
+    val workspace = session?.localKey
     val p = LocalPalette.current
     val scope = rememberCoroutineScope()
     var loading by remember(productId) { mutableStateOf(false) }
@@ -106,6 +150,7 @@ internal fun CustomProductImageActions(productId: String) {
             val ok = CustomProductPreviews.setFromUri(context, productId, uri, workspace)
             loading = false
             message = if (ok) null else "Не удалось открыть фото"
+            if (ok && session != null) (context.applicationContext as com.mok.buylist.ShoppingApp).cloudSpaces.requestSync(session)
         }
     }
     Column {

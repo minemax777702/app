@@ -41,15 +41,65 @@ internal class CloudGitEvents(
 
     private fun tracking(branch: String) = branch.replace("refs/heads/", "refs/remotes/buylist/")
 
-    private fun fetchTip(branch: String): ObjectId? {
-        val list = git.lsRemote().setRemote(remote).setHeads(true).setTags(false).setTimeout(30)
-        configure?.let { list.setTransportConfigCallback(it) }
-        if (list.call().none { it.name == branch }) return null
+    private fun fetchTip(branch: String, known: Boolean = false): ObjectId? {
+        if (!known && remoteHeads().none { it == branch }) return null
         val fetch = git.fetch().setRemote(remote).setRefSpecs(RefSpec("+$branch:${tracking(branch)}"))
             .setTagOpt(TagOpt.NO_TAGS).setTimeout(30)
         configure?.let { fetch.setTransportConfigCallback(it) }
         fetch.call()
         return requireNotNull(repository.exactRef(tracking(branch))?.objectId) { "Remote tip unavailable" }
+    }
+
+    private fun remoteHeads(): List<String> {
+        val list = git.lsRemote().setRemote(remote).setHeads(true).setTags(false).setTimeout(30)
+        configure?.let { list.setTransportConfigCallback(it) }
+        return list.call().map { it.name }
+    }
+
+    private fun photoPrefix(manifest: CloudManifest) =
+        "refs/heads/cloud-photos-v1/${manifest.space.key.replace(':', '/')}/${manifest.epoch}/"
+
+    private fun readFile(tip: ObjectId, path: String, max: Int): ByteArray = RevWalk(repository).use { walk ->
+        val commit = walk.parseCommit(tip)
+        TreeWalk(repository).use { tree ->
+            tree.addTree(commit.tree)
+            require(tree.next() && tree.pathString == path && tree.getFileMode(0) == FileMode.REGULAR_FILE)
+            val bytes = repository.open(tree.getObjectId(0), Constants.OBJ_BLOB).getBytes(max)
+            require(!tree.next())
+            bytes
+        }
+    }
+
+    fun readPhotos(manifest: CloudManifest, products: Set<String>, key: javax.crypto.SecretKey): Map<String, CloudPhoto> = synchronized(LOCK) {
+        if (products.isEmpty()) return@synchronized emptyMap()
+        val prefix = photoPrefix(manifest)
+        val writers = manifest.grants.filter { it.canWrite }.mapTo(HashSet()) { it.deviceId }
+        val branches = remoteHeads().filter { it.startsWith(prefix) }.filter {
+            val parts = it.removePrefix(prefix).split('/')
+            parts.size == 2 && parts[0] in writers && parts[1] in products
+        }
+        require(branches.size <= 1000) { "Слишком много фотографий для одного обмена" }
+        val result = linkedMapOf<String, CloudPhoto>()
+        for (branch in branches.sorted()) {
+            val (writer, product) = branch.removePrefix(prefix).split('/')
+            val tip = fetchTip(branch, known = true) ?: error("Photo ref disappeared")
+            val photo = CloudPhotoWire.open(readFile(tip, "photo.bin", CloudPhotoWire.MAX_FILE), manifest, key, writer, product)
+            val existing = result[product]
+            if (existing == null || photo.compare(existing) > 0) result[product] = photo
+        }
+        result
+    }
+
+    fun publishPhoto(manifest: CloudManifest, photo: CloudPhoto, writer: String, key: javax.crypto.SecretKey,
+                     identity: java.security.KeyPair) = synchronized(LOCK) {
+        require(manifest.grants.any { it.deviceId == writer && it.canWrite })
+        val branch = photoPrefix(manifest) + writer + "/" + photo.product
+        val tip = fetchTip(branch)
+        if (tip != null) {
+            val old = CloudPhotoWire.open(readFile(tip, "photo.bin", CloudPhotoWire.MAX_FILE), manifest, key, writer, photo.product)
+            if (old.compare(photo) >= 0) return@synchronized
+        }
+        pushFile(branch, tip, "photo.bin", CloudPhotoWire.seal(photo, manifest, key, identity, writer), "Encrypted product photo")
     }
 
     fun readControl(space: CloudSpace): CloudEpochControl? = synchronized(LOCK) {
@@ -130,9 +180,13 @@ internal class CloudGitEvents(
                 "Remote event chain changed; reload before publishing"
             }
         } else require(header.sequence == 1L && header.previousHash.isEmpty())
+        pushFile(branch, tip, "event.bin", event.encode(), "Signed event ${header.sequence}")
+    }
+
+    private fun pushFile(branch: String, tip: ObjectId?, path: String, bytes: ByteArray, description: String) {
         val id = repository.newObjectInserter().use { inserter ->
-            val blob = inserter.insert(Constants.OBJ_BLOB, event.encode())
-            val tree = TreeFormatter().apply { append("event.bin", FileMode.REGULAR_FILE, blob) }
+            val blob = inserter.insert(Constants.OBJ_BLOB, bytes)
+            val tree = TreeFormatter().apply { append(path, FileMode.REGULAR_FILE, blob) }
             val treeId = inserter.insert(tree)
             val author = PersonIdent("BuyList device", "device@buylist.invalid")
             val commit = CommitBuilder().apply {
@@ -140,7 +194,7 @@ internal class CloudGitEvents(
                 setAuthor(author)
                 setCommitter(author)
                 if (tip != null) setParentId(tip)
-                message = "Signed event ${header.sequence}"
+                message = description
             }
             inserter.insert(commit).also { inserter.flush() }
         }
