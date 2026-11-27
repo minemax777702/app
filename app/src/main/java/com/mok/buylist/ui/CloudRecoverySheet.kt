@@ -38,7 +38,7 @@ internal fun CloudRecoverySheet(
     val valid = password.length in 16..256 && (if (restoring) confirmed else password == repeat)
 
     AppSheet(onDismissRequest = { if (!busy) onDismiss() }, required = busy, containerColor = p.sheet,
-        title = { SheetHeader(if (restoring) "Восстановить реестр" else "Копия ключа и реестра") },
+        title = { SheetHeader(if (restoring) "Восстановить реестр" else "Копия реестра") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (restoring) "Реестр будет зашифрован ключом этого телефона. Старое устройство потеряет доступ, если у него другой ключ. Копия должна точно соответствовать текущему файлу GitHub."

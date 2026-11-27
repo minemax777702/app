@@ -46,7 +46,7 @@ internal fun CloudBackupPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
         loaded = true
     }
 
-    fun run(operation: suspend () -> Unit) {
+    fun execute(operation: suspend () -> Unit) {
         if (busy) return
         busy = true
         message = null
@@ -59,7 +59,7 @@ internal fun CloudBackupPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
         }
     }
 
-    LaunchedEffect(admin) { run { refresh() } }
+    LaunchedEffect(admin) { execute { refresh() } }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSecondaryButton("К настройкам облака", onBack, enabled = !busy)
@@ -69,7 +69,7 @@ internal fun CloudBackupPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             selected = null
             form = true
         }, enabled = !busy)
-        FreshCutSecondaryButton("Обновить список", { run { refresh() } }, enabled = !busy)
+        FreshCutSecondaryButton("Обновить список", { execute { refresh() } }, enabled = !busy)
         if (busy) Text("Обработка…", color = p.textSecondary, fontSize = 14.sp)
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
         if (loaded) {
@@ -89,7 +89,7 @@ internal fun CloudBackupPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
         onSubmit = { secret ->
             val file = selected
             form = false
-            run {
+            execute {
                 try {
                     if (file == null) {
                         val plain = repository.exportBackup()
@@ -136,7 +136,7 @@ internal fun CloudBackupPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             SheetActionButton(onClick = {
                 val adopt = adoptIdentity
                 preview = null
-                run {
+                execute {
                     repository.saveUndoPoint()
                     repository.restoreBackup(contents, asMe = adopt)
                     message = "Копия объединена с локальной базой"
