@@ -42,6 +42,7 @@ import com.mok.buylist.data.ArchivedList
 import com.mok.buylist.data.ShoppingItem
 import com.mok.buylist.data.ShoppingStore
 import com.mok.buylist.data.lentaStoreId
+import com.mok.buylist.data.parsePriceKopecks
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.lentaCatalog
 import androidx.compose.ui.platform.LocalContext
