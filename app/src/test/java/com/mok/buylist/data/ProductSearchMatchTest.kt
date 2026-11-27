@@ -62,6 +62,8 @@ class ProductSearchMatchTest {
 
     @Test fun prefixAndExplicitQualifierQueriesRemainAvailable() {
         assertTrue(matchesProductName("Молоко пастеризованное", "мол"))
+        assertTrue(matchesProductName("Молочник керамический", "мол"))
+        assertFalse(matchesProductName("Конфеты «Молочник»", "мол"))
         assertTrue(matchesProductName("Печенье со сгущённым молоком", "печенье"))
         assertTrue(matchesProductName("Печенье со сгущённым молоком", "печенье со сгущенным молоком"))
         assertFalse(matchesProductName("Сухарики с сыром", "сыр"))
