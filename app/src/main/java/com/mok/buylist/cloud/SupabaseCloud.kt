@@ -208,6 +208,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
 
     companion object {
         const val EMAIL_REDIRECT = "com.mok.buylist://auth-confirm"
+        const val PERSONAL_LIST_NAME = "Личный список"
     }
 
     suspend fun signOut() {
@@ -255,6 +256,18 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             members.filter { it.flag("active") }.map { CloudMember(it.string("group_id")!!, it.string("user_id")!!) })
     }
 
+    /** The offline list and the account's primary personal list are one logical list.
+     * A persisted mapping takes priority over names (which users can change).
+     */
+    private fun primaryPersonalList(uid: String, directory: CloudDirectory): CloudList? {
+        val personal = directory.lists.filter { it.owner == uid && it.group == null }
+        val bound = prefs.getString("guest_owner", null)
+        val linked = if (bound == uid) prefs.getString("guest_list", null) else null
+        return personal.firstOrNull { it.id == linked }
+            ?: personal.firstOrNull { it.name == PERSONAL_LIST_NAME }
+            ?: personal.firstOrNull()
+    }
+
     private suspend fun restoreDirectory(uid: String) {
         val saved = prefs.getString("directory_$uid", null) ?: return
         try {
@@ -265,7 +278,8 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             _directory.value = directory
             val id = prefs.getString("selected_$uid", null)
             val selected = directory.lists.firstOrNull { it.id == id }
-                ?: directory.lists.firstOrNull { it.owner == uid } ?: directory.lists.firstOrNull()
+                ?: primaryPersonalList(uid, directory) ?: directory.lists.firstOrNull()
+            migrateGuest(me, directory)
             if (selected != null) {
                 publishWorkspace(open(me, selected, cachedOnly = true))
                 _status.value = "Офлайн"
@@ -315,12 +329,15 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                 _directory.value = directory
                 val preferred = prefs.getString("selected_$uid", null)
                 val selected = directory.lists.firstOrNull { it.id == preferred }
-                    ?: directory.lists.firstOrNull { it.owner == uid } ?: directory.lists.firstOrNull()
+                    ?: primaryPersonalList(uid, directory) ?: directory.lists.firstOrNull()
                 val allowed = directory.lists.mapTo(HashSet()) { it.id }
                 if (_workspace.value?.listId?.let { it !in allowed } == true) publishWorkspace(null)
                 caches.values.filter { it.userId != uid || it.listId !in allowed }.forEach {
                     closeLater(it); caches.remove(it.namespace)
                 }
+                // Merge the local personal list before exposing its cloud-backed cache.
+                // This prevents showing an empty replacement list during the transition.
+                migrateGuest(me, directory)
                 // Open Room without any network wait. Incoming data will be merged afterwards.
                 if (_workspace.value?.listId != selected?.id)
                     publishWorkspace(selected?.let { open(me, it, cachedOnly = true) })
@@ -334,7 +351,6 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                         catch (e: Exception) { reportFailure("local cache", e) }
                     }
                 }
-                migrateGuest(me, directory)
                 caches.values.toList()
             }
             updateWidget()
@@ -369,8 +385,8 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             .joinToString("") { "%02x".format(it.toInt() and 255) }
         if (hash == prefs.getString("guest_hash", null)) return
         val targetId = prefs.getString("guest_list", null)
-        val target = if (targetId == null) directory.lists.firstOrNull { it.owner == me.id }
-            else directory.lists.firstOrNull { it.id == targetId && it.owner == me.id }
+        val target = if (targetId == null) primaryPersonalList(me.id, directory)
+            else directory.lists.firstOrNull { it.id == targetId && it.owner == me.id && it.group == null }
         if (target == null) return
         check(prefs.edit().putString("guest_owner", me.id).putString("guest_list", target.id).commit())
         val cache = open(me, target, cachedOnly = true)
