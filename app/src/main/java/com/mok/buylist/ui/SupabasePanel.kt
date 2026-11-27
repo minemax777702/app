@@ -114,9 +114,11 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     }
     Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
         if (!adminOnly) FreshCutListRow(R.drawable.ic_user_round, me.name,
-            onClick={ if(!busy) editName=true }, showChevron=false)
-        if (!adminOnly && activity!=null) FreshCutListRow(R.drawable.ic_fingerprint,"Ключи доступа",
-            "Вход без пароля",showChevron=false,onClick={passkeySheet=true})
+            onClick={ if(!busy) editName=true }, showChevron=false,
+            trailing=if(activity!=null) {{
+                FreshCutToolbarAction(R.drawable.ic_fingerprint,"Ключи доступа",
+                    {passkeySheet=true},enabled=!busy)
+            }} else null)
         if (pendingCount > 0) Text("Ожидают синхронизации: $pendingCount",color=p.textSecondary,fontSize=13.sp)
         status?.let { Text(it,color=p.textSecondary,fontSize=13.sp) }
         val tabs = if(adminOnly) listOf("Пользователи","Группы") else listOf("Списки","Группы")
