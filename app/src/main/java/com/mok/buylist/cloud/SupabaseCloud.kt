@@ -39,6 +39,7 @@ internal data class CloudPerson(val id: String, val name: String, val admin: Boo
 internal data class CloudGroup(val id: String, val name: String, val owner: String)
 internal data class CloudList(val id: String, val name: String, val owner: String?, val group: String?, val revision: Long)
 internal data class CloudMember(val group: String, val user: String)
+internal data class CreatedCloudPerson(val id: String, val confirmationSent: Boolean)
 internal data class CloudDirectory(
     val me: CloudPerson? = null, val people: List<CloudPerson> = emptyList(),
     val groups: List<CloudGroup> = emptyList(), val lists: List<CloudList> = emptyList(),
@@ -643,7 +644,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         update("profiles",id,buildJsonObject { put("display_name",name.trim().take(50)); put("role",if (admin) "admin" else "user"); put("active",active) })
         signal()
     }
-    suspend fun createPerson(name: String, email: String, password: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun createPerson(name: String, email: String, password: String): CreatedCloudPerson = withContext(Dispatchers.IO) {
         check(directory.value.me?.admin == true)
         val token = requireNotNull(api().auth.currentAccessTokenOrNull())
         val connection = java.net.URL(BuildConfig.SUPABASE_URL + "/functions/v1/manage-users").openConnection() as java.net.HttpURLConnection
@@ -660,13 +661,18 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             check(connection.responseCode == 201)
             val response = connection.inputStream.bufferedReader().use { it.readText() }
             signal()
-            Json.parseToJsonElement(response).jsonObject.flag("confirmation_sent")
+            val result = Json.parseToJsonElement(response).jsonObject
+            CreatedCloudPerson(requireNotNull(result.string("id")), result.flag("confirmation_sent"))
         } finally { connection.disconnect() }
     }
     suspend fun saveGroup(id: String?, name: String) =
         enqueue(if (id == null) "group_create" else "group_rename", id ?: java.util.UUID.randomUUID().toString(), name.trim().take(100))
     suspend fun removeGroup(id: String) = enqueue("group_remove", id)
-    suspend fun member(group: String, person: String, active: Boolean) = enqueue("member", group, user = person, active = active)
+    suspend fun member(group: String, person: String, active: Boolean) {
+        val row = requireNotNull(directory.value.groups.firstOrNull { it.id == group })
+        check(directory.value.manages(row) && row.owner != person)
+        enqueue("member", group, user = person, active = active)
+    }
     suspend fun saveList(id: String?, name: String, group: String?) =
         enqueue(if (id == null) "list_create" else "list_rename", id ?: java.util.UUID.randomUUID().toString(), name.trim().take(100), group)
     suspend fun removeList(id: String) = enqueue("list_remove", id)
