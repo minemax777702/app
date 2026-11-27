@@ -36,12 +36,13 @@ internal class ActionJournal private constructor(context: Context, namespace: St
 
     @Synchronized
     fun notice(message: String) {
-        if (!keepNoticeInHistory(message)) return
+        val historyMessage = message.replace(" · Ожидает синхронизации", " · Изменение сохранено локально").replace(" · Добавление в группу ожидает синхронизации", "")
+        if (!keepNoticeInHistory(historyMessage)) return
         val now = System.currentTimeMillis()
         val recent = state.value.take(8).filter { now - it.at in 0..3000 }
-        if (recent.any { it.title == message || (message == "Добавлено в список" && it.title == "Добавлен товар") ||
-            (message == "Покупка отмечена" && it.title == "Покупка отмечена") }) return
-        record(message)
+        if (recent.any { it.title == historyMessage || (historyMessage == "Добавлено в список" && it.title == "Добавлен товар") ||
+            (historyMessage == "Покупка отмечена" && it.title == "Покупка отмечена") }) return
+        record(historyMessage)
     }
 
     @Synchronized
