@@ -41,12 +41,11 @@ data class LentaProduct(
     }
 }
 
-class LentaCatalog(context: Context, private val db: AppDatabase, scope: CoroutineScope) {
+class LentaCatalog internal constructor(context: Context, private val db: AppDatabase, scope: CoroutineScope,
+    private val addressSettings: LentaAddressSettings, private val accountId: String? = null) {
     private val dao = db.shoppingDao()
     private val refreshMutex = Mutex()
-    private val prefs = context.getSharedPreferences("lenta_catalog", Context.MODE_PRIVATE)
-    private val _address = MutableStateFlow(prefs.getString("address", "").orEmpty())
-    val address = _address.asStateFlow()
+    val address = addressSettings.addressFor(accountId)
     private val _ready = MutableStateFlow(false)
     val ready = _ready.asStateFlow()
     val barcodeRows = dao.observeProductBarcodes()
@@ -113,11 +112,7 @@ class LentaCatalog(context: Context, private val db: AppDatabase, scope: Corouti
         null
     }
 
-    fun setAddress(value: String) {
-        val address = value.trim()
-        prefs.edit().putString("address", address).apply()
-        _address.value = address
-    }
+    fun setAddress(value: String) = addressSettings.save(accountId, value)
 
     suspend fun save(product: LentaProduct, scannedBarcode: String? = null) {
         if (product.id <= 0 || product.name.isBlank()) return

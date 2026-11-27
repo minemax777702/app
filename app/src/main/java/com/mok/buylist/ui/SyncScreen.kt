@@ -99,7 +99,8 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val state by controller.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current as? MainActivity
     var showAddress by rememberSaveable { mutableStateOf(false) }
-    val address by context.lentaCatalog.address.collectAsStateWithLifecycle()
+    val lentaSelection by app.lentaAddressSettings.current.collectAsStateWithLifecycle()
+    val address = lentaSelection.address
     val scrollState = rememberScrollState()
     var page by rememberSaveable { mutableStateOf("profile") }
     var showBackup by rememberSaveable { mutableStateOf(false) }

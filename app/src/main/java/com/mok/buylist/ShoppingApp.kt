@@ -18,11 +18,12 @@ class ShoppingApp : Application() {
         com.mok.buylist.sync.MutationClock.initialize(this)
     }
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    internal val cloud: SupabaseCloud by lazy { SupabaseCloud(this, appScope) }
+    internal val lentaAddressSettings by lazy { com.mok.buylist.data.LentaAddressSettings(this) }
+    internal val cloud: SupabaseCloud by lazy { SupabaseCloud(this, appScope, lentaAddressSettings) }
     internal val localProfile by lazy { UserProfile(this) }
     private val database by lazy { AppDatabase.create(this) }
     internal val localRepository by lazy { ShoppingRepository(this, database, localProfile) }
-    internal val localCatalog by lazy { LentaCatalog(this, database, appScope) }
+    internal val localCatalog by lazy { LentaCatalog(this, database, appScope, lentaAddressSettings) }
     val userProfile: UserProfile get() = cloud.workspace.value?.profile ?: localProfile
     val repository: ShoppingRepository get() = cloud.workspace.value?.repository ?: localRepository
     val lentaCatalog: LentaCatalog get() = cloud.workspace.value?.catalog ?: localCatalog

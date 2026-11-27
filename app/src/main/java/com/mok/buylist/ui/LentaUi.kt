@@ -45,16 +45,16 @@ import java.security.MessageDigest
 
 @Composable
 fun LentaSettings(onDismiss: () -> Unit) {
-    val catalog = LocalContext.current.lentaCatalog
-    val current by catalog.address.collectAsStateWithLifecycle()
-    var address by rememberSaveable { mutableStateOf(current) }
+    val app = LocalContext.current.applicationContext as com.mok.buylist.ShoppingApp
+    val selection by app.lentaAddressSettings.current.collectAsStateWithLifecycle()
+    var address by rememberSaveable(selection.account) { mutableStateOf(selection.address) }
     val p = LocalPalette.current
     AppSheet(onDismissRequest = onDismiss, containerColor = p.sheet,
         title = { SheetHeader("Магазин Ленты") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SheetTextField(address, { address = it }, "Город, улица и дом")
+            SheetTextField(address, { address = it.take(500) }, "Город, улица и дом")
         } },
-        confirmButton = { SheetActionButton(onClick = { catalog.setAddress(address); onDismiss() }) { Text("Сохранить", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } },
+        confirmButton = { SheetActionButton(onClick = { app.lentaAddressSettings.save(selection.account,address); app.cloud.signal(); onDismiss() }) { Text("Сохранить", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } },
         dismissButton = { SheetActionButton(onClick = onDismiss) { Text("Отмена", fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } })
 }
 

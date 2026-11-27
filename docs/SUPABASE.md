@@ -39,3 +39,6 @@ Group departure requires connectivity to flush existing local changes before rev
 
 ## Passkeys
 Native Android client and configuration instructions are in [docs/passkeys/SETUP.md](passkeys/SETUP.md). Hosting the domain association and enabling the Auth provider are deployment prerequisites.
+
+## Lenta store preference
+The selected address is an account-scoped setting, shared across all lists on that account, persisted locally before network access and synchronized through user_lenta_settings with Realtime/polling. RLS permits only the active owner; administrators cannot read another account’s preference. Last-write-wins uses change_at and change_id, including an intentionally cleared address. The original local address is imported once as a fallback when no cloud setting exists; guest settings are isolated. Product price history is unchanged.

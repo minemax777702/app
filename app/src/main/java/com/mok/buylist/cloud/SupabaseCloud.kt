@@ -6,6 +6,8 @@ import androidx.glance.appwidget.updateAll
 import com.mok.buylist.BuildConfig
 import com.mok.buylist.data.AppDatabase
 import com.mok.buylist.data.LentaCatalog
+import com.mok.buylist.data.LentaAddressSettings
+import com.mok.buylist.data.LentaAddressVersion
 import com.mok.buylist.data.ShoppingRepository
 import com.mok.buylist.data.UserProfile
 import com.mok.buylist.sync.Snapshot
@@ -67,7 +69,8 @@ private fun JsonObject.list() = CloudList(string("id")!!, string("name")!!, stri
 
 /** Auth owns the persisted session. Room is a separate offline cache for each account/list. */
 @OptIn(FlowPreview::class)
-internal class SupabaseCloud(private val context: Context, parentScope: CoroutineScope) {
+internal class SupabaseCloud(private val context: Context, parentScope: CoroutineScope,
+    private val lentaSettings: LentaAddressSettings) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]) +
         CoroutineExceptionHandler { _, error -> reportFailure("worker", error) })
     val configured = BuildConfig.SUPABASE_URL.startsWith("https://") && BuildConfig.SUPABASE_KEY.isNotBlank()
@@ -122,6 +125,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
             mutex.withLock {
                 prefs.getString("last_account", null)?.let { id ->
                     account = id
+                    lentaSettings.selectAccount(id)
                     restoreDirectory(id)
                     _signedIn.value = _directory.value.me != null
                     if (_signedIn.value) _status.value = "Офлайн"
@@ -135,6 +139,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                             if (account != id) {
                                 resetWorkspace()
                                 account = id
+                                lentaSettings.selectAccount(id)
                                 _directory.value = CloudDirectory()
                                 restoreDirectory(id)
                             }
@@ -145,7 +150,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                     }
                     is SessionStatus.NotAuthenticated -> mutex.withLock {
                         prefs.edit().remove("last_account").apply()
-                        resetWorkspace(); account = null; _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
+                        resetWorkspace(); account = null; lentaSettings.selectAccount(null); _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
                         updateWidget()
                     }
                     is SessionStatus.RefreshFailure -> _status.value = "Офлайн"
@@ -162,7 +167,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                             val channel = client.channel("buylist-changes")
                             try {
                             coroutineScope {
-                                listOf("profiles", "groups", "group_members", "shopping_lists").forEach { tableName ->
+                                listOf("profiles", "groups", "group_members", "shopping_lists", "user_lenta_settings").forEach { tableName ->
                                     val changes = channel.postgresChangeFlow<PostgresAction>(schema = "public") { table = tableName }
                                     launch { changes.collect { signal() } }
                                 }
@@ -230,6 +235,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         mutex.withLock {
             prefs.edit().remove("last_account").commit()
             account = null
+            lentaSettings.selectAccount(null)
             resetWorkspace(); _signedIn.value = false; _directory.value = CloudDirectory(); _status.value = null
             _pendingCount.value = 0
         }
@@ -322,13 +328,17 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
                 mutex.withLock {
                     if (account != uid) return@withLock
                     prefs.edit().remove("directory_$uid").remove("last_account").apply()
-                    resetWorkspace(); _directory.value = CloudDirectory(); _status.value = "Доступ отключён"
+                    resetWorkspace(); lentaSettings.selectAccount(null); _directory.value = CloudDirectory(); _status.value = "Доступ отключён"
                 }
                 updateWidget()
                 return@refresh
             }
             // The queue is durable. A lost HTTP response is safe: created rows have client UUIDs.
             var pendingError: Exception? = null
+            try { syncLentaAddress(uid) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { pendingError = e; reportFailure("lenta settings", e) }
+            if (!authenticated(uid)) return@refresh
             try { flushPending(uid) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { pendingError = e; reportFailure("pending CRUD", e) }
@@ -388,6 +398,27 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         catch (e: LinkageError) { reportFailure("refresh linkage", e) }
     }
 
+    /** A preference belongs to an account, not to an individual shopping list. */
+    private suspend fun syncLentaAddress(uid: String) {
+        if (!authenticated(uid)) return
+        val row = api().from("user_lenta_settings").select { filter { eq("user_id", uid) } }.rows().singleOrNull()
+        if (!authenticated(uid)) return
+        val remote = row?.let { LentaAddressVersion(it.string("address").orEmpty(),
+            it.getValue("change_at").jsonPrimitive.long, it.string("change_id").orEmpty()) }
+        if (remote != null) lentaSettings.acceptRemote(uid, remote)
+        val local = lentaSettings.read(uid) ?: return
+        if (remote != null && local <= remote) return
+        if (!authenticated(uid)) return
+        val body = stamped(buildJsonObject { put("address", local.address) }, local.at, local.id)
+        if (remote == null) {
+            // If another device inserts concurrently, the next refresh resolves the conflict.
+            api().from("user_lenta_settings").insert(body=JsonArray(listOf(
+                JsonObject(body + mapOf("user_id" to JsonPrimitive(uid))))))
+        } else {
+            api().from("user_lenta_settings").update(body=body) { filter { eq("user_id",uid) } }
+        }
+    }
+
     /** Preserve the original offline database. Never transfer it to a different account. */
     private suspend fun migrateGuest(me: CloudPerson, directory: CloudDirectory) {
         val app = context.applicationContext as com.mok.buylist.ShoppingApp
@@ -417,7 +448,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
         val cacheScope = CoroutineScope(scope.coroutineContext + job)
         val profile = UserProfile(context, "profile-$namespace").apply { adopt(me.id, me.name) }
         val repository = ShoppingRepository(context, db, profile)
-        val catalog = LentaCatalog(context, db, cacheScope)
+        val catalog = LentaCatalog(context, db, cacheScope, lentaSettings, me.id)
         val value = CloudWorkspace(namespace, me.id, list.id, db, profile, repository, catalog, job)
         try {
             // Pull before making a new list editable. Never treat a missing remote row as an empty list.
