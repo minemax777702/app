@@ -222,17 +222,23 @@ internal class GitHubCloudAdmin(private val token: String) {
         findDeviceKey(device) != null
     }
 
-    suspend fun activateDeviceReadOnly(device: CloudDeviceDraft) = withContext(Dispatchers.IO) {
+    suspend fun activateDeviceReadOnly(device: CloudDeviceDraft) = activateDevice(device, false)
+
+    suspend fun activateDevice(device: CloudDeviceDraft, writable: Boolean) = withContext(Dispatchers.IO) {
         require(!device.revoked)
         requireRegistryStorage()
-        val existing = findDeviceKey(device)
+        var existing = findDeviceKey(device)
+        if (existing != null && existing.optBoolean("read_only") == writable) {
+            deactivateDevice(device)
+            existing = null
+        }
         if (existing == null) {
             val payload = JSONObject().put("title", deviceTitle(device))
-                .put("key", deviceSshKey(device)).put("read_only", true)
+                .put("key", deviceSshKey(device)).put("read_only", !writable)
             requireSuccess(request("POST", "$repoPath/keys", payload))
         }
         val verified = findDeviceKey(device) ?: throw CloudAdminException("Ключ не подтверждён GitHub.")
-        if (!verified.optBoolean("read_only")) throw CloudAdminException("Ключ имеет право записи; отключите его вручную.")
+        if (verified.optBoolean("read_only") == writable) throw CloudAdminException("Права устройства не подтверждены.")
     }
 
     suspend fun deactivateDevice(device: CloudDeviceDraft) = withContext(Dispatchers.IO) {

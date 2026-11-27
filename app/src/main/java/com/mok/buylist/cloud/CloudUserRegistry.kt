@@ -52,11 +52,13 @@ internal data class CloudDeviceDraft(
     val publicKey: String,
     val registeredAt: Long,
     val revoked: Boolean = false,
+    val encryptionPublicKey: String = "",
 ) {
     init {
         require(UUID.fromString(userId).toString() == userId)
         CloudDeviceProtocol.publicKey(publicKey)
         require(registeredAt > 0)
+        if (encryptionPublicKey.isNotEmpty()) CloudInviteCrypto.encryptionKey(encryptionPublicKey)
     }
     val fingerprint: String get() = CloudDeviceProtocol.fingerprint(publicKey)
 }
@@ -66,6 +68,8 @@ internal data class CloudUserRegistry(
     val users: List<CloudUserDraft> = emptyList(),
     val groups: List<CloudGroupDraft> = emptyList(),
     val devices: List<CloudDeviceDraft> = emptyList(),
+    val adminSigner: CloudAdminSigner? = null,
+    val provisions: List<CloudProvision> = emptyList(),
 ) {
     init {
         require(revision >= 0)
@@ -77,6 +81,15 @@ internal data class CloudUserRegistry(
         require(devices.size <= MAX_DEVICES && devices.map { it.fingerprint }.distinct().size == devices.size)
         require(devices.all { it.userId in byId })
         require(devices.all { it.revoked || !byId.getValue(it.userId).archived }) { "Сначала отзовите устройства пользователя" }
+        require(provisions.size <= MAX_USERS + MAX_GROUPS && provisions.map { it.space }.distinct().size == provisions.size)
+        require(provisions.isEmpty() || adminSigner != null)
+        provisions.forEach { provision ->
+            val manifest = provision.signed().verify(requireNotNull(adminSigner).publicKey, provision.space, 1)
+            require(manifest.grants.sortedBy { it.deviceId } == grantsFor(provision.space)) {
+                "Состав активированного списка нельзя менять без безопасной смены ключей"
+            }
+            provision.key()
+        }
         require(groups.all { group -> group.members.keys.all { it in byId } }) { "Неизвестный участник группы" }
         require(groups.all { group -> group.archived || group.members.keys.all { byId.getValue(it).archived.not() } }) {
             "Сначала исключите пользователя из активных групп или архивируйте эти группы"
@@ -116,7 +129,7 @@ internal data class CloudUserRegistry(
         require(users.any { it.id == userId && !it.archived }) { "Пользователь недоступен" }
         require(devices.none { it.fingerprint == request.fingerprint }) { "Устройство уже зарегистрировано или отозвано" }
         return copy(revision = Math.addExact(revision, 1),
-            devices = devices + CloudDeviceDraft(userId, request.publicKey, now))
+            devices = devices + CloudDeviceDraft(userId, request.publicKey, now, encryptionPublicKey = request.encryptionPublicKey))
     }
 
     fun registerNewUser(name: String, request: CloudDeviceRequest, now: Long): CloudUserRegistry {
@@ -125,7 +138,17 @@ internal data class CloudUserRegistry(
         val user = CloudUserDraft(UUID.randomUUID().toString(), name.trim())
         return copy(revision = Math.addExact(revision, 1),
             users = users + user,
-            devices = devices + CloudDeviceDraft(user.id, request.publicKey, now))
+            devices = devices + CloudDeviceDraft(user.id, request.publicKey, now, encryptionPublicKey = request.encryptionPublicKey))
+    }
+
+    fun updateDeviceEncryption(request: CloudDeviceRequest, now: Long): CloudUserRegistry {
+        CloudDeviceProtocol.requireFresh(request, now)
+        require(request.encryptionPublicKey.isNotEmpty())
+        val device = devices.single { it.fingerprint == request.fingerprint && !it.revoked }
+        if (device.encryptionPublicKey == request.encryptionPublicKey) return this
+        return copy(revision = Math.addExact(revision, 1), devices = devices.map {
+            if (it.fingerprint == device.fingerprint) it.copy(encryptionPublicKey = request.encryptionPublicKey) else it
+        })
     }
 
     fun deleteDevice(fingerprint: String): CloudUserRegistry {
@@ -174,12 +197,13 @@ internal object CloudRegistryCodec {
     private const val MAGIC_V1 = 0x42554331
     private const val MAGIC_V2 = 0x42554332
     private const val MAGIC_V3 = 0x42554333
+    private const val MAGIC_V4 = 0x42554334
     const val MAX_BYTES = 65_536
 
     fun encode(registry: CloudUserRegistry): ByteArray {
         val out = ByteArrayOutputStream()
         DataOutputStream(out).use { data ->
-            data.writeInt(MAGIC_V3)
+            data.writeInt(MAGIC_V4)
             data.writeLong(registry.revision)
             data.writeInt(registry.users.size)
             registry.users.forEach {
@@ -204,7 +228,12 @@ internal object CloudRegistryCodec {
                 data.writeUTF(it.publicKey)
                 data.writeLong(it.registeredAt)
                 data.writeBoolean(it.revoked)
+                data.writeUTF(it.encryptionPublicKey)
             }
+            data.writeBoolean(registry.adminSigner != null)
+            registry.adminSigner?.let { data.writeUTF(it.publicKey); data.writeUTF(it.privateKey) }
+            data.writeInt(registry.provisions.size)
+            registry.provisions.forEach { data.writeUTF(it.manifest); data.writeUTF(it.secret) }
         }
         return out.toByteArray().also { require(it.size <= MAX_BYTES) }
     }
@@ -213,7 +242,7 @@ internal object CloudRegistryCodec {
         require(bytes.size in 16..MAX_BYTES)
         return DataInputStream(ByteArrayInputStream(bytes)).use { data ->
             val magic = data.readInt()
-            require(magic == MAGIC_V1 || magic == MAGIC_V2 || magic == MAGIC_V3)
+            require(magic == MAGIC_V1 || magic == MAGIC_V2 || magic == MAGIC_V3 || magic == MAGIC_V4)
             val revision = data.readLong()
             val count = data.readInt()
             require(count in 0..CloudUserRegistry.MAX_USERS)
@@ -239,13 +268,18 @@ internal object CloudRegistryCodec {
                     CloudGroupDraft(id, name, members, archived)
                 }
             }
-            val devices = if (magic != MAGIC_V3) emptyList() else {
+            val devices = if (magic != MAGIC_V3 && magic != MAGIC_V4) emptyList() else {
                 val countDevices = data.readInt()
                 require(countDevices in 0..CloudUserRegistry.MAX_DEVICES)
-                List(countDevices) { CloudDeviceDraft(data.readUTF(), data.readUTF(), data.readLong(), data.readBoolean()) }
+                List(countDevices) { CloudDeviceDraft(data.readUTF(), data.readUTF(), data.readLong(), data.readBoolean(), if (magic == MAGIC_V4) data.readUTF() else "") }
             }
+            val signer = if (magic == MAGIC_V4 && data.readBoolean()) CloudAdminSigner(data.readUTF(), data.readUTF()) else null
+            val provisions = if (magic == MAGIC_V4) {
+                val n = data.readInt(); require(n in 0..(CloudUserRegistry.MAX_USERS + CloudUserRegistry.MAX_GROUPS))
+                List(n) { CloudProvision(data.readUTF(), data.readUTF()) }
+            } else emptyList()
             require(data.read() == -1)
-            CloudUserRegistry(revision, users, groups, devices)
+            CloudUserRegistry(revision, users, groups, devices, signer, provisions)
         }
     }
 }

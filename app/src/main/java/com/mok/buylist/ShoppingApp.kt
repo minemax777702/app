@@ -26,6 +26,13 @@ class ShoppingApp : Application() {
     val repository: ShoppingRepository by lazy {
         ShoppingRepository(this, database, userProfile)
     }
+    internal val cloudSpaces by lazy { com.mok.buylist.cloud.CloudSpaces(this, appScope) }
+
+    override fun onCreate() {
+        super.onCreate()
+        cloudSpaces.start()
+    }
+
     val themeSettings: ThemeSettings by lazy { ThemeSettings(this) }
     val lentaCatalog: LentaCatalog by lazy { LentaCatalog(this, database, appScope) }
 

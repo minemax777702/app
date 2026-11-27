@@ -26,8 +26,23 @@ internal object CloudDeviceIdentity {
         val private = store.getKey(ALIAS, null) as PrivateKey
         return KeyPair(public, private)
     }
+    @Synchronized fun encryptionPair(): KeyPair {
+        val alias = "buylist.cloud.device.encryption.v1"
+        val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        if (!store.containsAlias(alias)) {
+            KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore").apply {
+                initialize(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_DECRYPT)
+                    .setKeySize(2048).setDigests(KeyProperties.DIGEST_SHA256, KeyProperties.DIGEST_SHA1)
+                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_RSA_OAEP).build())
+            }.generateKeyPair()
+        }
+        return KeyPair(store.getCertificate(alias).publicKey, store.getKey(alias, null) as PrivateKey)
+    }
+
+    fun fingerprint(): String = CloudDeviceProtocol.fingerprint(CloudInviteCrypto.encode(keyPair().public.encoded))
+
     fun request(now: Long = System.currentTimeMillis()): String {
         val keys = keyPair()
-        return CloudDeviceProtocol.create(keys.public, keys.private, now)
+        return CloudDeviceProtocol.create(keys.public, keys.private, now, CloudInviteCrypto.encode(encryptionPair().public.encoded))
     }
 }

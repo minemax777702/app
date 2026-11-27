@@ -1153,7 +1153,7 @@ class ShoppingRepository(
         dao.upsertTombstones(
             // Удаления архивов хранятся бессрочно: иначе старый телефон
             // восстановит удалённый список спустя 400 дней.
-            merged.tombs.filter { it.kind == TombKind.ARCHIVE || it.at >= cutoff }
+            merged.tombs.filter { isolatedWorkspace || it.kind == TombKind.ARCHIVE || it.at >= cutoff }
                 .map { Tombstone(it.kind.code, it.key, it.at) },
         )
     }
