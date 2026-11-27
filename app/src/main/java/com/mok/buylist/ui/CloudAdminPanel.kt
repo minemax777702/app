@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.CancellationSignal
 import android.view.WindowManager
 import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,7 @@ internal fun CloudAdminPanel(
     onChooseRecovery: () -> Unit = {},
     onExportRecovery: (ByteArray) -> Unit = {},
     onClearRecovery: () -> Unit = {},
+    onHideAdmin: () -> Unit = {},
 ) {
     val p = LocalPalette.current
     val activity = LocalActivity.current
@@ -53,6 +55,7 @@ internal fun CloudAdminPanel(
     var saved by remember { mutableStateOf(vault.exists) }
     var showUsers by remember { mutableStateOf(false) }
     var showCloudBackups by remember { mutableStateOf(false) }
+    var showDiagnostics by remember { mutableStateOf(false) }
     var recoveryMode by remember { mutableStateOf(0) }
     var verifiedToken by remember { mutableStateOf<String?>(null) }
     var authentication by remember { mutableStateOf<CancellationSignal?>(null) }
@@ -69,6 +72,7 @@ internal fun CloudAdminPanel(
     fun lock() {
         showUsers = false
         showCloudBackups = false
+        showDiagnostics = false
         recoveryMode = 0
         generation++
         val previous = authentication
@@ -174,6 +178,14 @@ internal fun CloudAdminPanel(
         }
     }
 
+    BackHandler(enabled = showUsers || showCloudBackups || showDiagnostics) {
+        showUsers = false; showCloudBackups = false; showDiagnostics = false
+    }
+    if (showDiagnostics && session != null) {
+        FreshCutSecondaryButton("К настройкам облака", { showDiagnostics = false })
+        CloudConnectionHelpPanel()
+        return
+    }
     if (showCloudBackups && session != null && storage?.actionsEnabled == false) {
         CloudBackupPanel(requireNotNull(session), onBack = { showCloudBackups = false })
         return
@@ -184,8 +196,7 @@ internal fun CloudAdminPanel(
     }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FreshCutSectionTitle("Облако")
-        Text("Личные профили, группы и синхронизация будут подключены после настройки приватного хранилища. Пока данные остаются только на устройстве.", color = p.textSecondary, fontSize = 14.sp)
+        FreshCutSectionTitle("Хранилище")
         FreshCutDetailLine("Репозиторий", CloudAccessPolicy.REPOSITORY)
         FreshCutSectionTitle("Администрирование", Modifier.padding(top = 8.dp))
         val admin = session
@@ -251,6 +262,8 @@ internal fun CloudAdminPanel(
                     execute(admin::createPrivateStorage) { storage = it }
                 }, enabled = !busy)
             }
+            FreshCutSectionTitle("Подключение")
+            FreshCutSecondaryButton("Диагностика и самопроверка", { showDiagnostics = true }, enabled = !busy)
             FreshCutSecondaryButton(if (busy) "Проверяем…" else "Обновить статус", {
                 execute(admin::inspect) { storage = it }
             }, enabled = !busy)
@@ -268,6 +281,10 @@ internal fun CloudAdminPanel(
             FreshCutSecondaryButton("Заблокировать раздел", { lock() }, enabled = !busy)
             if (saved) FreshCutSecondaryButton("Удалить сохранённый вход", { forgetLogin() }, enabled = !busy)
         }
+        FreshCutSecondaryButton("Скрыть административный раздел", {
+            lock()
+            onHideAdmin()
+        }, enabled = !busy)
         message?.let { Text(it, color = p.error, fontSize = 14.sp) }
     }
     if (recoveryMode != 0 && session != null && (recoveryMode == 1 || recoveryFile != null)) {

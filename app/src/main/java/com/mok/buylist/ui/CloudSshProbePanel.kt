@@ -34,14 +34,14 @@ internal fun CloudSshProbePanel() {
             try { operation() }
             catch (e: CancellationException) { throw e }
             catch (e: CloudAdminException) { message = e.message }
-            catch (_: Exception) { message = "SSH недоступен. Проверьте интернет, порт и наличие тестового Deploy Key. Не отключайте проверку ключа сервера." }
+            catch (_: Exception) { message = "Не удалось завершить проверку SSH. Проверьте соединение и наличие ключа в Deploy keys." }
             finally { busy = false }
         }
     }
 
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        FreshCutSectionTitle("Диагностика SSH")
-        Text("Проверка чтения приватного app-cloud без административного токена. Для теста администратор может добавить этот отдельный открытый ключ в Settings → Deploy keys, НЕ включая Allow write access. После теста удалите ключ из GitHub. Это не активация облачной синхронизации.", color = p.textSecondary, fontSize = 13.sp)
+        FreshCutSectionTitle("Проверка ключа устройства")
+        Text("Сначала создайте тестовый ключ. Администратор должен добавить открытый ключ в app-cloud → Settings → Deploy keys. Allow write access оставьте выключенным. Без этого проверка авторизации не пройдёт. После проверки удалите ключ.", color = p.textSecondary, fontSize = 13.sp)
         val key = publicKey
         if (key == null) FreshCutSecondaryButton("Создать тестовый SSH-ключ", {
             execute { publicKey = CloudSshProbe.publicKey() }

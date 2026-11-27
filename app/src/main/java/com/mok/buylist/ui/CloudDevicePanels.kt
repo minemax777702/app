@@ -56,7 +56,7 @@ internal fun CloudDeviceRequestPanel() {
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         FreshCutSectionTitle("Подключение устройства")
-        Text("Покажите QR администратору лично. Сверьте отпечаток ключа на обоих телефонах. Сейчас регистрируется только открытый ключ, доступ к покупкам ещё не выдаётся.", color = p.textSecondary, fontSize = 14.sp)
+        Text("Покажите QR-код администратору. Сравните код безопасности на обоих телефонах. После регистрации понадобится активация облачного доступа.", color = p.textSecondary, fontSize = 14.sp)
         val qr = code?.let { value -> remember(value) { QrEncoder.encode(value) } }
         if (qr != null) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Canvas(Modifier.size(264.dp).background(Color.White)) {
@@ -69,8 +69,7 @@ internal fun CloudDeviceRequestPanel() {
         request?.let { Text(it.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp) }
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
         FreshCutSecondaryButton("Обновить QR-код", { refresh++ })
-        CloudSshProbePanel()
-        CloudIntegrationTestPanel()
+
     }
 }
 

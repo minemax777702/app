@@ -73,7 +73,19 @@ internal object CloudSshProbe {
             session.setConfig("compression.c2s", "none")
             session.setConfig("compression.s2c", "none")
             session.setTimeout(TIMEOUT)
-            session.connect(TIMEOUT)
+            try {
+                session.connect(TIMEOUT)
+            } catch (e: com.jcraft.jsch.JSchException) {
+                val detail = e.message.orEmpty()
+                val reason = when {
+                    detail.contains("Auth fail", true) || detail.contains("Auth cancel", true) -> "Сервер доступен, но ключ не принят. Добавьте открытый ключ в Deploy keys репозитория app-cloud."
+                    detail.contains("HostKey", true) || detail.contains("host key", true) -> "Ключ сервера не подтверждён. Не отключайте проверку подлинности."
+                    detail.contains("negotiation", true) -> "Не удалось согласовать параметры SSH."
+                    detail.contains("timeout", true) -> "Истекло время ожидания SSH."
+                    else -> "Не удалось установить SSH-соединение."
+                }
+                throw CloudAdminException(reason)
+            }
             val channel = session.openChannel("exec") as ChannelExec
             try {
                 channel.setCommand("git-upload-pack 'minemax777702/app-cloud.git'")

@@ -96,7 +96,15 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     var showAddress by rememberSaveable { mutableStateOf(false) }
     val address by context.lentaCatalog.address.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
-    var page by rememberSaveable { mutableStateOf("profile") }
+    var page by remember { mutableStateOf("profile") }
+    val adminGesture = remember { com.mok.buylist.cloud.CloudAdminGesture() }
+    val adminPrefs = remember(context) { context.getSharedPreferences("cloud_admin_navigation", android.content.Context.MODE_PRIVATE) }
+    var adminVisible by remember(adminPrefs) { mutableStateOf(adminPrefs.getBoolean("visible", false)) }
+    fun setAdminVisible(visible: Boolean) {
+        adminPrefs.edit().putBoolean("visible", visible).apply()
+        adminVisible = visible
+        adminGesture.reset()
+    }
     var showBackup by rememberSaveable { mutableStateOf(false) }
     // Only encrypted bytes are retained when the document picker locks the admin session.
     var recoveryImport by remember { mutableStateOf<ByteArray?>(null) }
@@ -104,11 +112,14 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val installedVersion = remember { com.mok.buylist.update.AppUpdater.installedVersion(context) }
     val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
     LaunchedEffect(page) {
+        adminGesture.reset()
         if (page == "sources") page = "profile"
-        if (page != "cloud") { recoveryImport = null; recoveryExport = null }
+        if (page != "cloud-admin") { recoveryImport = null; recoveryExport = null }
         onActiveChange(page != "profile"); scrollState.scrollTo(0)
     }
-    BackHandler(enabled = page != "profile") { page = "profile" }
+    BackHandler(enabled = page != "profile") {
+        page = if (page == "cloud-device" || page == "cloud-help") "cloud" else "profile"
+    }
     LaunchedEffect(addressRequest) { if (addressRequest > 0) scrollState.scrollTo(0) }
     LaunchedEffect(state.notice) {
         val notice = state.notice ?: return@LaunchedEffect
@@ -175,7 +186,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     }
                 }
             }.getOrNull()
-            if (page == "cloud") recoveryImport = bytes
+            if (page == "cloud-admin") recoveryImport = bytes
             if (bytes == null) activity?.notifyUser("Не удалось прочитать копию реестра")
         }
     }
@@ -183,14 +194,19 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
         when (page) {
             "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
             "cloud" -> SubScreenHeader("Облачное хранилище", { page = "profile" })
-            "cloud-device" -> SubScreenHeader("Подключение устройства", { page = "profile" })
+            "cloud-device" -> SubScreenHeader("Подключение устройства", { page = "cloud" })
+            "cloud-help" -> SubScreenHeader("Помощь с подключением", { page = "cloud" })
+            "cloud-admin" -> SubScreenHeader("Администрирование облака", { page = "profile" })
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
-                "cloud" -> CloudAdminPanel(
+                "cloud" -> CloudHomePanel(onConnect = { page = "cloud-device" }, onHelp = { page = "cloud-help" })
+                "cloud-help" -> CloudConnectionHelpPanel()
+                "cloud-admin" -> CloudAdminPanel(
+                    onHideAdmin = { setAdminVisible(false); page = "profile" },
                     recoveryFile = recoveryImport,
                     onChooseRecovery = { openRecovery.launch(arrayOf("*/*")) },
                     onExportRecovery = { bytes ->
@@ -226,12 +242,19 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_store, "Магазин Ленты",
                         if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
-                        "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
+                        "Проверить наличие обновлений", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
-                    ProfileMenuRow(R.drawable.ic_cloud, "Облачное хранилище", "Настройка GitHub", { page = "cloud" })
-                    ProfileMenuRow(R.drawable.ic_scan_barcode, "Подключить устройство", "QR для администратора", { page = "cloud-device" })
+                    ProfileMenuRow(R.drawable.ic_cloud, "Облачное хранилище", "Подключение и синхронизация", { page = "cloud" })
+                    if (adminVisible) ProfileMenuRow(R.drawable.ic_cloud, "Администрирование облака", "Пользователи, группы и хранилище", { page = "cloud-admin" })
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
+                    Text("Версия ${installedVersion.name} · сборка ${installedVersion.code}",
+                        modifier = Modifier.fillMaxWidth().clickable(indication = null, interactionSource = null) {
+                            if (!adminVisible && adminGesture.tap(android.os.SystemClock.elapsedRealtime())) {
+                                setAdminVisible(true)
+                                page = "cloud-admin"
+                            }
+                        }.padding(vertical = 16.dp), color = p.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
                 }
             }
         }
