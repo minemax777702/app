@@ -1,6 +1,9 @@
 package com.mok.buylist.ui
 
 import android.content.Intent
+import android.animation.ValueAnimator
+import android.graphics.drawable.ColorDrawable
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.util.Log
@@ -9,6 +12,10 @@ import com.mok.buylist.update.AppUpdater
 import com.mok.buylist.update.UpdateDiscovery
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.graphics.toArgb
+import com.mok.buylist.ui.theme.DarkPalette
+import com.mok.buylist.ui.theme.LightPalette
+import com.mok.buylist.ui.theme.ThemeMode
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.mok.buylist.update.UpdateNotifications
@@ -153,6 +160,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         showUpdates = savedInstanceState?.getBoolean("show_updates") == true
         handleUpdateIntent(intent)
+        val initialMode = themeSettings.app.value
+        val initialDark = when (initialMode) {
+            ThemeMode.DARK -> true
+            ThemeMode.LIGHT -> false
+            ThemeMode.AUTO -> resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+        }
+        window.setBackgroundDrawable(ColorDrawable((if (initialDark) DarkPalette else LightPalette).background.toArgb()))
+        val animateLaunch = savedInstanceState == null && !showUpdates && ValueAnimator.areAnimatorsEnabled()
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 checkUpdatesOnEntry()
@@ -160,13 +175,14 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContent {
+            var showLaunch by androidx.compose.runtime.remember { mutableStateOf(animateLaunch) }
             val notificationPermission = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission(),
             ) { granted ->
                 if (granted) checkUpdatesOnEntry(force = true)
             }
-            LaunchedEffect(Unit) {
-                if (Build.VERSION.SDK_INT >= 33 && UpdateNotifications.shouldRequestPermission(this@MainActivity)) {
+            LaunchedEffect(showLaunch) {
+                if (!showLaunch && Build.VERSION.SDK_INT >= 33 && UpdateNotifications.shouldRequestPermission(this@MainActivity)) {
                     UpdateNotifications.markPermissionRequested(this@MainActivity)
                     notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
@@ -190,11 +206,11 @@ class MainActivity : ComponentActivity() {
             ShoppingTheme(mode) {
                 Box(Modifier.fillMaxSize()) {
                     ShoppingScreen()
-                    if (showUpdates) AppUpdateSheet(onClose = { showUpdates = false })
+                    if (showUpdates && !showLaunch) AppUpdateSheet(onClose = { showUpdates = false })
                     val presentation = noticePresentation
                     val current = presentation.current
                     val accessibility = LocalAccessibilityManager.current
-                    if (current != null) {
+                    if (current != null && !showLaunch) {
                         if (noticeOwner == null) NoticeOverlay(presentation, ::toggleNotice, ::dismissNotice, ::activateNotice)
                         LaunchedEffect(current.id, presentation.expanded) {
                             if (!presentation.expanded) {
@@ -210,6 +226,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    if (showLaunch) LaunchAnimation(onFinished = { showLaunch = false })
                 }
             }
         }

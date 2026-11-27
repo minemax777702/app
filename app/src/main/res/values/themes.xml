@@ -1,7 +1,10 @@
 <resources>
-    <!-- Системная тема DayNight: светлая/тёмная выбирается автоматически. Весь UI рисует Compose. -->
-    <style name="Theme.ShoppingList" parent="android:Theme.DeviceDefault.DayNight">
+    <!-- System starting window follows the system night resource; the Compose overlay follows the saved app theme. -->
+    <style name="Theme.ShoppingList.Base" parent="android:Theme.DeviceDefault.DayNight">
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/launch_background</item>
+        <item name="android:forceDarkAllowed">false</item>
     </style>
+    <style name="Theme.ShoppingList" parent="Theme.ShoppingList.Base" />
 </resources>
