@@ -42,6 +42,8 @@ class LentaProductRefreshTest {
 
     @Test fun barcodeNormalization() {
         assertEquals("4607078115627", catalogBarcode(" 4607078115627 "))
+        assertEquals("14607958070869", catalogBarcode("14607958070869"))
+        assertNull(catalogBarcode("14607958070862"))
         assertNull(catalogBarcode("null"))
         assertNull(catalogBarcode("123"))
         assertNull(catalogBarcode("460707811562x"))

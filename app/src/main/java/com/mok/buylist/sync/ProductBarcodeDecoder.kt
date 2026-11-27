@@ -1,5 +1,7 @@
 package com.mok.buylist.sync
 
+import com.mok.buylist.data.retailEanCandidate
+import com.mok.buylist.data.validProductBarcode
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
@@ -12,9 +14,27 @@ internal fun barcodeMatches(saved: String, scanned: String): Boolean {
     val a = saved.trim()
     val b = scanned.trim()
     if (a.isEmpty() || b.isEmpty()) return false
-    return a == b || (a.length == 13 && a.startsWith("0") && a.drop(1) == b) ||
+    if (a == b) return true
+    // Zero-padded GTINs are the same identifier, unlike nonzero packaging indicators.
+    if (a.length == 14 || b.length == 14) {
+        return validProductBarcode(a) && validProductBarcode(b) &&
+            a.padStart(14, '0') == b.padStart(14, '0')
+    }
+    return (a.length == 13 && a.startsWith("0") && a.drop(1) == b) ||
         (b.length == 13 && b.startsWith("0") && b.drop(1) == a)
 }
+
+/** Only for user-confirmed search results, never automatic purchase or catalog merging. */
+internal fun possiblePackagingBarcodeMatch(saved: String, scanned: String): Boolean {
+    val a = saved.trim()
+    val b = scanned.trim()
+    return retailEanCandidate(a)?.let { barcodeMatches(it, b) } == true ||
+        retailEanCandidate(b)?.let { barcodeMatches(it, a) } == true
+}
+
+internal fun barcodeSearchMatches(saved: String, query: String): Boolean =
+    query.isNotBlank() && (saved.contains(query) || barcodeMatches(saved, query) ||
+        possiblePackagingBarcodeMatch(saved, query) || possibleVariableBarcodeMatch(saved, query))
 
 /** Весовой код магазина содержит переменную часть; его нельзя сравнивать как постоянный GTIN. */
 internal fun isVariableMeasureBarcode(code: String): Boolean =
@@ -35,14 +55,16 @@ internal fun lentaWeightGrams(code: String): Int? =
 class ProductBarcodeDecoder {
     private val reader = MultiFormatReader().apply {
         setHints(mapOf(DecodeHintType.POSSIBLE_FORMATS to listOf(
-            BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E),
+            BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A, BarcodeFormat.UPC_E, BarcodeFormat.ITF),
             DecodeHintType.TRY_HARDER to true))
     }
 
     fun decode(luma: ByteArray, rowStride: Int, width: Int, height: Int): String? {
         fun read(data: ByteArray, stride: Int, w: Int, h: Int): String? = try {
             val source = PlanarYUVLuminanceSource(data, stride, h, 0, 0, w, h, false)
-            reader.decodeWithState(BinaryBitmap(HybridBinarizer(source))).text
+            val result = reader.decodeWithState(BinaryBitmap(HybridBinarizer(source)))
+            result.text.takeIf { result.barcodeFormat != BarcodeFormat.ITF ||
+                (it.length == 14 && validProductBarcode(it)) }
         } catch (_: ReaderException) { null } finally { reader.reset() }
 
         read(luma, rowStride, width, height)?.let { return it }

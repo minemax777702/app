@@ -17,6 +17,16 @@ class BarcodeRulesTest {
         assertFalse(validProductBarcode(""))
     }
 
+    @Test fun validatesGtin14AndDerivesRetailCandidate() {
+        assertTrue(validProductBarcode("14607958070869"))
+        assertTrue(validProductBarcode("4607958070862"))
+        assertFalse(validProductBarcode("14607958070862"))
+        org.junit.Assert.assertEquals("4607958070862", retailEanCandidate("14607958070869"))
+        org.junit.Assert.assertNull(retailEanCandidate("04607958070862"))
+        val variablePayload = "9460795807086"
+        org.junit.Assert.assertNull(retailEanCandidate(variablePayload + gtinCheckDigit(variablePayload)))
+    }
+
     @Test fun acceptsEan8AndUpcA() {
         assertTrue(validProductBarcode("96385074"))
         assertTrue(validProductBarcode("036000291452"))

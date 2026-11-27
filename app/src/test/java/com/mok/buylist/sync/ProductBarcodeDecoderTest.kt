@@ -23,6 +23,23 @@ class ProductBarcodeDecoderTest {
         assertFalse(barcodeMatches("", ""))
     }
 
+    @Test fun distinguishesPackagingCandidatesFromExactMatches() {
+        assertTrue(barcodeMatches("04607958070862", "4607958070862"))
+        assertTrue(barcodeMatches("00036000291452", "036000291452"))
+        assertFalse(barcodeMatches("14607958070869", "4607958070862"))
+        assertTrue(possiblePackagingBarcodeMatch("14607958070869", "4607958070862"))
+        assertTrue(possiblePackagingBarcodeMatch("4607958070862", "14607958070869"))
+        assertTrue(barcodeSearchMatches("14607958070869", "4607958070862"))
+        assertFalse(possiblePackagingBarcodeMatch("14607958070862", "4607958070862"))
+    }
+
+    @Test fun readsValidItf14() {
+        val code = "14607958070869"
+        val matrix = MultiFormatWriter().encode(code, BarcodeFormat.ITF, 440, 160)
+        val frame = ByteArray(440 * 160) { index -> if (matrix[index % 440, index / 440]) 0 else 255.toByte() }
+        assertEquals(code, ProductBarcodeDecoder().decode(frame, 440, 440, 160))
+    }
+
     @Test fun detectsRestrictedVariableMeasureCodesWithoutTreatingOthersAsWeight() {
         assertTrue(isVariableMeasureBarcode("2101234001000"))
         assertTrue(isVariableMeasureBarcode("2901234001000"))

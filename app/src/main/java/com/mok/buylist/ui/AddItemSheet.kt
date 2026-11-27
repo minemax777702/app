@@ -261,7 +261,11 @@ fun AddItemSheet(
                         dismissKeyboard()
                         scope.launch {
                             val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedCode == text) product.copy(ean = text) else product
-                            saveLenta(chosen, scannedCode?.takeIf { it == text })
+                            saveLenta(chosen, scannedCode?.takeIf { it == text }
+                                 ?: text.trim().takeIf { validProductBarcode(it) &&
+                                     lenta.barcodeAliases(product.id).any { alias ->
+                                         com.mok.buylist.sync.possiblePackagingBarcodeMatch(alias, it)
+                                     } })
                             onAdd(chosen) { added ->
                                 activity?.notifyUser(if (added) "Добавлено в список" else "Уже в списке")
                                 if (added) { text = ""; scannedCode = null; onQueryChange("") }

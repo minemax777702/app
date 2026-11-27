@@ -69,7 +69,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
     /** Возвращает текст ошибки или null после успешного сохранения. */
     suspend fun addBarcode(id: Long, raw: String): String? = db.withTransaction {
         val code = raw.trim()
-        if (!validProductBarcode(code)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
+        if (!validProductBarcode(code)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A, EAN-13 или GTIN-14)"
         if (dao.getLentaProducts().none { it.id == id }) return@withTransaction "Товар удалён"
         val records = dao.getProductBarcodes()
         if (records.any { it.productId != id && !it.deleted &&
@@ -95,7 +95,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
 
     suspend fun editBarcode(id: Long, previous: String, replacement: String): String? = db.withTransaction {
         val next = replacement.trim()
-        if (!validProductBarcode(next)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A или EAN-13)"
+        if (!validProductBarcode(next)) return@withTransaction "Некорректный штрихкод (EAN-8, UPC-A, EAN-13 или GTIN-14)"
         val records = dao.getProductBarcodes()
         val current = records.firstOrNull { it.productId == id && it.code == previous && !it.deleted }
             ?: return@withTransaction "Исходный штрихкод не найден"
@@ -298,7 +298,8 @@ internal data class ProductRefreshResult(
 
 /** Допускаем те же форматы EAN/UPC, что и при сохранении алиасов каталога. */
 internal fun catalogBarcode(raw: String?): String? =
-    raw?.trim()?.takeIf { it.length in setOf(8, 12, 13) && it.all { c -> c in '0'..'9' } }
+    raw?.trim()?.takeIf { it.length in setOf(8, 12, 13, 14) &&
+        it.all { c -> c in '0'..'9' } && (it.length != 14 || validProductBarcode(it)) }
 
 /** Пустые поля ответа не затирают сведения, а цена сохраняет контекст своего магазина. */
 internal fun mergeLentaDetails(existing: LentaProduct, fresh: LentaProduct, updatePrice: Boolean): LentaProduct {

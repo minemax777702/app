@@ -59,8 +59,8 @@ internal fun BarcodeScannerSheet(onCode: (String) -> Unit, onDismiss: () -> Unit
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             SheetHeader("Сканировать штрихкод")
             if (manual) {
-                SheetTextField(manualCode, { manualCode = it.filter(Char::isDigit).take(32) },
-                    "EAN-8, UPC-A или EAN-13", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                SheetTextField(manualCode, { manualCode = it.filter(Char::isDigit).take(14) },
+                    "EAN-8, UPC-A, EAN-13 или GTIN-14", keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = manualCode.isNotEmpty() && !validProductBarcode(manualCode))
                 SheetActionButton(enabled = validProductBarcode(manualCode), onClick = {
                     if (accepted.compareAndSet(false, true)) currentOnCode(manualCode)

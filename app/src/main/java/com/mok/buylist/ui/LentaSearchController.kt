@@ -57,8 +57,7 @@ internal class LentaSearchController(
         val key = nameKeyOf(trimmed)
         val local = if (onlineOnly || key.length < 2) emptyList() else saved.filter {
             matchesProductSearch(it.name, it.pack, this.query) ||
-                barcodeAliases(it.id).any { alias -> alias.contains(key) ||
-                    com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) }
+                barcodeAliases(it.id).any { alias -> com.mok.buylist.sync.barcodeSearchMatches(alias, key) }
         }.sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
         if (!reset) {
             // Saved products and barcode aliases may change while paging.

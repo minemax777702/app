@@ -99,8 +99,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val rows = remember(products, query, barcodeRows) {
         val key = nameKeyOf(query)
         products.filter { key.isEmpty() || matchesProductSearch(it.name, it.pack, query) ||
-            catalog.barcodeAliases(it.id).any { alias -> alias.contains(key) ||
-                com.mok.buylist.sync.possibleVariableBarcodeMatch(alias, key) } }
+            catalog.barcodeAliases(it.id).any { alias -> com.mok.buylist.sync.barcodeSearchMatches(alias, key) } }
             .sortedWith(compareBy<LentaProduct> { nameKeyOf(it.name) }.thenBy { it.id })
     }
     val identities = remember(products, customProducts, barcodeRows, customBarcodeRows) {
@@ -110,7 +109,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val ownRows = remember(customProducts, customBarcodeRows, query) {
         val key = nameKeyOf(query)
         customProducts.filter { !it.deleted &&
-            (key.isBlank() || matchesProductName(it.name, query) || customBarcodeRows.any { row -> !row.deleted && row.productId == it.id && row.code.contains(key) }) }
+            (key.isBlank() || matchesProductName(it.name, query) || customBarcodeRows.any { row -> !row.deleted && row.productId == it.id && com.mok.buylist.sync.barcodeSearchMatches(row.code, key) }) }
             .sortedBy { nameKeyOf(it.name) }
     }
     val shopPrices = remember(ownRows, rows, stores, storeLinks, knownPurchases, identities, products, address) {
@@ -276,7 +275,9 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 LentaSuggestions(onlineQuery, Modifier.weight(1f), onAdd = { product ->
                     scope.launch {
                         val chosen = if ((product.ean.isBlank() || product.ean == "null") && scannedOnlineCode == onlineQuery) product.copy(ean = onlineQuery) else product
-                        catalog.save(chosen, scannedOnlineCode?.takeIf { it == onlineQuery })
+                        catalog.save(chosen, scannedOnlineCode?.takeIf { it == onlineQuery }
+                            ?: onlineQuery.trim().takeIf { validProductBarcode(it) &&
+                                com.mok.buylist.sync.possiblePackagingBarcodeMatch(product.ean, it) })
                         adding = false
                         activity?.notifyUser("Товар сохранён")
                     }

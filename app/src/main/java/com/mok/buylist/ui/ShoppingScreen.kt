@@ -531,7 +531,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
             !product.deleted && (
                 customBarcodes.any { it.productId == product.id && !it.deleted &&
                     com.mok.buylist.sync.barcodeMatches(it.code, code) } ||
-                (product.barcode == code && customBarcodes.none {
+                (com.mok.buylist.sync.barcodeMatches(product.barcode, code) && customBarcodes.none {
                     it.productId == product.id && it.code == code && it.deleted })
             )
         }

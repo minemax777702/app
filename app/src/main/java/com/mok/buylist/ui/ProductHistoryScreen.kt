@@ -262,8 +262,8 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     SheetTextField(
                         value = barcodeInput,
-                        onValueChange = { barcodeInput = it.filter(Char::isDigit).take(13); barcodeError = null },
-                        hint = "EAN-8, UPC-A или EAN-13",
+                        onValueChange = { barcodeInput = it.filter(Char::isDigit).take(14); barcodeError = null },
+                        hint = "EAN-8, UPC-A, EAN-13 или GTIN-14",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         isError = barcodeError != null,
                     )

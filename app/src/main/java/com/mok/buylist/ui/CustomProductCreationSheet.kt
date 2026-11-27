@@ -87,8 +87,8 @@ internal fun CustomProductCreationSheet(
 
     val matchingLenta = remember(barcode, localProducts, localCodes) {
         if (!validProductBarcode(barcode)) emptyList() else localProducts.filter { product ->
-            product.ean == barcode || localCodes.any { row ->
-                row.productId == product.id && row.code == barcode && !row.deleted
+            com.mok.buylist.sync.barcodeMatches(product.ean, barcode) || localCodes.any { row ->
+                row.productId == product.id && com.mok.buylist.sync.barcodeMatches(row.code, barcode) && !row.deleted
             }
         }.distinctBy { it.id }
     }
@@ -106,7 +106,7 @@ internal fun CustomProductCreationSheet(
                 if (name.length > 200) Text("Максимум 200 символов", color = p.error, fontSize = 12.sp)
                 SheetTextField(
                     barcode,
-                    { barcode = it.filter(Char::isDigit).take(13); error = null },
+                    { barcode = it.filter(Char::isDigit).take(14); error = null },
                     "Штрихкод (необязательно)",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     placeholder = "Введите или отсканируйте",
