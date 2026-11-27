@@ -84,7 +84,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
-    var sort by rememberSaveable { mutableStateOf(ProductSort.DEFAULT) }
     var catalogMenu by remember { mutableStateOf(false) }
     var onlineQuery by rememberSaveable { mutableStateOf("") }
     var adding by rememberSaveable { mutableStateOf(false) }
@@ -96,7 +95,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     var createCustom by remember { mutableStateOf(false) }
     var customName by remember { mutableStateOf("") }
     var customBarcode by remember { mutableStateOf("") }
-    var shownCount by rememberSaveable(query, sort) { mutableStateOf(20) }
+    var shownCount by rememberSaveable(query) { mutableStateOf(20) }
     val rows = remember(products, query, barcodeRows) {
         val key = nameKeyOf(query)
         products.filter { key.isEmpty() || matchesProductSearch(it.name, it.pack, query) ||
@@ -119,13 +118,13 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             productShopPrices(key, stores, storeLinks, knownPurchases, identities, products, address)
         }
     }
-    val sortedRows = remember(ownRows, rows, shopPrices, address, sort) {
-        sortProductRows(ownRows.map { product ->
+    val catalogRows = remember(ownRows, rows, shopPrices, address) {
+        (ownRows.map { product ->
             ProductSearchRow.custom(product, cheapestShopPrice(shopPrices["custom:" + product.id].orEmpty())?.priceKopecks ?: product.estimatedPriceKopecks)
         } + rows.map { product ->
             ProductSearchRow.lenta(product, displayShopPrice("lenta:" + product.id, shopPrices["lenta:" + product.id].orEmpty())?.priceKopecks
                 ?: searchCatalogPrice(product, address))
-        }, sort)
+        }).sortedWith(compareBy<ProductSearchRow> { nameKeyOf(it.custom?.name ?: it.lenta?.name.orEmpty()) }.thenBy { it.key })
     }
     Column(Modifier.fillMaxSize().background(p.background)) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
@@ -167,7 +166,6 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 }
             }
         }
-        if (sortedRows.isNotEmpty()) ProductSortMenu(sort, { sort = it }, Modifier.padding(horizontal = 20.dp))
         if (rows.isEmpty() && ownRows.isEmpty()) {
             Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -179,7 +177,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             }
         }
         LazyColumn(Modifier.weight(1f), overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(sortedRows.take(shownCount), key = { it.key }) { row ->
+            items(catalogRows.take(shownCount), key = { it.key }) { row ->
                 val own = row.custom
                 val lenta = row.lenta
                 if (own != null) {
@@ -237,7 +235,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                         })
                 }
             }
-            if (shownCount < sortedRows.size) item {
+            if (shownCount < catalogRows.size) item {
                 FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
             }
         }
