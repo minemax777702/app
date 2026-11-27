@@ -143,12 +143,14 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     Column(Modifier.fillMaxSize().background(p.background)) {
         when (page) {
             "nearby" -> SubScreenHeader("Обмен рядом", { page = "profile" })
+            "cloud" -> SubScreenHeader("Облачное хранилище", { page = "profile" })
             else -> FreshCutRootHeader("НАСТРОЙКИ", "Профиль", "Ваши данные и предпочтения")
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(scrollState)
             .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             when (page) {
+                "cloud" -> CloudAdminPanel()
                 "nearby" -> {
                     NearbyPanel(onUndo = { confirmUndo = true }, qrUndoMinutes = state.undoMinutes)
                 }
@@ -177,6 +179,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
                         "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
+                    ProfileMenuRow(R.drawable.ic_sync, "Облачное хранилище", "Настройка GitHub", { page = "cloud" })
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
                 }

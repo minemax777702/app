@@ -58,7 +58,8 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
 @Composable
 internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint: String,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default, keyboardActions: KeyboardActions = KeyboardActions.Default,
-    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null, placeholder: String = "", readOnly: Boolean = false) {
+    isError: Boolean = false, trailingAction: (@Composable () -> Unit)? = null, placeholder: String = "", readOnly: Boolean = false,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     val lineColor = if (isError) p.error else if (focused) p.text else p.line
@@ -69,6 +70,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
             .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
             .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
+                visualTransformation = visualTransformation,
                 modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp)
                     .onFocusChanged { focused = it.isFocused }, singleLine = true,
                 textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
