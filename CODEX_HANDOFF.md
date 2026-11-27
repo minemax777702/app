@@ -88,3 +88,8 @@
 ## 27.11.2026 — GitHub Releases и обновления приложения
 
 Версия проекта buylist.version=1.2.0 в gradle.properties. Workflow FRESH CUT APK назначает единый versionCode=1000+run_number для обоих каналов, Beta использует имя с -beta.<code>, Stable — базовую версию; локальные сборки без CI имеют код 3, поэтому после CI не используются для обновления поверх релиза. Публикация отдельным job после проверки подписи, Beta из feat/figma-redesign (prerelease), Stable из main только после переноса workflow. Сохраняется fresh-cut-release для ADB. В профиле — обновления, переключение канала, проверка публичного API, загрузка с прогрессом, SHA-256/проверка packageName, versionCode/name и подписи, FileProvider и системный установщик. Установка требует разрешения и подтверждения Android; токен в APK не нужен. Понижение версии запрещено, main не изменён. Первый APK с обновлятором надо установить вручную; тесты и CI/установка на телефоне требуют проверки.
+
+
+## 27.11.2026 — быстрая Beta и отдельная проверка качества
+
+FRESH CUT APK передаёт -Pbuylist.fastBeta=true только для Beta; AGP optimization.enable=false отключает R8 и resource shrinking, lint.checkReleaseBuilds=false отключает автоматический fatal lint при assembleRelease. По умолчанию и для Stable fastBeta=false, оптимизация и fatal lint остаются включёнными. Подпись, applicationId, versionCode, APK/артефакт и GitHub Releases не меняются. FRESH CUT UI check запускается вручную, собирает подписанный оптимизированный APK, выполняет lintRelease и testDebugUnitTest, загружает отчёты, ничего не публикует. Beta APK станет больше; время/размер проверяются по CI, совместимость на устройстве — отдельно. main не изменён.

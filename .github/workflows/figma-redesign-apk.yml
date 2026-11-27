@@ -44,6 +44,7 @@ jobs:
           fi
           echo "BUYLIST_VERSION_CODE=$code" >> "$GITHUB_ENV"
           echo "BUYLIST_VERSION_NAME=$version" >> "$GITHUB_ENV"
+          echo "BUYLIST_CHANNEL=$channel" >> "$GITHUB_ENV"
           echo "tag=$channel-v$base-$code" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "channel=$channel" >> "$GITHUB_OUTPUT"
@@ -99,7 +100,11 @@ jobs:
           printf '%s' "$BUYLIST_KEYSTORE_BASE64" | base64 --decode > "$BUYLIST_STORE_FILE"
           unset BUYLIST_KEYSTORE_BASE64
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease --stacktrace --build-cache
+          fast_beta=false
+          if [[ "$BUYLIST_CHANNEL" == "beta" ]]; then
+            fast_beta=true
+          fi
+          ./gradlew :app:assembleRelease --stacktrace --build-cache "-Pbuylist.fastBeta=$fast_beta"
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
