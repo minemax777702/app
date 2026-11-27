@@ -1,6 +1,8 @@
 package com.mok.buylist.ui
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
@@ -22,6 +24,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.mok.buylist.cloud.CloudAdminException
+import com.mok.buylist.cloud.CloudSshProbe
 import com.mok.buylist.cloud.CloudDeviceIdentity
 import com.mok.buylist.cloud.CloudDeviceProtocol
 import com.mok.buylist.cloud.CloudDeviceRequest
@@ -36,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Composable
 internal fun CloudDeviceRequestPanel() {
     val p = LocalPalette.current
+    val context = LocalContext.current
     var refresh by remember { mutableStateOf(0) }
     var code by remember { mutableStateOf<String?>(null) }
     var request by remember { mutableStateOf<CloudDeviceRequest?>(null) }
@@ -43,6 +48,34 @@ internal fun CloudDeviceRequestPanel() {
     var checking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var accessMessage by remember { mutableStateOf<String?>(null) }
+    var accessVerified by remember { mutableStateOf(false) }
+    var checkedPort by remember { mutableStateOf(443) }
+
+    fun checkAccess(port: Int) {
+        if (checking || request == null) return
+        checking = true
+        checkedPort = port
+        accessMessage = null
+        accessVerified = false
+        scope.launch {
+            try {
+                // Enrollment only needs an authenticated, read-only Git service.
+                // Do not initialize JGit's JVM filesystem/transport stack here.
+                accessMessage = CloudSshProbe.check(port, registeredDevice = true)
+                accessVerified = true
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: CloudAdminException) {
+                accessMessage = e.message ?: "SSH $port: доступ не подтверждён."
+            } catch (e: LinkageError) {
+                accessMessage = "SSH $port: несовместимость клиента (${e.javaClass.simpleName})."
+            } catch (e: Exception) {
+                accessMessage = "SSH $port: подключение не подтверждено (${e.javaClass.simpleName})."
+            } finally {
+                checking = false
+            }
+        }
+    }
     LaunchedEffect(refresh) {
         code = null
         request = null
@@ -73,20 +106,34 @@ internal fun CloudDeviceRequestPanel() {
         request?.let { Text(it.fingerprint.chunked(8).joinToString(" "), color = p.text, fontSize = 13.sp) }
         message?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
         FreshCutSecondaryButton("Обновить QR-код", { refresh++ })
-        FreshCutSecondaryButton(if (checking) "Проверяем…" else "Проверить подключение", {
-            checking = true
-            scope.launch {
-                try {
-                    com.mok.buylist.cloud.CloudGitSsh.verifyRepository()
-                    accessMessage = "SSH-доступ подтверждён. Для обмена покупками ещё нужен ключ рабочего пространства."
-                } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                catch (e: com.mok.buylist.cloud.CloudAdminException) { accessMessage = e.message }
-                catch (_: LinkageError) { accessMessage = "Git-транспорт несовместим с этой версией Android. Передайте версию системы разработчику." }
-                catch (_: Exception) { accessMessage = "Подключение не подтверждено. Проверьте сеть и разрешение администратора." }
-                finally { checking = false }
+        FreshCutSecondaryButton(
+            if (checking) "Проверяем…" else "Проверить подключение",
+            { checkAccess(443) },
+            enabled = !checking && request != null,
+        )
+        accessMessage?.let { report ->
+            if (accessVerified) {
+                Text(
+                    if (checkedPort == 443) "SSH-доступ подтверждён."
+                    else "SSH через порт 22 доступен. Основной транспорт использует 443.",
+                    color = p.text,
+                    fontSize = 15.sp,
+                )
+                Text("Для обмена покупками ещё нужен ключ рабочего пространства.", color = p.textSecondary, fontSize = 13.sp)
+            } else {
+                Text("Доступ не подтверждён", color = p.error, fontSize = 15.sp)
             }
-        }, enabled = !checking)
-        accessMessage?.let { Text(it, color = p.textSecondary, fontSize = 14.sp) }
+            Text(report, color = p.textSecondary, fontSize = 13.sp)
+            if (!accessVerified && checkedPort == 443) {
+                FreshCutSecondaryButton("Проверить через порт 22", { checkAccess(22) }, enabled = !checking && request != null)
+            }
+            FreshCutSecondaryButton("Копировать отчёт", {
+                val id = request?.fingerprint ?: "недоступен"
+                val text = "BuyList device connection\nAndroid API ${android.os.Build.VERSION.SDK_INT}\nУстройство: $id\n\n$report"
+                context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(
+                    ClipData.newPlainText("Cloud connection diagnostic", text))
+            }, enabled = !checking)
+        }
 
     }
 }

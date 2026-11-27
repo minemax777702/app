@@ -123,9 +123,11 @@ internal object CloudSshProbe {
 
     suspend fun check(port: Int, registeredDevice: Boolean = false): String = withContext(Dispatchers.IO) {
         val trace = CloudSshTrace()
+        trace.step(if (registeredDevice) "Используется зарегистрированный ключ устройства" else "Используется тестовый SSH-ключ")
         val session = try {
             connect(port, if (registeredDevice) CloudDeviceIdentity.keyPair() else null, trace)
-        } catch (e: CloudAdminException) { throw e }
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        catch (e: CloudAdminException) { throw e }
         catch (e: Exception) { throw CloudAdminException(trace.failure(port, "SSH-01", "Не удалось подготовить ключ или SSH-клиент.", e)) }
         catch (e: LinkageError) { throw CloudAdminException(trace.failure(port, "SSH-04", "SSH-клиент несовместим с этой сборкой Android.", e)) }
         try {
