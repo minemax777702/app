@@ -21,6 +21,7 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.result.PostgrestResult
 import io.github.jan.supabase.realtime.Realtime
 import io.github.jan.supabase.realtime.PostgresAction
@@ -668,6 +669,86 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     suspend fun saveGroup(id: String?, name: String) =
         enqueue(if (id == null) "group_create" else "group_rename", id ?: java.util.UUID.randomUUID().toString(), name.trim().take(100))
     suspend fun removeGroup(id: String) = enqueue("group_remove", id)
+
+    /** Leaving revokes server access. Finish outstanding changes before relinquishing it. */
+    suspend fun leaveGroup(id: String, successor: String? = null) {
+        refreshMutex.withLock {
+            val me = requireNotNull(directory.value.me)
+            check(authenticated(me.id))
+            val row = requireNotNull(directory.value.groups.firstOrNull { it.id == id })
+            check(directory.value.participates(row))
+            check((row.owner == me.id) == (successor != null))
+            // Keep the original time of the user's decision, not the later upload time.
+            val at = MutationClock.next()
+            val opId = java.util.UUID.randomUUID().toString()
+            flushPending(me.id)
+            val groupCaches = mutex.withLock {
+                check(authenticated(me.id))
+                directory.value.lists.filter { it.group == id }.mapNotNull { list ->
+                    val namespace = "cloud-${me.id}-${list.id}"
+                    if (namespace in caches || context.getDatabasePath("$namespace.db").exists())
+                        open(me, list, cachedOnly = true)
+                    else null
+                }
+            }
+            groupCaches.forEach { sync(it) }
+            check(authenticated(me.id))
+            if (successor != null) {
+                val result = api().postgrest.rpc("transfer_and_leave", buildJsonObject {
+                    put("p_group",id); put("p_successor",successor); put("p_at",at); put("p_op",opId)
+                })
+                check(Json.parseToJsonElement(result.data).jsonPrimitive.boolean)
+            } else {
+                val body = stamped(buildJsonObject { put("active",false) },at,opId)
+                val saved = api().from("group_members").update(body=body) {
+                    select(); filter { eq("group_id",id); eq("user_id",me.id) }
+                }.rows()
+                if (saved.isEmpty()) {
+                    val actual = api().from("group_members").select {
+                        filter { eq("group_id",id); eq("user_id",me.id) }
+                    }.rows().singleOrNull()
+                    check(actual != null && !actual.flag("active")) { "Membership changed; retry" }
+                }
+            }
+            mutex.withLock {
+                if (!authenticated(me.id)) return@withLock
+                // Persist the revoked access before changing the UI, even if the next refresh fails.
+                val saved = prefs.getString("directory_${me.id}",null)
+                if (saved != null) {
+                    val cached = Json.parseToJsonElement(saved).jsonObject
+                    fun get(key: String) = cached.getValue(key).jsonArray.map { it.jsonObject }
+                    val groups = get("groups").mapNotNull { g ->
+                        if(g.string("id") != id) g
+                        else if(!me.admin) null
+                        else if(successor != null) JsonObject(g + mapOf("owner_id" to JsonPrimitive(successor)))
+                        else g
+                    }
+                    val lists = get("lists").filterNot { it.string("group_id") == id }
+                    val members = get("members").filterNot { it.string("group_id") == id && it.string("user_id") == me.id }
+                    val next = JsonObject(cached + mapOf("groups" to JsonArray(groups), "lists" to JsonArray(lists), "members" to JsonArray(members)))
+                    check(prefs.edit().putString("directory_${me.id}",next.toString()).commit())
+                }
+                val old = directory.value
+                val next = old.copy(
+                    groups = old.groups.mapNotNull { g -> if(g.id != id) g else if(!me.admin) null else if(successor != null) g.copy(owner=successor) else g },
+                    lists = old.lists.filterNot { it.group == id },
+                    members = old.members.filterNot { it.group == id && it.user == me.id })
+                _directory.value = next
+                val allowed = next.lists.mapTo(HashSet()) { it.id }
+                if (_workspace.value?.listId?.let { it !in allowed } == true) {
+                    publishWorkspace(null)
+                    val selected = primaryPersonalList(me.id,next) ?: next.lists.firstOrNull()
+                    check(prefs.edit().putString("selected_${me.id}",selected?.id).commit())
+                    publishWorkspace(selected?.let { open(me,it,cachedOnly=true) })
+                }
+                caches.values.filter { it.userId==me.id && it.listId !in allowed }.toList().forEach {
+                    closeLater(it); caches.remove(it.namespace)
+                }
+            }
+        }
+        updateWidget()
+        signal()
+    }
     suspend fun member(group: String, person: String, active: Boolean) {
         val row = requireNotNull(directory.value.groups.firstOrNull { it.id == group })
         check(directory.value.manages(row) && row.owner != person)

@@ -144,6 +144,7 @@ private fun NotificationRow(action: ListAction, group: NotificationGroup, timest
         NotificationGroup.ACCOUNT -> when {
             action.title.startsWith("Пользователь создан") || action.title.startsWith("Участник добавлен") || action.title.startsWith("Участники добавлены") -> R.drawable.ic_user_plus
             action.title.startsWith("Участник исключён") -> R.drawable.ic_user_minus
+            action.title.startsWith("Выход из группы") -> R.drawable.ic_log_out
             action.title.startsWith("Группа") -> R.drawable.ic_group
             action.title.startsWith("Список") -> R.drawable.ic_list_check
             action.title.startsWith("Доступ") -> R.drawable.ic_shield

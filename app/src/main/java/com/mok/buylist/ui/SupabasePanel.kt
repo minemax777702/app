@@ -54,6 +54,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     var createUser by remember { mutableStateOf(false) }
     var createUserGroup by remember { mutableStateOf<String?>(null) }
     var addingMembers by remember { mutableStateOf(false) }
+    var leavingGroup by remember { mutableStateOf<CloudGroup?>(null) }
     var newListGroup by remember { mutableStateOf<String?>(null) }
     var deletion by remember { mutableStateOf<Pair<String, suspend () -> Unit>?>(null) }
     fun perform(action: suspend () -> Unit) {
@@ -227,6 +228,11 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                             }
                             if(directory.lists.none{it.group==row.id}) Text("Нет списков",color=p.textSecondary,fontSize=13.sp)
                         }
+                        if(!adminOnly && directory.participates(row)) {
+                            FreshCutListRow(R.drawable.ic_log_out,"Выйти из группы",showChevron=false,onClick={
+                                if(!busy){groupSheet=false;leavingGroup=row}
+                            })
+                        }
                         if(manage) Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
                             FreshCutToolbarAction(R.drawable.ic_trash,"Удалить группу",{
                                 groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id);notifyPending("Группа удалена · ${row.name}")}
@@ -249,6 +255,34 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     enabled=!busy && title.isNotBlank()){Text(if(original==null)"Создать" else "Сохранить")}
             }
         })
+    }
+    leavingGroup?.let { row ->
+        val owner = row.owner == me.id
+        val candidates = directory.people.filter { it.id != me.id && it.active &&
+            directory.members.any { member -> member.group == row.id && member.user == it.id } }
+        var successor by remember(row.id) { mutableStateOf<String?>(null) }
+        AppSheet(onDismissRequest={if(!busy)leavingGroup=null},containerColor=p.sheet,
+            title={SheetHeader("Выйти из группы?")},text={
+                Column(verticalArrangement=Arrangement.spacedBy(8.dp)){
+                    Text(row.name,color=p.text,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
+                    if(owner) {
+                        Text(if(candidates.isEmpty()) "Вы единственный владелец. Добавьте участника для передачи владения или удалите группу."
+                            else "Выберите нового владельца. Общие списки останутся у участников.",color=p.textSecondary,fontSize=14.sp)
+                        candidates.forEach { user ->
+                            FreshCutListRow(R.drawable.ic_user_round,user.name,selected=successor==user.id,showChevron=false,
+                                onClick={successor=user.id})
+                        }
+                    } else Text("Общие списки больше не будут доступны. Ваши личные покупки сохранятся.",color=p.textSecondary,fontSize=14.sp)
+                    Text("Перед выходом синхронизируем изменения. Требуется интернет.",color=p.textSecondary,fontSize=12.sp)
+                }
+            },confirmButton={
+                if(!owner || candidates.isNotEmpty()) SheetActionButton(onClick={perform{
+                    cloud.leaveGroup(row.id,if(owner)successor else null)
+                    leavingGroup=null;notify("Выход из группы · ${row.name}")
+                }},enabled=!busy && (!owner || successor!=null),destructive=true){
+                    Text(if(busy)"Синхронизация…" else if(owner)"Передать и выйти" else "Выйти")
+                }
+            })
     }
     if(adminOnly && me.admin) person?.let{row->
         var personName by remember(row){mutableStateOf(row.name)}
