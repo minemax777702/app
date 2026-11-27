@@ -1,6 +1,9 @@
 package com.mok.buylist.ui
 
 import android.content.Intent
+import android.os.Build
+import android.Manifest
+import androidx.activity.compose.LocalActivity
 import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -10,6 +13,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,6 +26,7 @@ import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.update.AppRelease
 import com.mok.buylist.update.AppUpdater
 import com.mok.buylist.update.UpdateChannel
+import com.mok.buylist.update.UpdateNotifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.io.File
@@ -29,6 +35,7 @@ import java.io.File
 internal fun AppUpdateSheet(onClose: () -> Unit) {
     val p = LocalPalette.current
     val context = LocalContext.current
+    val activity = LocalActivity.current as? MainActivity
     val scope = rememberCoroutineScope()
     val installed = remember { AppUpdater.installedVersion(context) }
     var channel by remember { mutableStateOf(AppUpdater.selectedChannel(context)) }
@@ -39,6 +46,33 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     var progress by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf<String?>(null) }
     var ready by remember { mutableStateOf<File?>(null) }
+    var notificationsEnabled by remember { mutableStateOf(UpdateNotifications.enabled(context)) }
+    var notificationsAllowed by remember { mutableStateOf(UpdateNotifications.canPost(context)) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        notificationsAllowed = UpdateNotifications.canPost(context)
+        if (granted) activity?.checkUpdatesOnEntry(force = true)
+    }
+    val notificationSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        notificationsAllowed = UpdateNotifications.canPost(context)
+        if (notificationsAllowed) activity?.checkUpdatesOnEntry(force = true)
+    }
+
+    fun changeNotifications(enabled: Boolean) {
+        notificationsEnabled = enabled
+        UpdateNotifications.setEnabled(context, enabled)
+        if (enabled && !UpdateNotifications.canPost(context)) {
+            if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(context,
+                    Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                UpdateNotifications.markPermissionRequested(context)
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                notificationSettings.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+            }
+        } else if (enabled) {
+            activity?.checkUpdatesOnEntry(force = true)
+        }
+    }
 
     fun install(file: File) {
         try {
@@ -98,6 +132,23 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 })
                 Text(if (channel == UpdateChannel.BETA) "Новые функции и тестовые сборки."
                     else "Только стабильные релизы.", color = p.textSecondary, fontSize = 13.sp)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Уведомления об обновлениях", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(if (!notificationsAllowed && notificationsEnabled) "Разрешите уведомления в Android."
+                            else "Проверяем новые версии при входе.", color = p.textSecondary, fontSize = 12.sp)
+                    }
+                    Switch(checked = notificationsEnabled && notificationsAllowed,
+                        onCheckedChange = ::changeNotifications,
+                        colors = SwitchDefaults.colors(checkedTrackColor = p.actionFill, checkedThumbColor = p.actionInk))
+                }
+                if (notificationsEnabled && !notificationsAllowed) {
+                    androidx.compose.material3.TextButton(onClick = {
+                        notificationSettings.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                    }) { Text("Настройки уведомлений Android", color = p.text) }
+                }
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     when {

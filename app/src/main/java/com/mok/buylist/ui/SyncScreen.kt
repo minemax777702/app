@@ -98,7 +98,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     val scrollState = rememberScrollState()
     var page by rememberSaveable { mutableStateOf("profile") }
     var showBackup by rememberSaveable { mutableStateOf(false) }
-    var showUpdates by rememberSaveable { mutableStateOf(false) }
     val installedVersion = remember { com.mok.buylist.update.AppUpdater.installedVersion(context) }
     val themeMode by context.themeSettings.app.collectAsStateWithLifecycle()
     LaunchedEffect(page) {
@@ -176,7 +175,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                     ProfileMenuRow(R.drawable.ic_store, "Магазин Ленты",
                         if (address.isBlank()) "Адрес не выбран" else address, { showAddress = true })
                     ProfileMenuRow(R.drawable.ic_sync, "Обновления приложения",
-                        "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { showUpdates = true })
+                        "Версия ${installedVersion.name} · сборка ${installedVersion.code}", { activity?.openUpdates() })
                     FreshCutSectionTitle("Данные", Modifier.padding(top = 8.dp))
                     ProfileMenuRow(R.drawable.ic_sync, "Обмен рядом", "Синхронизация телефонов", { page = "nearby" })
                     ProfileMenuRow(R.drawable.ic_archive, "Резервная копия", "Сохранить или восстановить", { showBackup = true })
@@ -184,7 +183,6 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             }
         }
     }
-    if (showUpdates) AppUpdateSheet(onClose = { showUpdates = false })
     if (showBackup) AppSheet(
         onDismissRequest = { showBackup = false }, containerColor = p.sheet,
         title = { SheetHeader("Резервная копия") }, minBodyHeight = 296.dp,

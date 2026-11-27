@@ -1,6 +1,15 @@
 package com.mok.buylist.ui
 
+import android.content.Intent
 import android.graphics.Color
+import android.os.Build
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import com.mok.buylist.update.UpdateNotifications
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -27,6 +36,50 @@ class MainActivity : ComponentActivity() {
         private set
     internal val notice: NoticePayload? get() = noticePresentation.current
     private var noticeId = 0L
+    private var showUpdates by mutableStateOf(false)
+    private var updateCheck: Job? = null
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) checkUpdatesOnEntry(force = true)
+    }
+
+    internal fun openUpdates() {
+        showUpdates = true
+        UpdateNotifications.clearNotification(this)
+    }
+
+    private fun handleUpdateIntent(intent: Intent) {
+        if (intent.action == UpdateNotifications.OPEN_UPDATES) {
+            openUpdates()
+            // Consume the deep link so rotation cannot reopen a dismissed sheet.
+            intent.action = null
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleUpdateIntent(intent)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        checkUpdatesOnEntry()
+    }
+
+    internal fun checkUpdatesOnEntry(force: Boolean = false) {
+        if (!lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
+        if (!UpdateNotifications.enabled(this) || !UpdateNotifications.canPost(this)) return
+        if (updateCheck?.isActive == true) return
+        updateCheck = lifecycleScope.launch {
+            try {
+                UpdateNotifications.check(applicationContext, force)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // A failed release check must never interrupt the shopping list.
+            }
+        }
+    }
     private val noticeSheets = mutableStateListOf<Any>()
     internal var noticeOwner by mutableStateOf<Any?>(null)
         private set
@@ -53,14 +106,29 @@ class MainActivity : ComponentActivity() {
         if (noticeOwner === owner) noticeOwner = noticeSheets.lastOrNull()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("show_updates", showUpdates)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onStop() {
+        updateCheck?.cancel()
+        updateCheck = null
         nearbySync.stop()
         super.onStop()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        showUpdates = savedInstanceState?.getBoolean("show_updates") == true
+        handleUpdateIntent(intent)
         setContent {
+            LaunchedEffect(Unit) {
+                if (Build.VERSION.SDK_INT >= 33 && UpdateNotifications.shouldRequestPermission(this@MainActivity)) {
+                    UpdateNotifications.markPermissionRequested(this@MainActivity)
+                    notificationPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
             val mode by themeSettings.app.collectAsStateWithLifecycle()
             val dark = isDarkTheme(mode)
             // Тему приложения выбирает пользователь, а не система, поэтому цвет значков в системных
@@ -80,6 +148,7 @@ class MainActivity : ComponentActivity() {
             ShoppingTheme(mode) {
                 Box(Modifier.fillMaxSize()) {
                     ShoppingScreen()
+                    if (showUpdates) AppUpdateSheet(onClose = { showUpdates = false })
                     val presentation = noticePresentation
                     val current = presentation.current
                     val accessibility = LocalAccessibilityManager.current

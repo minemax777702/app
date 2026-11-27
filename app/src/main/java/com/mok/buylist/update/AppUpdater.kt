@@ -44,6 +44,7 @@ internal object AppUpdater {
     fun selectChannel(context: Context, channel: UpdateChannel) {
         context.getSharedPreferences("app_updates", Context.MODE_PRIVATE).edit()
             .putString("channel", channel.key).apply()
+        UpdateNotifications.clearNotification(context)
     }
 
     suspend fun latest(channel: UpdateChannel): AppRelease? = withContext(Dispatchers.IO) {
