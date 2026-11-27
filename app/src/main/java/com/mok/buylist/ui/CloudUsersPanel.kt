@@ -54,7 +54,12 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
         busy = true
         error = null
         loaded = null
-        try { loaded = store.load(admin) }
+        try {
+            val current = store.load(admin)
+            loaded = current
+            accessStatus = emptyMap()
+            if (current.registry.devices.isNotEmpty()) accessStatus = admin.deviceAccesses(current.registry.devices)
+        }
         catch (e: CancellationException) { throw e }
         catch (e: CloudAdminException) { error = e.message }
         catch (_: Exception) { error = "Не удалось загрузить реестр. Проверьте интернет и права Contents." }
@@ -157,16 +162,21 @@ internal fun CloudUsersPanel(admin: GitHubCloudAdmin, onBack: () -> Unit) {
             }, enabled = !busy && current.registry.users.any { !it.archived } && devices.size < CloudUserRegistry.MAX_DEVICES)
             Text("После регистрации можно выдать устройству SSH-доступ для чтения. Доступ к покупкам потребует отдельного ключа пространства.", color = p.textSecondary, fontSize = 14.sp)
             devices.forEach { device ->
+                val active = accessStatus[device.fingerprint]
                 val owner = current.registry.users.firstOrNull { it.id == device.userId }?.name.orEmpty()
                 FreshCutListRow(R.drawable.ic_scan_barcode, owner,
-                    if (device.revoked) "Отозвано" else "Ожидает активации", showChevron = false)
+                    when {
+                        device.revoked && active == true -> "Отозвано · ключ ещё доступен"
+                        device.revoked -> "Отозвано"
+                        active == true -> "SSH-доступ предоставлен"
+                        active == false -> "Ожидает активации"
+                        else -> "Статус SSH не проверен"
+                    }, showChevron = false)
                 Text(device.fingerprint.chunked(8).joinToString(" "), color = p.textSecondary, fontSize = 12.sp)
-                val active = accessStatus[device.fingerprint]
                 if (!device.revoked && active != true) FreshCutSecondaryButton("Разрешить SSH-чтение", {
                     access(device, true)
                 }, enabled = !busy)
-                FreshCutSecondaryButton("Отключить SSH-доступ", { access(device, false) }, enabled = !busy)
-                if (active == true) Text("SSH-ключ зарегистрирован", color = p.textSecondary, fontSize = 12.sp)
+                if (active != false) FreshCutSecondaryButton("Отключить SSH-доступ", { access(device, false) }, enabled = !busy)
                 if (!device.revoked) FreshCutSecondaryButton("Отозвать регистрацию", {
                     if (!busy) {
                         busy = true

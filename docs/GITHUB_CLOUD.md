@@ -69,3 +69,5 @@ CloudGitEvents implements real Git fetch/push of signed event envelopes via JGit
 ### Durable delivery
 
 CloudOutbox persists exact signed encrypted event bytes before push. CloudSyncEngine verifies the manifest and event before upload; it acknowledges only after CloudJournalStore commits the accepted cursor. If Git confirms a push but the network response is lost, retry uses the same bytes and is a no-op at the identical remote tip. Pull validates event chains through the persisted journal. Android instrumentation test CloudGitDeliveryTest uses local bare repositories and simulates lost acknowledgment. The engine is not scheduled and is not wired to default Room. Real users currently only receive a read-only Deploy Key; content key delivery, live manifest updates and key rotation remain required before enabling writes.
+
+Статус ключей при открытии реестра сверяется с GitHub, неизвестный статус отображается отдельно. Ошибка чтения ключей не заменяет локальный реестр.

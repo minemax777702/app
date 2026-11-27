@@ -162,12 +162,16 @@ internal class GitHubCloudAdmin(private val token: String) {
         CloudDeviceProtocol.publicKey(device.publicKey) as java.security.interfaces.ECPublicKey
     ).split(' ').take(2).joinToString(" ")
 
-    private fun findDeviceKey(device: CloudDeviceDraft): JSONObject? {
+    private fun readDeployKeys(): List<JSONObject> {
         val response = request("GET", "$repoPath/keys?per_page=100", maxResponseBytes = 1_048_576)
         requireSuccess(response)
         val keys = org.json.JSONArray(response.body)
         require(keys.length() < 100) { "Too many deploy keys to verify safely" }
-        val matching = (0 until keys.length()).map { keys.getJSONObject(it) }.filter {
+        return (0 until keys.length()).map { keys.getJSONObject(it) }
+    }
+
+    private fun findDeviceKey(device: CloudDeviceDraft, keys: List<JSONObject> = readDeployKeys()): JSONObject? {
+        val matching = keys.filter {
             it.optString("title") == deviceTitle(device) ||
                 it.optString("key").split(' ').take(2).joinToString(" ") == deviceSshKey(device)
         }
@@ -178,6 +182,12 @@ internal class GitHubCloudAdmin(private val token: String) {
                 "Existing key is not managed by this application"
             }
         }
+    }
+
+    suspend fun deviceAccesses(devices: List<CloudDeviceDraft>): Map<String, Boolean> = withContext(Dispatchers.IO) {
+        requireRegistryStorage()
+        val keys = readDeployKeys()
+        devices.associate { it.fingerprint to (findDeviceKey(it, keys) != null) }
     }
 
     suspend fun deviceAccess(device: CloudDeviceDraft): Boolean = withContext(Dispatchers.IO) {
