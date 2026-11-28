@@ -1193,11 +1193,9 @@ private fun ItemRowContent(
         ) {
             Text(row.item.name, color = if (finished) p.textSecondary else p.text,
                 fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
-                textDecoration = if (finished) TextDecoration.LineThrough else null,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                textDecoration = if (finished) TextDecoration.LineThrough else null)
             subtitle?.let {
-                Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 15.sp,
-                    maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
         if (finished) {
