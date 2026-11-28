@@ -251,7 +251,7 @@ internal fun FreshCutToolbarAction(icon: Int, label: String, onClick: () -> Unit
         .background(if (primary && enabled) p.actionFill else p.field)
         .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center) {
-        Icon(painterResource(icon), label, Modifier.size(23.dp),
+        Icon(painterResource(icon), label, Modifier.size(24.dp),
             tint = if (!enabled) p.textSecondary else if (primary) p.actionInk else p.text)
     }
 }
