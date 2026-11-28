@@ -5,7 +5,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -928,7 +927,7 @@ private fun ToggleIcon(drawable: Int, tint: Color) {
 }
 
 /** Какую долю ширины строки нужно протянуть влево, чтобы удаление сработало. Быстрого «щелчка» недостаточно. */
-private const val SWIPE_REMOVE_FRACTION = 0.55f
+
 
 @Composable
 private fun ItemRow(
@@ -956,8 +955,8 @@ private fun ItemRow(
 
 /**
  * Удаление свайпом влево. Чтобы не было случайных срабатываний:
- * - строка идёт за пальцем только влево и только при явном горизонтальном движении;
- * - удаляется, только если строку протянули дальше [SWIPE_REMOVE_FRACTION] ширины и отпустили;
+ * - строка идёт за пальцем в обе стороны только при явном горизонтальном движении;
+ * - удаление или покупка выполняются, только если строку протянули дальше [SWIPE_REMOVE_FRACTION] ширины и отпустили;
  *   скорость жеста не учитывается, поэтому лёгкий «флик» ничего не удаляет;
  * - красный фон с надписью растёт по мере движения, а на пороге надпись меняется на «Отпустите»
  *   и телефон коротко вибрирует.
@@ -1038,14 +1037,7 @@ private fun SwipeToRemove(
                         },
                         onDragEnd = {
                             if (accepted) {
-                                val threshold = size.width * SWIPE_REMOVE_FRACTION
-                                val commit = when {
-                                    size.width <= 0 -> 0
-                                    offset.floatValue <= -threshold -> -1
-                                    offset.floatValue >= threshold -> 1
-                                    else -> 0
-                                }
-                                settle(commit)
+                                settle(resolveSwipeCommit(offset.floatValue, size.width))
                             }
                             accepted = false
                         },
