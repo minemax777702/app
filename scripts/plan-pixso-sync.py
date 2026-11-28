@@ -17,14 +17,31 @@ def main():
     a = p.parse_args()
     registry = json.loads(a.registry.read_text(encoding="utf-8"))
     manifest = json.loads((a.handoff / "manifest.json").read_text(encoding="utf-8"))
-    if registry.get("schema") != 1:
+    if registry.get("schema") not in (1, 2):
         raise ValueError("Unsupported Pixso registry schema")
     known = {s["key"]: s for s in registry["screens"]}
     if len(known) != len(registry["screens"]):
         raise ValueError("Duplicate screen key")
-    frame_ids = [s["frame_id"] for s in known.values() if s.get("frame_id")]
-    if len(frame_ids) != len(set(frame_ids)):
-        raise ValueError("Duplicate Pixso frame ID")
+    schema = registry["schema"]
+    targets = {}
+    if schema == 1:
+        frame_ids = [s["frame_id"] for s in known.values() if s.get("frame_id")]
+        if len(frame_ids) != len(set(frame_ids)):
+            raise ValueError("Duplicate Pixso frame ID")
+    else:
+        targets = {t["key"]: t for t in registry["targets"]}
+        if len(targets) != len(registry["targets"]):
+            raise ValueError("Duplicate canonical target key")
+        frame_ids = [t["frame_id"] for t in targets.values() if t.get("frame_id")]
+        if len(frame_ids) != len(set(frame_ids)):
+            raise ValueError("Duplicate canonical frame ID")
+        modes = registry["theme_collection"]["modes"]
+        for key, s in known.items():
+            target = targets.get(s.get("target_key"))
+            if not target or s.get("frame_id") != target.get("frame_id"):
+                raise ValueError("Invalid canonical target: " + key)
+            if s.get("theme_mode") != modes.get(s["theme"]):
+                raise ValueError("Invalid theme mode: " + key)
     captured = {}
     for record in manifest["screens"]:
         key = record["theme"] + "/" + record["screen"]
@@ -39,6 +56,15 @@ def main():
         row = {"key": key, "frame_id": s.get("frame_id") if s else None,
                "page": s.get("page") if s else None,
                "section": s.get("section") if s else None}
+        if schema == 2:
+            screen = s["screen"] if s else key.split("/", 1)[1]
+            theme = s["theme"] if s else key.split("/", 1)[0]
+            target_key = s["target_key"] if s else screen
+            target = targets.get(target_key)
+            row.update(target_key=target_key,
+                       frame_id=target.get("frame_id") if target else row["frame_id"],
+                       theme_mode=registry["theme_collection"]["modes"].get(theme),
+                       variant_overrides=s.get("variant_overrides", {}) if s else {})
         if not r or r.get("status") != "captured":
             row["action"] = "preserve_missing_capture"
             items.append(row)
@@ -84,6 +110,20 @@ def main():
               "commit": manifest["commit"], "version": manifest["version"],
               "coverage_complete": manifest.get("coverage_complete", False),
               "counts": counts, "screens": items}
+    if schema == 2:
+        # One edit target, multiple capture references. Do not create a frame per theme.
+        grouped = {}
+        for row in items:
+            target = grouped.setdefault(row["target_key"], {
+                "target_key": row["target_key"], "frame_id": row["frame_id"],
+                "captures": [], "requires_review": False,
+            })
+            target["captures"].append(row["key"])
+            if row["action"] not in ("unchanged", "preserve_missing_capture"):
+                target["requires_review"] = True
+        result["schema"] = 2
+        result["targets"] = list(grouped.values())
+        result["theme_collection"] = registry["theme_collection"]
     (a.output / "plan.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     shutil.copyfile(a.handoff / "manifest.json", a.output / "manifest.json")
     print(json.dumps(counts, ensure_ascii=False))
