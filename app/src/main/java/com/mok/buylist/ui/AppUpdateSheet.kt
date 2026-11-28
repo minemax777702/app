@@ -70,6 +70,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     var downloadJob by remember { mutableStateOf<Job?>(null) }
     var downloadCancelled by remember { mutableStateOf(false) }
     var historyJob by remember { mutableStateOf<Job?>(null) }
+    var historyGeneration by remember { mutableIntStateOf(0) }
     var installing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(DownloadProgress(0L, 0L)) }
     var lastProgressAt by remember { mutableLongStateOf(0L) }
@@ -96,11 +97,12 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
         historyError = null
         val target = channel
         val page = historyPage
+        val generation = historyGeneration
         historyJob = scope.launch {
             try {
                 val result = withTimeoutOrNull(60_000L) { AppUpdater.releaseNotes(target, page) }
                     ?: error("Время ожидания истекло")
-                if (channel == target) {
+                if (channel == target && historyGeneration == generation) {
                     history = (history + result.entries).distinctBy { it.version.code }.sortedByDescending { it.version.code }
                     if (target.name == "BETA") history = history.take(10)
                     historyMore = result.hasMore && (target.name != "BETA" || history.size < 10)
@@ -109,9 +111,9 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                if (channel == target) historyError = "Не удалось загрузить историю версий."
+                if (channel == target && historyGeneration == generation) historyError = "Не удалось загрузить историю версий."
             } finally {
-                if (channel == target) historyLoading = false
+                if (channel == target && historyGeneration == generation) historyLoading = false
             }
         }
     }
@@ -262,6 +264,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 }
                 FreshCutSegments(UpdateChannel.entries.map { it.label }, channel.ordinal, { index ->
                     if (!busy && channel.ordinal != index) {
+                        historyGeneration++
                         historyJob?.cancel()
                         historyOpen = false
                         channel = UpdateChannel.entries[index]
@@ -280,7 +283,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                                 checking -> "Проверка…"
                                 ready != null -> "Готово к установке"
                                 downloadCancelled -> "Загрузка отменена"
-                                error != null -> if (update != null) "Не удалось загрузить обновление" else "Проверка не удалась"
+                                error != null -> if (update != null) "Не удалось обновить приложение" else "Проверка не удалась"
                                 update != null -> "Доступно обновление"
                                 release == null -> "Не удалось получить сведения"
                                 release!!.version.code < installed.code -> "Версия новее канала"
@@ -327,6 +330,8 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                             if (downloadCancelled) "Отмена…" else "Отменить загрузку",
                             { downloadCancelled = true; downloadJob?.cancel() }, enabled = !downloadCancelled)
                     } else if (checking || installing) UpdateProgressBar(null)
+                    if (downloadCancelled && !downloading) Text("Обновление можно скачать повторно.",
+                        color = p.textSecondary, fontSize = 14.sp)
                     error?.let { UpdateInlineNotice(it, warning = true) }
                     if (!busy && error != null && update == null && ready == null)
                         FreshCutSecondaryButton("Повторить проверку", { checking = true; attempt++ })
