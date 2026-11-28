@@ -82,16 +82,14 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
     val scrollCallback by rememberUpdatedState(onUserScroll)
     val scope = rememberCoroutineScope()
     val controller = remember(catalog, scope) { LentaSearchController(catalog::search, scope, catalog::barcodeAliases) }
-    val state by controller.state.collectAsStateWithLifecycle()
+    val observedState by controller.state.collectAsStateWithLifecycle()
+    val state = if (observedState.requestQuery == trimmed && observedState.requestAddress == address) observedState
+        else LentaSearchState(pending = trimmed.length >= 2 && address.isNotBlank())
     var sort by rememberSaveable { mutableStateOf(ProductSort.DEFAULT) }
     val resultRows = remember(state.local, state.online, address, sort, customResults) {
         sortProductRows(customResults + (state.local + state.online).distinctBy { it.id }.map {
             ProductSearchRow.lenta(it, searchCatalogPrice(it, address))
         }, sort)
-    }
-    val activity = androidx.activity.compose.LocalActivity.current as? MainActivity
-    LaunchedEffect(state.failed) {
-        if (state.failed) activity?.notifyUser("Не удалось выполнить поиск в Ленте")
     }
     LaunchedEffect(trimmed, address, saved, barcodeRows, onlineOnly, ready) {
         if (ready) controller.update(trimmed, address, saved, onlineOnly, fullSearch = sort != ProductSort.DEFAULT)
@@ -100,6 +98,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
         if (ready) controller.setFullSearch(sort != ProductSort.DEFAULT)
     }
     val fullSort = sort != ProductSort.DEFAULT && address.isNotBlank() && trimmed.length >= 2
+    val searching = state.pending || state.loading || (!ready && trimmed.length >= 2)
     Column(modifier.fillMaxWidth().padding(top = 4.dp)) {
         if (trimmed.length >= 2 || hasOtherResults || footer != null) {
             if (trimmed.length >= 2) ProductSortMenu(sort, { selected ->
@@ -107,7 +106,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 controller.setFullSearch(selected != ProductSort.DEFAULT)
                 scrollCallback()
             })
-            if (fullSort && state.loading) {
+            if (fullSort && searching) {
                 Column(
                     Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -115,10 +114,11 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                     Text("Загружаем все результаты · страниц: ${state.pagesLoaded}",
                         color = p.textSecondary, fontSize = 12.sp)
                     LinearProgressIndicator(Modifier.fillMaxWidth(), color = p.accent)
+                    FreshCutSecondaryButton("Остановить поиск", controller::stop, enabled = state.pending || state.loading)
                 }
             }
             val emptyResult = trimmed.length >= 2 && !hasOtherResults &&
-                resultRows.isEmpty() && state.complete && !state.loading && !state.failed
+                resultRows.isEmpty() && state.complete && !searching && !state.failed
             if (emptyResult) {
                 FreshCutEmptyState(
                     icon = R.drawable.ic_search,
@@ -147,34 +147,43 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 },
                 state = listState, overscrollEffect = null, verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (address.isBlank() && trimmed.length >= 2) item { FreshCutSecondaryButton("Указать адрес магазина", onSettings) }
-                if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
+                if (address.isBlank() && trimmed.length >= 2 && ready) item(key = "search-address") {
+                    FreshCutStatusCard("Магазин не выбран", "Для поиска в Ленте укажите адрес магазина.", "Указать адрес", onSettings)
+                }
+                if (state.failed && !searching) item(key = "search-error") {
+                    FreshCutStatusCard("Не удалось загрузить товары",
+                        if (resultRows.isNotEmpty()) "Найденные товары сохранены. Проверьте подключение и повторите поиск."
+                        else "Проверьте подключение к интернету и повторите поиск.",
+                        "Повторить", controller::searchOnline, warning = true)
+                }
                 leadingResults()
                 // In ranked mode avoid jumping rows and showing a provisional winner.
-                if (!fullSort || !state.loading) items(resultRows, key = { it.key }) { row ->
+                if (!fullSort || !searching) items(resultRows, key = { it.key }) { row ->
                     val product = row.lenta
                     if (product != null) LentaResult(product, row, onClick = { onAdd(product) })
                     else customContent(row)
                 }
-                if (!fullSort && !onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
+                if (!fullSort && !onlineOnly && state.local.isNotEmpty() && !state.started && !searching && !state.paused && address.isNotBlank()) {
                     item { FreshCutSecondaryButton("Найти в Ленте", { controller.searchOnline() }) }
                 }
-                if (fullSort && !state.loading && !state.complete) item {
+                if (fullSort && !searching && !state.complete && !state.failed && (state.stalled || state.paused)) item {
                     Text(if (state.stalled) "Лента возвращает повторяющиеся страницы. Результат неполный."
-                        else if (state.failed) "Не все страницы загружены. Результат неполный."
-                        else "Ожидаем загрузку всех страниц.",
+                        else "Поиск приостановлен. Результат неполный.",
                         color = p.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
                 }
-                if (state.loading && !fullSort) item {
+                if (searching && !fullSort) item(key = "search-loading") {
                     val loadingSize = Modifier.height(56.dp)
                     Box(Modifier.fillMaxWidth().then(loadingSize),
                         contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = p.textSecondary)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = p.textSecondary)
+                            Text(if (ready) "Ищем товары…" else "Загружаем каталог…", color = p.textSecondary, fontSize = 13.sp)
+                        }
                     }
                 }
-                if ((state.hasMore || state.failed) && !state.loading) {
+                if (state.hasMore && !state.failed && !searching) {
                     item { FreshCutSecondaryButton(
-                        if (state.failed) "Повторить" else if (fullSort) "Продолжить загрузку" else "Показать ещё",
+                        if (state.paused || fullSort) "Продолжить поиск" else "Показать ещё",
                         { controller.searchOnline() },
                     ) }
                 }
