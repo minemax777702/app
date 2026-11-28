@@ -45,6 +45,8 @@ import com.mok.buylist.update.UpdateChannel
 import com.mok.buylist.update.UpdateNotifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 @Composable
@@ -65,6 +67,9 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
     var release by remember { mutableStateOf<AppRelease?>(null) }
     var checking by remember { mutableStateOf(true) }
     var downloading by remember { mutableStateOf(false) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
+    var downloadCancelled by remember { mutableStateOf(false) }
+    var historyJob by remember { mutableStateOf<Job?>(null) }
     var installing by remember { mutableStateOf(false) }
     var progress by remember { mutableStateOf(DownloadProgress(0L, 0L)) }
     var lastProgressAt by remember { mutableLongStateOf(0L) }
@@ -91,9 +96,10 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
         historyError = null
         val target = channel
         val page = historyPage
-        scope.launch {
+        historyJob = scope.launch {
             try {
-                val result = AppUpdater.releaseNotes(target, page)
+                val result = withTimeoutOrNull(60_000L) { AppUpdater.releaseNotes(target, page) }
+                    ?: error("Время ожидания истекло")
                 if (channel == target) {
                     history = (history + result.entries).distinctBy { it.version.code }.sortedByDescending { it.version.code }
                     if (target.name == "BETA") history = history.take(10)
@@ -178,8 +184,10 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
         release = null
         ready = null
         error = null
+        downloadCancelled = false
         try {
-            val latest = AppUpdater.latest(channel)
+            val latest = withTimeoutOrNull(60_000L) { AppUpdater.latest(channel) }
+                ?: error("Время ожидания истекло")
             ready = AppUpdater.cachedUpdate(context, latest)
             release = latest
             UpdateNotifications.confirmPosted(context, UpdateNotifications.report(context, channel, latest))
@@ -202,11 +210,12 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
             requestInstall(file)
         } else if (update != null) {
             downloading = true
+            downloadCancelled = false
             error = null
             progress = DownloadProgress(0L, update.size)
             lastProgressAt = android.os.SystemClock.elapsedRealtime()
             clock = lastProgressAt
-            scope.launch {
+            downloadJob = scope.launch {
                 try {
                     val apk = AppUpdater.download(context, update) {
                         progress = it
@@ -253,6 +262,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 }
                 FreshCutSegments(UpdateChannel.entries.map { it.label }, channel.ordinal, { index ->
                     if (!busy && channel.ordinal != index) {
+                        historyJob?.cancel()
                         historyOpen = false
                         channel = UpdateChannel.entries[index]
                         AppUpdater.selectChannel(context, channel)
@@ -269,9 +279,10 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                                 installing -> "Подготовка установки…"
                                 checking -> "Проверка…"
                                 ready != null -> "Готово к установке"
+                                downloadCancelled -> "Загрузка отменена"
+                                error != null -> if (update != null) "Не удалось загрузить обновление" else "Проверка не удалась"
                                 update != null -> "Доступно обновление"
-                                error != null -> "Проверка не удалась"
-                                release == null -> "Нет обновлений"
+                                release == null -> "Не удалось получить сведения"
                                 release!!.version.code < installed.code -> "Версия новее канала"
                                 else -> "Актуальная версия"
                             }
@@ -312,8 +323,13 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                             stalled -> "Ожидаем данные…"
                             else -> downloadEta(progress.secondsRemaining)
                         }, color = p.textSecondary, fontSize = 12.sp)
+                        if (!progress.verifying) FreshCutSecondaryButton(
+                            if (downloadCancelled) "Отмена…" else "Отменить загрузку",
+                            { downloadCancelled = true; downloadJob?.cancel() }, enabled = !downloadCancelled)
                     } else if (checking || installing) UpdateProgressBar(null)
                     error?.let { UpdateInlineNotice(it, warning = true) }
+                    if (!busy && error != null && update == null && ready == null)
+                        FreshCutSecondaryButton("Повторить проверку", { checking = true; attempt++ })
                 }
                 if (notificationsEnabled && !notificationsAllowed)
                     UpdateInlineNotice("Разрешите уведомления в настройках Android", warning = false)
