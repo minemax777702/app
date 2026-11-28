@@ -272,7 +272,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
 @Composable
 private fun ExpenseMetric(label: String, value: String, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    Column(modifier.heightIn(min = 86.dp).clip(RoundedCornerShape(16.dp)).background(p.card).padding(14.dp),
+    Column(modifier.heightIn(min = 86.dp).clip(RoundedCornerShape(UiMetrics.compactCardRadius)).background(p.card).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp, androidx.compose.ui.Alignment.CenterVertically)) {
         Text(value, color = p.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         Text(label, color = p.textSecondary, fontSize = 12.sp)
@@ -293,7 +293,7 @@ private fun MetricBar(label: String, value: String, fraction: Float) {
 
 @Composable
 private fun PanelCard(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(LocalPalette.current.card).padding(18.dp),
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.featureCardRadius)).background(LocalPalette.current.card).padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
 }
 
