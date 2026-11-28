@@ -35,6 +35,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -53,6 +54,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -86,6 +88,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -1110,7 +1113,6 @@ private fun ItemRowContent(
     val finished = state != RowState.ACTIVE
     val done by animateFloatAsState(if (finished) 1f else 0f, Motion.smooth(), label = "row-done")
     var actionsExpanded by remember(row.item.id) { mutableStateOf(false) }
-    val weight = row.item.weightGrams
     val buyLabel = stringResource(R.string.buy_action)
     val shown = product?.takeIf {
         address.isNotBlank() && it.address == address && it.channel == "locc" &&
@@ -1127,7 +1129,7 @@ private fun ItemRowContent(
             shopPrices.take(2).joinToString(" · ") { it.storeName }
         else -> if (!finished && shown == null) "Без цены" else null
     }
-    Row(
+    BoxWithConstraints(
         modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RowShape)
             .background(lerp(p.card, p.boughtBg, done))
             .semantics {
@@ -1146,10 +1148,16 @@ private fun ItemRowContent(
                 )
             }
             .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
+        val stacked = maxWidth < UiMetrics.shoppingInlineWidth || LocalDensity.current.fontScale >= 1.3f
+        val actions: @Composable () -> Unit = {
+            ShoppingRowActions(row, finished, actionsExpanded, { actionsExpanded = it },
+                onUndo, onQuantity, onWeight, onDetails, onRemove)
+        }
+        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.touchTarget),
+            verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically) {
         Box(
-            Modifier.size(40.dp, 48.dp)
+            Modifier.size(UiMetrics.touchTarget)
                 .clickable(enabled = !finished, role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
             contentAlignment = Alignment.Center,
         ) {
@@ -1164,8 +1172,9 @@ private fun ItemRowContent(
                 if (state == RowState.REMOVED) Text("−", color = p.actionInk, fontSize = 16.sp)
             }
         }
+        Column(Modifier.weight(1f).padding(start = 4.dp, end = 6.dp)) {
         Column(
-            Modifier.weight(1f).padding(start = 4.dp, end = 6.dp)
+            Modifier.fillMaxWidth()
                 .pointerInput(row.item) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -1198,47 +1207,70 @@ private fun ItemRowContent(
                 Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 16.sp)
             }
         }
-        if (finished) {
-            androidx.compose.material3.TextButton(onClick = onUndo) {
-                Text(stringResource(R.string.undo), color = p.accent, fontSize = 13.sp)
+            if (stacked) {
+                Spacer(Modifier.height(UiMetrics.gap))
+                Box(Modifier.align(Alignment.End)) { actions() }
             }
-        } else {
-            Row(
-                Modifier.clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.field),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                if (weight == null) {
-                    FreshCutQuantityButton("−", "Уменьшить количество", row.item.quantity > 1) {
-                        onQuantity(row.item.quantity - 1)
-                    }
+        }
+        if (!stacked) actions()
+        }
+    }
+}
+
+@Composable
+private fun ShoppingRowActions(
+    row: ListRow,
+    finished: Boolean,
+    actionsExpanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onUndo: () -> Unit,
+    onQuantity: (Int) -> Unit,
+    onWeight: () -> Unit,
+    onDetails: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val p = LocalPalette.current
+    val weight = row.item.weightGrams
+    if (finished) {
+        androidx.compose.material3.TextButton(onClick = onUndo) {
+            Text(stringResource(R.string.undo), color = p.accent, fontSize = 13.sp)
+        }
+    } else {
+        Row(
+            Modifier.clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.field),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (weight == null) {
+                FreshCutQuantityButton("−", "Уменьшить количество", row.item.quantity > 1) {
+                    onQuantity(row.item.quantity - 1)
                 }
-                Box {
-                    val amount = weight?.let {
-                        formatUiWeight(it.toLong())
-                    } ?: row.item.quantity.toString()
-                    Box(
-                        Modifier.height(48.dp).clickable(role = Role.Button) { actionsExpanded = true }
-                            .semantics { contentDescription = "Количество: $amount. Действия с товаром" }
-                            .padding(horizontal = 6.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(amount, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    AppDropdownMenu(
-                        expanded = actionsExpanded, onDismissRequest = { actionsExpanded = false },
-                    ) {
-                        AppDropdownMenuItem(text = { Text("Изменить вес") },
-                            onClick = { actionsExpanded = false; onWeight() })
-                        AppDropdownMenuItem(text = { Text("Информация о товаре") },
-                            onClick = { actionsExpanded = false; onDetails() })
-                        AppDropdownMenuItem(text = { Text("Удалить") },
-                            onClick = { actionsExpanded = false; onRemove() })
-                    }
+            }
+            Box {
+                val amount = weight?.let {
+                    formatUiWeight(it.toLong())
+                } ?: row.item.quantity.toString()
+                Box(
+                    Modifier.widthIn(min = UiMetrics.touchTarget).heightIn(min = UiMetrics.touchTarget).clickable(role = Role.Button) { onExpandedChange(true) }
+                        .semantics { contentDescription = "Количество: $amount. Действия с товаром" }
+                        .padding(horizontal = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(amount, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
-                if (weight == null) {
-                    FreshCutQuantityButton("+", "Увеличить количество", row.item.quantity < 999) {
-                        onQuantity(row.item.quantity + 1)
-                    }
+                AppDropdownMenu(
+                    expanded = actionsExpanded, onDismissRequest = { onExpandedChange(false) },
+                ) {
+                    AppDropdownMenuItem(text = { Text("Изменить вес") },
+                        onClick = { onExpandedChange(false); onWeight() })
+                    AppDropdownMenuItem(text = { Text("Информация о товаре") },
+                        onClick = { onExpandedChange(false); onDetails() })
+                    AppDropdownMenuItem(text = { Text("Удалить") },
+                        onClick = { onExpandedChange(false); onRemove() })
+                }
+            }
+            if (weight == null) {
+                FreshCutQuantityButton("+", "Увеличить количество", row.item.quantity < 999) {
+                    onQuantity(row.item.quantity + 1)
                 }
             }
         }
@@ -1249,7 +1281,7 @@ private fun ItemRowContent(
 private fun FreshCutQuantityButton(symbol: String, label: String, enabled: Boolean, onClick: () -> Unit) {
     val p = LocalPalette.current
     Box(
-        Modifier.size(40.dp, 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        Modifier.size(UiMetrics.touchTarget).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
