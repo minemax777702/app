@@ -237,7 +237,7 @@ internal fun FreshCutListRow(
 internal fun FreshCutSecondaryButton(title: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val p = LocalPalette.current
     Box(modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
-        .background(if (enabled) p.card else p.field).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
+        .background(if (enabled) p.card else p.field).border(1.dp, if (enabled) p.controlOutline else p.line, RoundedCornerShape(UiMetrics.controlRadius))
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
         Text(title, color = if (enabled) p.text else p.textSecondary, style = UiTextStyles.action, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
