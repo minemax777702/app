@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 import com.mok.buylist.ui.theme.LocalPalette
+import com.mok.buylist.ui.theme.UiTextStyles
 
 /** Общие размеры элементов интерфейса, не зависящие от темы. */
 internal object UiMetrics {
@@ -168,7 +169,7 @@ internal fun FreshCutRootHeader(
 
 @Composable
 internal fun FreshCutSectionTitle(title: String, modifier: Modifier = Modifier) {
-    Text(title, modifier, color = LocalPalette.current.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+    Text(title, modifier, color = LocalPalette.current.text, style = UiTextStyles.sectionTitle)
 }
 
 @Composable
@@ -212,12 +213,12 @@ internal fun FreshCutListRow(
                 if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 12.sp)
-                if (stackValue && value != null) Text(value, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(title, color = p.text, style = UiTextStyles.rowTitle)
+                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, style = UiTextStyles.rowSubtitle)
+                if (stackValue && value != null) Text(value, color = p.text, style = UiTextStyles.rowValue)
             }
             if (!stackValue && value != null) Text(value, Modifier.widthIn(max = 112.dp), color = p.text,
-                fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                style = UiTextStyles.rowValue, textAlign = androidx.compose.ui.text.style.TextAlign.End)
             if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
             else if (showChevron && value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
         }
@@ -230,7 +231,7 @@ internal fun FreshCutSecondaryButton(title: String, onClick: () -> Unit, modifie
     Box(modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
         .background(if (enabled) p.card else p.field).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
-        Text(title, color = if (enabled) p.text else p.textSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(title, color = if (enabled) p.text else p.textSecondary, style = UiTextStyles.action, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
@@ -282,7 +283,7 @@ internal fun FilterSelect(label: String, value: String, options: List<String>, o
     val p = LocalPalette.current
     var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
-        Text(label, color = p.textSecondary, fontSize = 12.sp)
+        Text(label, color = p.textSecondary, style = UiTextStyles.fieldLabel)
         Box(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
                 .background(p.card).border(1.dp,p.textSecondary,RoundedCornerShape(UiMetrics.controlRadius))
