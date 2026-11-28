@@ -30,6 +30,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -85,13 +87,12 @@ internal fun StoresScreen(
     }
     val identities = remember(lenta, custom, lentaCodes, customCodes) { com.mok.buylist.data.sharedCatalogIdentities(lenta, custom, lentaCodes, customCodes) }
     var openedStore by rememberSaveable { mutableStateOf<String?>(null) }
-    var productQuery by remember(openedStore) { mutableStateOf("") }
-    var shown by remember(openedStore, productQuery.trim()) { mutableIntStateOf(8) }
+    var productQuery by rememberSaveable(openedStore) { mutableStateOf("") }
+    var shown by rememberSaveable(openedStore, productQuery.trim()) { mutableIntStateOf(8) }
     val storesListState = rememberLazyListState()
     val productListState = rememberLazyListState()
-    LaunchedEffect(openedStore, productQuery.trim()) {
-        productListState.scrollToItem(0)
-    }
+    val scope = rememberCoroutineScope()
+    fun resetProductScroll() { scope.launch { productListState.scrollToItem(0) } }
     var editing by remember { mutableStateOf<ShoppingStore?>(null) }
     var creating by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ShoppingStore?>(null) }
@@ -139,7 +140,7 @@ internal fun StoresScreen(
                     val productCount = currentProducts[shop.id].orEmpty().size
                     var menu by remember { mutableStateOf(false) }
                     FreshCutListRow(R.drawable.ic_store, shop.name, productCountLabel(productCount),
-                        onClick = { openedStore = shop.id }, trailing = {
+                        onClick = { openedStore = shop.id; productQuery = ""; shown = 8; resetProductScroll() }, trailing = {
                             if (shop.id != lentaStoreId()) androidx.compose.foundation.layout.Box {
                                 IconButton(onClick = { menu = true }) {
                                     Icon(painterResource(R.drawable.ic_more), "Действия с магазином", tint = p.textSecondary)
@@ -182,7 +183,10 @@ internal fun StoresScreen(
             val visibleEntries = remember(entries, productQuery) {
                 entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
             }
-            ProductSearch(productQuery, { productQuery = it }, Modifier.padding(horizontal = 20.dp))
+            ProductSearch(productQuery, {
+                if (productQuery.trim() != it.trim()) { shown = 8; resetProductScroll() }
+                productQuery = it
+            }, Modifier.padding(horizontal = 20.dp))
             FreshCutSectionTitle("Товары", Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
             if (visibleEntries.isEmpty()) {
                 FreshCutEmptyState(
@@ -259,7 +263,8 @@ internal fun StoresScreen(
         }
         val amount = if (linkPrice.isBlank()) null else parsePriceKopecks(linkPrice)
         AppSheet(
-            onDismissRequest = { if (!saving) { if (chosen != null) chosenProductKey = null else choosingProduct = false } },
+            onDismissRequest = { choosingProduct = false },
+            required = saving,
             containerColor = p.sheet,
             title = { SheetHeader(if (chosen == null) "Товар магазина" else "Цена в магазине") },
             text = {
