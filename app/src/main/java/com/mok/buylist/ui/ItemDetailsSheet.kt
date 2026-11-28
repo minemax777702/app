@@ -101,7 +101,7 @@ internal fun ItemDetailsSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             SheetHeader("Информация о товаре")
-            Column(Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp)).padding(14.dp),
+            Column(Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(UiMetrics.cardRadius)).padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (own != null) CustomProductImage(own.id, Modifier.size(64.dp))
@@ -130,7 +130,7 @@ internal fun ItemDetailsSheet(
                 Text("Магазины и цены", color = p.text,
                     fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Column(
-                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(20.dp))
+                    Modifier.fillMaxWidth().background(p.card, RoundedCornerShape(UiMetrics.cardRadius))
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                 ) {
                     shopPrices.forEach { shop ->
