@@ -819,14 +819,15 @@
       "theme": "light",
       "page": "flows",
       "section": "04 · Настройки",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "23:4537",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2542",
       "position": {
         "x": 32,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/theme",
@@ -834,14 +835,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "04 · Настройки",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "23:4653",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2542",
       "position": {
         "x": 482,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/backup",
@@ -849,14 +851,15 @@
       "theme": "light",
       "page": "flows",
       "section": "04 · Настройки",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "23:4769",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2542",
       "position": {
         "x": 967,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/backup",
@@ -864,14 +867,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "04 · Настройки",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "23:4879",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2542",
       "position": {
         "x": 1417,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/updates",
@@ -879,14 +883,15 @@
       "theme": "light",
       "page": "flows",
       "section": "04 · Настройки",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "23:4989",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2542",
       "position": {
         "x": 1902,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/updates",
@@ -894,14 +899,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "04 · Настройки",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "23:5119",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2542",
       "position": {
         "x": 2352,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/security",
@@ -1128,7 +1134,7 @@
       "capture_version": "beta-ui-157"
     }
   ],
-  "structure_status": "sections_verified_index_page_exists_content_pending",
+  "structure_status": "all_70_frames_present_index_content_pending",
   "section_count": 11,
   "icon_library": {
     "section_id": "9:2515",
@@ -1140,5 +1146,16 @@
     "commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
     "run_id": 46127272057,
     "artifact_id": 15256786979
+  },
+  "inventory_check": {
+    "frames": 70,
+    "unique_keys": 70,
+    "archive_frames": 74,
+    "raster_fills": 0,
+    "dimensions_dp": {
+      "width": 411.42857142857144,
+      "height": 914.2857142857143
+    },
+    "visual_parity_verified": false
   }
 }
