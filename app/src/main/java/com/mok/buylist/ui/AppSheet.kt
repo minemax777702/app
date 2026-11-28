@@ -12,6 +12,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
@@ -41,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 import com.mok.buylist.ui.theme.LocalPalette
 import com.mok.buylist.ui.theme.UiTextStyles
+import kotlinx.coroutines.launch
 
 private val LocalSecondaryAction = staticCompositionLocalOf { false }
 internal val LocalSheetClose = staticCompositionLocalOf<(() -> Unit)?> { null }
@@ -124,8 +127,9 @@ internal fun AppSheet(
     showSecondaryAction: Boolean = false,
     minBodyHeight: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
+    val requiredNow by rememberUpdatedState(required)
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = {
-        !required || it != SheetValue.Hidden
+        !requiredNow || it != SheetValue.Hidden
     })
     AppModalSheet(
         onDismissRequest = { if (!required) onDismissRequest() },
@@ -147,7 +151,7 @@ internal fun AppSheet(
                             lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)) { title() }
                     }
                 }
-                if (!required) SheetCloseButton(onDismissRequest)
+                if (!required) SheetCloseButton(LocalSheetClose.current ?: onDismissRequest)
             }
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
                 text()
@@ -174,18 +178,47 @@ internal fun AppModalSheet(
     sheetGesturesEnabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val scope = rememberCoroutineScope()
+    val dismiss by rememberUpdatedState(onDismissRequest)
+    var closing by remember(sheetState) { mutableStateOf(false) }
+    var delivered by remember(sheetState) { mutableStateOf(false) }
+    fun finishDismiss() {
+        if (!delivered) {
+            delivered = true
+            dismiss()
+        }
+    }
+    val requestClose: () -> Unit = {
+        if (!closing && !delivered) {
+            closing = true
+            scope.launch {
+                try {
+                    sheetState.hide()
+                    if (sheetState.currentValue == SheetValue.Hidden) finishDismiss()
+                } finally {
+                    closing = false
+                }
+            }
+        }
+    }
     ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
+        onDismissRequest = {
+            // Material already animates Back/scrim/swipe; do not run a second hide.
+            if (sheetState.currentValue == SheetValue.Hidden) finishDismiss()
+            else requestClose()
+        },
         sheetState = sheetState,
         containerColor = containerColor,
         contentColor = contentColor,
         shape = RoundedCornerShape(topStart = UiMetrics.sheetRadius, topEnd = UiMetrics.sheetRadius),
-        dragHandle = dragHandle,
-        sheetGesturesEnabled = sheetGesturesEnabled,
+        dragHandle = dragHandle?.let { handle ->
+            { CompositionLocalProvider(LocalSheetClose provides requestClose) { handle() } }
+        },
+        sheetGesturesEnabled = sheetGesturesEnabled && !closing,
         scrimColor = Color.Black.copy(alpha = 0.40f),
         content = {
             val scope = this
-            CompositionLocalProvider(LocalSheetClose provides onDismissRequest) {
+            CompositionLocalProvider(LocalSheetClose provides requestClose) {
                 NoticeInSheet()
                 scope.content()
             }
@@ -214,7 +247,7 @@ internal fun SheetFixedValue(label: String, value: String) {
 @Composable
 internal fun SearchSheetDragHandle(onDismiss: () -> Unit) {
     val p = LocalPalette.current
-    val close = androidx.compose.runtime.rememberUpdatedState(onDismiss)
+    val close = rememberUpdatedState(LocalSheetClose.current ?: onDismiss)
     Box(
         Modifier.fillMaxWidth().height(24.dp)
             .pointerInput(Unit) {
