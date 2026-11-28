@@ -972,81 +972,100 @@ private fun SwipeToRemove(
     content: @Composable () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val offset = remember { Animatable(0f) }
-    val appear = remember { Animatable(1f) }
-    // Строку удалили свайпом: она уехала за край, а на её месте проявляется «Удалено».
-    LaunchedEffect(enabled) {
-        if (!enabled && offset.value != 0f) {
-            appear.snapTo(0f)
-            offset.snapTo(0f)
-            appear.animateTo(1f, Motion.smooth())
-        }
-    }
-    val swiping by remember { derivedStateOf { offset.value != 0f } }
+    val offset = remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var settling by remember { mutableStateOf(false) }
+    var settleJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    val swiping by remember { derivedStateOf { offset.floatValue != 0f } }
     val buyAction = androidx.compose.runtime.rememberUpdatedState(onBuy)
     val removeAction = androidx.compose.runtime.rememberUpdatedState(onRemove)
     val removeLabel = stringResource(R.string.swipe_delete)
 
+    LaunchedEffect(enabled) {
+        if (!enabled) {
+            settleJob?.cancel()
+            offset.floatValue = 0f
+            settling = false
+        }
+    }
+
     Box(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .then(
-                if (enabled) {
-                    Modifier.semantics { customActions = listOf(CustomAccessibilityAction(removeLabel) { onRemove(); true }, CustomAccessibilityAction("Отметить покупку") { onBuy(); true }) }
-                } else {
-                    Modifier
-                },
-            ),
+        modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RowShape)
+            .then(if (enabled) Modifier.semantics {
+                customActions = listOf(
+                    CustomAccessibilityAction(removeLabel) { if (!settling) { onRemove(); true } else false },
+                    CustomAccessibilityAction("Отметить покупку") { if (!settling) { onBuy(); true } else false },
+                )
+            } else Modifier),
     ) {
         if (enabled && swiping) SwipeBackground(offset, Modifier.matchParentSize())
         Box(
-            Modifier
-                .offset { IntOffset(offset.value.roundToInt(), 0) }
-                // Слой с прозрачностью нужен, только пока строка проявляется после удаления.
-                .then(
-                    if (appear.value < 1f) Modifier.graphicsLayer { alpha = appear.value } else Modifier,
-                )
+            Modifier.offset { IntOffset(offset.floatValue.roundToInt(), 0) }
                 .pointerInput(enabled) {
                     if (!enabled) return@pointerInput
-                    detectHorizontalDragGestures(
-                        onHorizontalDrag = { change, delta ->
-                            change.consume()
-                            scope.launch { offset.snapTo((offset.value + delta).coerceIn(-size.width.toFloat(), size.width.toFloat())) }
-                        },
-                        onDragEnd = {
-                            scope.launch {
-                                if (offset.value <= -size.width * SWIPE_REMOVE_FRACTION) {
-                                    // Строка уезжает за край и остаётся там, пока на её месте не появится «Удалено».
-                                    offset.animateTo(-size.width.toFloat(), tween(150))
-                                    removeAction.value()
-                                } else if (offset.value >= size.width * SWIPE_REMOVE_FRACTION) {
-                                    offset.snapTo(0f)
-                                    buyAction.value()
-                                } else {
-                                    offset.animateTo(0f, spring())
+                    var accepted = false
+                    fun settle(commit: Int) {
+                        settling = true
+                        settleJob?.cancel()
+                        settleJob = scope.launch {
+                            try {
+                                // Return to the original position even if purchase opens a form
+                                // or the operation is rejected. Never leave a row off screen.
+                                androidx.compose.animation.core.animate(
+                                    initialValue = offset.floatValue,
+                                    targetValue = 0f,
+                                    animationSpec = Motion.smooth(Motion.Quick),
+                                ) { value, _ -> offset.floatValue = value }
+                                when (commit) {
+                                    -1 -> removeAction.value()
+                                    1 -> buyAction.value()
                                 }
+                            } finally {
+                                settling = false
+                            }
+                        }
+                    }
+                    detectHorizontalDragGestures(
+                        onDragStart = { accepted = !settling },
+                        onHorizontalDrag = { change, delta ->
+                            if (accepted) {
+                                change.consume()
+                                offset.floatValue = (offset.floatValue + delta)
+                                    .coerceIn(-size.width.toFloat(), size.width.toFloat())
                             }
                         },
-                        onDragCancel = { scope.launch { offset.animateTo(0f, spring()) } },
+                        onDragEnd = {
+                            if (accepted) {
+                                val threshold = size.width * SWIPE_REMOVE_FRACTION
+                                val commit = when {
+                                    size.width <= 0 -> 0
+                                    offset.floatValue <= -threshold -> -1
+                                    offset.floatValue >= threshold -> 1
+                                    else -> 0
+                                }
+                                settle(commit)
+                            }
+                            accepted = false
+                        },
+                        onDragCancel = {
+                            if (accepted) settle(0)
+                            accepted = false
+                        },
                     )
                 },
-        ) {
-            content()
-        }
+        ) { content() }
     }
 }
 
 /** Красная подложка под сдвигаемой строкой: чем дальше протянули, тем она плотнее; на пороге — «Отпустите». */
 @Composable
-private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifier: Modifier = Modifier) {
+private fun SwipeBackground(offset: androidx.compose.runtime.FloatState, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
     var width by remember { mutableIntStateOf(0) }
     val threshold = width * SWIPE_REMOVE_FRACTION
     val progress = remember(threshold) {
-        derivedStateOf { if (threshold > 0f) (kotlin.math.abs(offset.value) / threshold).coerceIn(0f, 1f) else 0f }
+        derivedStateOf { if (threshold > 0f) (kotlin.math.abs(offset.floatValue) / threshold).coerceIn(0f, 1f) else 0f }
     }
-    val buying by remember { derivedStateOf { offset.value > 0f } }
+    val buying by remember { derivedStateOf { offset.floatValue > 0f } }
     val armed by remember(threshold) { derivedStateOf { progress.value >= 1f } }
     val haptics = LocalHapticFeedback.current
     LaunchedEffect(armed) {
@@ -1058,7 +1077,7 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
             .drawBehind {
                 drawRoundRect(
                     color = (if (buying) p.actionFill else p.danger).copy(alpha = 0.3f + 0.7f * progress.value),
-                    cornerRadius = CornerRadius(20.dp.toPx()),
+                    cornerRadius = CornerRadius(UiMetrics.compactCardRadius.toPx()),
                 )
             },
     ) {
