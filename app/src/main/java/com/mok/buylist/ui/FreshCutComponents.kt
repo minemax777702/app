@@ -281,7 +281,7 @@ internal fun FreshCutTabs(labels: List<String>, current: Int, onSelect: (Int) ->
 internal fun FilterSelect(label: String, value: String, options: List<String>, onSelect: (Int) -> Unit) {
     val p = LocalPalette.current
     var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
         Text(label, color = p.textSecondary, fontSize = 12.sp)
         Box(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
