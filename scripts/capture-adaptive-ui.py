@@ -134,6 +134,47 @@ def audit_populated_card(ui):
             removed = swipe_product(ui, .72) and wait_absent(ui, LONG_PRODUCT)
             check(ui, "long-swipe-remove", removed, "Deliberate left swipe removes only the test product")
 
+
+def audit_navigation(ui):
+    # Only fixture data. Do not save an address or mutate a real store.
+    ui.start()
+    ui.close_sheet()
+    if not ui.tap("Товары") or not wait_label(ui, "Найти в Ленте"):
+        check(ui, "catalog-direct-search", False, "Search action is visible without overflow menu")
+        return
+    opened = tap_enabled(ui, "Найти в Ленте") and wait_label(ui, "Добавить продукт")
+    check(ui, "catalog-direct-search", opened, "Search opens in one action")
+    if opened:
+        if ui.fill_field(0, "AuditFlow"):
+            if ime_visible(ui):
+                ui.back()
+            if wait_label(ui, "Указать адрес", attempts=3):
+                address_open = tap_enabled(ui, "Указать адрес") and wait_label(ui, "Магазин Ленты")
+                check(ui, "address-inline", address_open, "Address settings open over search")
+                if address_open:
+                    closed = ui.close_sheet() and wait_label(ui, "AuditFlow")
+                    check(ui, "address-return", closed, "Closing settings preserves query")
+        ui.close_sheet()
+    ui.start()
+    ui.close_sheet()
+    if not ui.tap("Товары") or not ui.tap("Магазины") or not ui.tap("Лента"):
+        check(ui, "store-direct-add", False, "Store detail is reachable")
+        return
+    opened = tap_enabled(ui, "Добавить товар") and wait_label(ui, "Товар магазина")
+    check(ui, "store-direct-add", opened, "Store picker opens from bottom action")
+    if not opened:
+        return
+    entered = ui.fill_field(0, "AuditStore")
+    if ime_visible(ui):
+        ui.back()
+    created = entered and tap_enabled(ui, "Создать свой товар") and wait_label(ui, "AuditStore")
+    check(ui, "store-create-prefill", created, "Create form retains search text")
+    if created:
+        returned = ui.close_sheet() and wait_label(ui, "Товар магазина") and wait_label(ui, "AuditStore")
+        check(ui, "store-create-cancel", returned, "Cancel returns to picker with search")
+    ui.close_sheet()
+
+
 def audit_case(ui, mode):
     ui.theme = mode
     ui.shell("cmd", "uimode", "night", "yes" if mode == "dark" else "no")
@@ -166,6 +207,7 @@ def audit_case(ui, mode):
         ui.start()
         ui.close_sheet()
         ui.route(name, (label,), expected)
+    audit_navigation(ui)
 
 
 def main():
