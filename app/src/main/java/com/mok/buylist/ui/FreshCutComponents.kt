@@ -33,6 +33,9 @@ import com.mok.buylist.ui.theme.UiTextStyles
 /** Общие размеры элементов интерфейса, не зависящие от темы. */
 internal object UiMetrics {
     val screenInset = 20.dp
+    val shoppingInlineWidth = 340.dp
+    val catalogInlineWidth = 340.dp
+    const val stackedFontScale = 1.3f
     val nestedRadius = 12.dp
     val compactCardRadius = 16.dp
     val cardRadius = 20.dp
@@ -210,25 +213,55 @@ internal fun FreshCutListRow(
 ) {
     val p = LocalPalette.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        // Keep important prices readable on narrow devices and at large text scales.
-        val stackValue = value != null && (maxWidth < 340.dp || LocalDensity.current.fontScale >= 1.3f || value.length > 16)
-        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.rowHeight).clip(RoundedCornerShape(UiMetrics.cardRadius))
+        val density = LocalDensity.current
+        val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+        val valueWidth = value?.let {
+            with(density) { measurer.measure(it, style = UiTextStyles.rowValue, softWrap = false, maxLines = 1).size.width.toDp() }
+        } ?: 0.dp
+        val stacked = (value != null || trailing != null) &&
+            (maxWidth < UiMetrics.catalogInlineWidth || density.fontScale >= UiMetrics.stackedFontScale || valueWidth > 112.dp)
+        val artwork: @Composable () -> Unit = {
+            Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field),
+                contentAlignment = Alignment.Center) {
+                if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
+            }
+        }
+        val description: @Composable () -> Unit = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, color = p.text, style = UiTextStyles.rowTitle)
+                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, style = UiTextStyles.rowSubtitle)
+            }
+        }
+        val endAction: @Composable () -> Unit = {
+            if (trailing != null) trailing()
+            else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
+            else if (showChevron && value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null,
+                Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
+        }
+        Column(Modifier.fillMaxWidth().heightIn(min = UiMetrics.rowHeight).clip(RoundedCornerShape(UiMetrics.cardRadius))
             .background(p.card).border(1.dp, if (selected) p.text else p.line, RoundedCornerShape(UiMetrics.cardRadius))
             .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field), contentAlignment = Alignment.Center) {
-                if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
+            verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                artwork()
+                Box(Modifier.weight(1f)) { description() }
+                if (!stacked) {
+                    if (value != null) Text(value, Modifier.widthIn(max = 112.dp), color = p.text,
+                        style = UiTextStyles.rowValue, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                    endAction()
+                }
             }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, color = p.text, style = UiTextStyles.rowTitle)
-                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, style = UiTextStyles.rowSubtitle)
-                if (stackValue && value != null) Text(value, color = p.text, style = UiTextStyles.rowValue)
+            if (stacked) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+                    Box(Modifier.weight(1f)) {
+                        if (value != null) Text(value, color = p.text, style = UiTextStyles.rowValue)
+                    }
+                    endAction()
+                }
             }
-            if (!stackValue && value != null) Text(value, Modifier.widthIn(max = 112.dp), color = p.text,
-                style = UiTextStyles.rowValue, textAlign = androidx.compose.ui.text.style.TextAlign.End)
-            if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
-            else if (showChevron && value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
         }
     }
 }
@@ -246,10 +279,20 @@ internal fun FreshCutSecondaryButton(title: String, onClick: () -> Unit, modifie
 @Composable
 internal fun FreshCutDetailLine(label: String, value: String) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(label, Modifier.weight(1f), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-        Text(value, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < UiMetrics.catalogInlineWidth || LocalDensity.current.fontScale >= UiMetrics.stackedFontScale) {
+            Column(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, color = p.textSecondary, style = UiTextStyles.rowSubtitle)
+                Text(value, color = p.text, style = UiTextStyles.rowTitle)
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(label, Modifier.weight(1f), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                Text(value, Modifier.weight(1f), color = p.text, style = UiTextStyles.rowTitle,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
+        }
     }
 }
 
