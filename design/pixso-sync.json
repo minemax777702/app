@@ -4424,7 +4424,7 @@
         },
         "catalog": {
           "title": "Нет товаров",
-          "description": "Добавьте товар через меню или кнопку."
+          "description": "Нажмите «Создать свой товар»."
         },
         "search": {
           "title": "Нет результатов",
@@ -4504,12 +4504,32 @@
         "description": "Попробуйте другой запрос.",
         "component": "App / Empty state",
         "only_when_query_nonblank": true
+      },
+      "populated_list": {
+        "id": "34:3016",
+        "height": 270,
+        "rows": [
+          "34:3029",
+          "34:3112",
+          "34:3223",
+          "34:3362"
+        ],
+        "component": "App / Product row",
+        "status": "draft"
       }
     },
     "custom_product_form": {
       "id": "28:3460",
       "count": 1,
       "compose": "CustomProductCreationSheet"
+    },
+    "authentication_feedback": {
+      "id": "34:3617",
+      "variant": "State",
+      "count": 3,
+      "compose": "SupabasePanel",
+      "status": "draft",
+      "note": "Error / Registration error / Confirmation; inline messages; not yet mapped to capture variants."
     }
   },
   "optimization": {
@@ -4547,10 +4567,14 @@
     "registered_capture_keys": 88,
     "android_parity_verified": false,
     "latest_capture_attempt": {
-      "run_id": 46145096723,
-      "artifact_id": 15263692576,
-      "status": "capture-error",
-      "reason": "Pixel Launcher ANR dialog"
+      "run_id": 46158987617,
+      "artifact_id": 15269501310,
+      "commit": "594ee7f10bc753d714222ec627c538a2e3323f02",
+      "version": "beta-ui-193",
+      "status": "captured",
+      "captured": 88,
+      "coverage_complete": true,
+      "auth_complete": true
     },
     "fixed": [
       "UX-01",
@@ -4566,7 +4590,9 @@
       "checkpoint": "design/checkpoints/2026-11-28-ROLLBACK.md",
       "code_commits": [
         "aad53922e32618383a460f3e67116907289deb74",
-        "d12ee6754a972b4d0936ffb948d9959156f4da7b"
+        "d12ee6754a972b4d0936ffb948d9959156f4da7b",
+        "594ee7f10bc753d714222ec627c538a2e3323f02",
+        "892a7cbc4a77900814ae95b0b5bd6be1df7db7b3"
       ],
       "implemented_in_code": [
         "UX-10",
@@ -4584,18 +4610,20 @@
         "UX-15",
         "UX-16",
         "UX-18",
-        "UX-22"
+        "UX-21",
+        "UX-22",
+        "UX-25"
       ],
-      "pixso_changes": "deferred until named history version is confirmed; live design intentionally unchanged",
-      "verification": "pending Android capture and accessibility tests",
+      "pixso_changes": "Ported selected UI changes: 19 field outlines, catalog empty description, visible money/weight, 5 neutral logout buttons, compact store edit, statistics no prices, security error, picker rows, authentication feedback variants.",
+      "verification": "Prior code Android checks and 88/88 capture successful. New 892a7c code CI pending. Selected screenshots compared; complete parity not verified.",
       "unaddressed": [
         "UX-08",
         "UX-09",
-        "UX-21",
-        "UX-24",
-        "UX-25"
+        "UX-24"
       ],
-      "capture_recovery": "UX-07 implemented; awaiting CI"
+      "capture_recovery": "UX-07 resolved on run 46158987617: 88/88 captured",
+      "checkpoint_reported_by_user": "Backup · UI/UX · 2026-11-28",
+      "checkpoint_verified_via_api": false
     }
   }
 }
