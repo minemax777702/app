@@ -24,9 +24,43 @@ def shell(*args):
     return adb("shell", *args)
 
 def hierarchy():
-    shell("uiautomator", "dump", "/sdcard/buylist-ui.xml")
-    raw = adb("exec-out", "cat", "/sdcard/buylist-ui.xml", binary=True)
+    # uiautomator can return success after a failed dump. Never read an old XML.
+    path = "/sdcard/buylist-ui.xml"
+    shell("rm", "-f", path)
+    result = shell("uiautomator", "dump", path)
+    if re.search(r"\b(?:error|exception|failed)\b", result, re.I):
+        raise RuntimeError("UI hierarchy dump failed: " + result.strip())
+    raw = adb("exec-out", "cat", path, binary=True)
     return raw, ET.fromstring(raw)
+
+def system_error_title(root):
+    return next((n.get("text", "") for n in root.iter("node")
+                 if n.get("package") == "android" and n.get("resource-id") == "android:id/alertTitle"
+                 and re.search(r"isn['’]t responding|keeps stopping|has stopped", n.get("text", ""), re.I)), "")
+
+def launcher_close_target(root):
+    # Never dismiss an application crash, permission prompt or arbitrary system dialog.
+    if system_error_title(root).replace("’", "'").lower() != "pixel launcher isn't responding":
+        return None
+    for node in root.iter("node"):
+        if (node.get("package") == "android" and node.get("resource-id") == "android:id/aerr_close"
+                and node.get("clickable") == "true" and node.get("enabled") == "true"):
+            bounds = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+            if len(bounds) == 4 and bounds[2] > bounds[0] and bounds[3] > bounds[1]:
+                return ((bounds[0] + bounds[2]) // 2, (bounds[1] + bounds[3]) // 2)
+    return None
+
+def disposable_emulator():
+    return FIXTURE and any(shell("getprop", prop).strip() == "1"
+                           for prop in ("ro.kernel.qemu", "ro.boot.qemu"))
+
+def wait_until_booted():
+    for _ in range(45):
+        if shell("getprop", "sys.boot_completed").strip() == "1":
+            if shell("getprop", "init.svc.bootanim").strip() in ("", "stopped"):
+                return
+        time.sleep(2)
+    raise RuntimeError("Emulator did not finish booting")
 
 def tap(*labels):
     for _ in range(3):
@@ -47,6 +81,9 @@ def tap(*labels):
 
 def capture(name, expected=()):
     raw, root = hierarchy()
+    error = system_error_title(root)
+    if error:
+        raise RuntimeError("System error dialog blocks capture: " + error)
     nodes = [n for n in root.iter("node") if n.get("package") == PKG]
     labels = list(dict.fromkeys(v for n in nodes for v in (n.get("text"), n.get("content-desc")) if v))
     if not nodes or (expected and not any(x in labels for x in expected)):
@@ -90,27 +127,42 @@ def save_launch_diagnostics(attempt, result):
         raw, _ = hierarchy()
         prefix.with_suffix(".xml").write_bytes(raw)
         prefix.with_suffix(".png").write_bytes(adb("exec-out", "screencap", "-p", binary=True))
-    except (subprocess.SubprocessError, ET.ParseError):
+    except (subprocess.SubprocessError, ET.ParseError, RuntimeError):
         pass
 
 def start():
-    # A cold emulator can still be on the launcher or lock screen after am start.
-    for attempt in range(1, 3):
+    # Pixel Launcher ANR can obscure an otherwise correctly resumed capture Activity.
+    # Close only the known launcher error, only on an isolated emulator, and keep evidence.
+    allow_recovery = disposable_emulator()
+    recovered = False
+    for attempt in range(1, 4):
         shell("input", "keyevent", "KEYCODE_WAKEUP")
         shell("wm", "dismiss-keyguard")
         shell("am", "force-stop", PKG)
         result = shell("am", "start", "-W", "-n", ACT)
         print(f"[{theme}] launch {attempt}: {result.strip()}", flush=True)
-        for _ in range(8):
+        for _ in range(12):
             try:
                 _, root = hierarchy()
-                if any(n.get("package") == PKG for n in root.iter("node")):
-                    return
-            except (subprocess.SubprocessError, ET.ParseError):
-                pass
+            except (subprocess.SubprocessError, ET.ParseError, RuntimeError):
+                time.sleep(1)
+                continue
+            error = system_error_title(root)
+            if error:
+                save_launch_diagnostics(f"{attempt}-system-error", result + "\n" + error)
+                point = launcher_close_target(root)
+                if allow_recovery and not recovered and point:
+                    recovered = True
+                    print(f"[{theme}] Recovering known Pixel Launcher ANR on fixture emulator", flush=True)
+                    shell("input", "tap", str(point[0]), str(point[1]))
+                    time.sleep(2)
+                    continue
+                raise RuntimeError("System error dialog blocks launch: " + error)
+            if any(n.get("package") == PKG for n in root.iter("node")):
+                return
             time.sleep(1)
         save_launch_diagnostics(attempt, result)
-    raise RuntimeError("Application window unavailable after two launches; see diagnostics")
+    raise RuntimeError("Application window unavailable after three launches; see diagnostics")
 
 def back():
     shell("input", "keyevent", "4")
@@ -148,11 +200,11 @@ def run_theme(mode):
         start()
         tap("Продолжить без входа")
     capture("shopping", ("Добавить", "Добавить товар", "Список"))
-    child("notifications", ("Уведомления",), ("Уведомления", "Пока нет уведомлений"))
+    child("notifications", ("Уведомления",), ("Уведомления", "Нет уведомлений"))
     if route("add", ("Добавить", "Добавить товар"), ("Создать свой товар", "Введите название или штрихкод", "Что нужно купить?")):
         child("custom-product", ("Создать свой товар",), ("Название товара", "Свой товар"))
         start()
-    if route("catalog", ("Товары",), ("Сохранённых товаров пока нет", "Действия каталога", "Магазины")):
+    if route("catalog", ("Товары",), ("Нет товаров", "Действия каталога", "Магазины")):
         if route("stores", ("Магазины",), ("Магазины",)) and FIXTURE:
             child("store-edit", ("Добавить магазин",), ("Новый магазин",))
             if route("store-detail-empty", ("Лента",), ("Нет товаров",)):
@@ -241,7 +293,7 @@ def capture_authenticated():
         return
     if route("cloud-groups", ("Группы",), ("Семья","Дача","Пустая группа")):
         if route("group-detail", ("Семья",), ("Участники · 2","Мария")):
-            child("group-add-member", ("Добавить участников",), ("Добавить участников","Поиск пользователя","Нет пользователей для добавления"))
+            child("group-add-member", ("Добавить участников",), ("Добавить участников","Поиск пользователя","Создать пользователя"))
             back()
     start()
     tap("Профиль")
@@ -290,6 +342,7 @@ def capture_authenticated():
 
 def main():
     # The emulator is disposable. No production credentials or account mutations.
+    wait_until_booted()
     shell("settings", "put", "global", "window_animation_scale", "0")
     shell("settings", "put", "global", "transition_animation_scale", "0")
     shell("settings", "put", "global", "animator_duration_scale", "0")
