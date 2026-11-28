@@ -182,8 +182,19 @@ async def run(args):
             report["applied"] = False
             dump(args.output / "report.json", report)
             if report["blocked"]:
-                print("Design review required; no changes applied.")
-                return 2
+                # A new structural baseline can only be recorded after explicit review.
+                # Never use this switch to resolve palette conflicts or missing mappings.
+                if not args.accept_structure or not args.apply or any(report[k] for k in ("conflicts","unmapped","pulls","pushes")):
+                    print("Design review required; no changes applied.")
+                    return 2
+                if await call(snapshot) != live:
+                    raise RuntimeError("Pixso changed during review; retry")
+                dump(BASELINE, live)
+                report["applied"] = True
+                report["structure_baseline_accepted"] = True
+                dump(args.output / "report.json", report)
+                print("Explicitly reviewed structure baseline recorded; parity status unchanged.")
+                return 0
             updated_source = render(source, merged)
             if code_values(updated_source) != {k:{m:merged[k][m] for m in v} for k,v in code.items()}:
                 raise RuntimeError("Kotlin round-trip check failed")
@@ -219,6 +230,7 @@ return {verified:true,count:prepared.length};"""
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--accept-structure", action="store_true", help="Record an explicitly reviewed structure; never mark verified")
     parser.add_argument("--output", type=Path, default=ROOT/"pixso-sync-report")
     args = parser.parse_args()
     raise SystemExit(asyncio.run(run(args)))
