@@ -278,101 +278,98 @@ private fun ArchiveCard(
     val arrow = animateFloatAsState(if (expanded) 180f else 0f, Motion.smooth(), label = "archive-arrow")
     val spent = com.mok.buylist.data.archivedPurchaseTotal(list)
     val amount = if (spent.known > 0) formatAmount(spent) else "—"
-    if (!featured && !expanded) {
-        Column(modifier) {
-            FreshCutListRow(R.drawable.ic_archive, date,
-                (storeNames + listOfNotNull(listLabel)).joinToString(" · ").ifBlank { "Завершённый поход" },
-                value = amount, onClick = onToggle)
-        }
-        return
-    }
-    Column(
-        modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(UiMetrics.featureCardRadius))
-            .background(p.card)
-            .animateContentSize(Motion.smooth())
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-                val subtitle = (storeNames + listOfNotNull(listLabel)).joinToString(" · ")
-                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp)
+    Column(modifier.fillMaxWidth().animateContentSize(Motion.smooth())) {
+        if (!featured && !expanded) {
+            Column(Modifier.fillMaxWidth()) {
+                FreshCutListRow(R.drawable.ic_archive, date,
+                    (storeNames + listOfNotNull(listLabel)).joinToString(" · ").ifBlank { "Завершённый поход" },
+                    value = amount, onClick = onToggle)
             }
-            Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = if (expanded) "Свернуть" else "Развернуть",
-                Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value }, tint = p.textSecondary)
-        }
-        Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle)) {
-            Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
-        }
-        if (expanded) {
-            Column(Modifier.padding(top = 8.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Выбрано $chosen из ${names.size}", Modifier.weight(1f),
-                        color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    TextButton(onClick = {
-                        onSelectionChange(if (chosen == names.size) names.indices.toSet() else emptySet())
-                    }, enabled = names.isNotEmpty()) {
-                        Text(if (chosen == names.size) "Снять все" else "Выбрать все", color = p.text, fontSize = 13.sp)
+        } else Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(UiMetrics.featureCardRadius))
+                .background(p.card)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(date, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+                    val subtitle = (storeNames + listOfNotNull(listLabel)).joinToString(" · ")
+                    if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp)
+                }
+                Icon(painterResource(R.drawable.ic_chevron_down), contentDescription = if (expanded) "Свернуть" else "Развернуть",
+                    Modifier.size(24.dp).graphicsLayer { rotationZ = arrow.value }, tint = p.textSecondary)
+            }
+            Column(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onToggle)) {
+                Text(amount, color = p.text, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (expanded) {
+                Column(Modifier.padding(top = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Выбрано $chosen из ${names.size}", Modifier.weight(1f),
+                            color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        TextButton(onClick = {
+                            onSelectionChange(if (chosen == names.size) names.indices.toSet() else emptySet())
+                        }, enabled = names.isNotEmpty()) {
+                            Text(if (chosen == names.size) "Снять все" else "Выбрать все", color = p.text, fontSize = 13.sp)
+                        }
                     }
-                }
-                names.forEachIndexed { index, name ->
-                    ArchiveItemRow(name, null, false, index !in skipped,
-                        onToggle = { onSelectionChange(if (index in skipped) skipped - index else skipped + index) },
-                        onInfo = { onInfo(index) })
-                }
-                Spacer(Modifier.height(12.dp))
-                Box(Modifier.fillMaxWidth().height(1.dp).background(p.chipBorder.copy(alpha = 0.6f)))
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    // Главное действие — широкая зелёная кнопка со значком; удаление — отдельная тихая кнопка-значок,
-                    // чтобы по ней нельзя было промахнуться рядом с главной.
+                    names.forEachIndexed { index, name ->
+                        ArchiveItemRow(name, null, false, index !in skipped,
+                            onToggle = { onSelectionChange(if (index in skipped) skipped - index else skipped + index) },
+                            onInfo = { onInfo(index) })
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Box(Modifier.fillMaxWidth().height(1.dp).background(p.chipBorder.copy(alpha = 0.6f)))
                     Row(
-                        Modifier
-                            .weight(1f)
-                            .height(52.dp)
-                            .clip(RoundedCornerShape(UiMetrics.controlRadius))
-                            .background(if (chosen > 0) p.actionFill else p.field)
-                            .clickable(enabled = chosen > 0, role = Role.Button, onClick = onRepeat)
-                            .padding(horizontal = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
+                        Modifier.fillMaxWidth().padding(top = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, Modifier.size(20.dp), tint = if (chosen > 0) p.actionInk else p.textSecondary)
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Купить снова · $chosen",
-                            modifier = Modifier.weight(1f, fill = false),
-                            color = if (chosen > 0) p.actionInk else p.textSecondary,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    val deleteLabel = stringResource(R.string.archive_delete)
-                    Box(
-                        Modifier
-                            .size(52.dp)
-                            .clip(RoundedCornerShape(UiMetrics.controlRadius))
-                            .background(p.error.copy(alpha = if (p.isDark) 0.16f else 0.1f))
-                            .clickable(role = Role.Button, onClickLabel = deleteLabel, onClick = onDelete),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(painterResource(R.drawable.ic_trash), contentDescription = deleteLabel, Modifier.size(22.dp), tint = p.text)
+                        // Главное действие — широкая зелёная кнопка со значком; удаление — отдельная тихая кнопка-значок,
+                        // чтобы по ней нельзя было промахнуться рядом с главной.
+                        Row(
+                            Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(UiMetrics.controlRadius))
+                                .background(if (chosen > 0) p.actionFill else p.field)
+                                .clickable(enabled = chosen > 0, role = Role.Button, onClick = onRepeat)
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_repeat), contentDescription = null, Modifier.size(20.dp), tint = if (chosen > 0) p.actionInk else p.textSecondary)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Купить снова · $chosen",
+                                modifier = Modifier.weight(1f, fill = false),
+                                color = if (chosen > 0) p.actionInk else p.textSecondary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        val deleteLabel = stringResource(R.string.archive_delete)
+                        Box(
+                            Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(UiMetrics.controlRadius))
+                                .background(p.error.copy(alpha = if (p.isDark) 0.16f else 0.1f))
+                                .clickable(role = Role.Button, onClickLabel = deleteLabel, onClick = onDelete),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(painterResource(R.drawable.ic_trash), contentDescription = deleteLabel, Modifier.size(22.dp), tint = p.text)
+                        }
                     }
                 }
             }
         }
     }
 }
-
-/** Товар при выборе повторной покупки. */
 @Composable
 private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, checked: Boolean, onToggle: () -> Unit, onInfo: () -> Unit) {
     val p = LocalPalette.current
