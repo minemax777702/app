@@ -1149,70 +1149,70 @@ private fun ItemRowContent(
             }
             .padding(start = 4.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
     ) {
-        val stacked = maxWidth < UiMetrics.shoppingInlineWidth || LocalDensity.current.fontScale >= 1.3f
+        val stacked = maxWidth < UiMetrics.shoppingInlineWidth || LocalDensity.current.fontScale >= UiMetrics.stackedFontScale
         val actions: @Composable () -> Unit = {
             ShoppingRowActions(row, finished, actionsExpanded, { actionsExpanded = it },
                 onUndo, onQuantity, onWeight, onDetails, onRemove)
         }
         Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.touchTarget),
             verticalAlignment = if (stacked) Alignment.Top else Alignment.CenterVertically) {
-        Box(
-            Modifier.size(UiMetrics.touchTarget)
-                .clickable(enabled = !finished, role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
-            contentAlignment = Alignment.Center,
-        ) {
             Box(
-                Modifier.size(24.dp).clip(RoundedCornerShape(UiMetrics.checkboxRadius))
-                    .background(if (finished) p.actionFill else p.card)
-                    .border(1.dp, if (finished) p.actionFill else p.ring, RoundedCornerShape(UiMetrics.checkboxRadius)),
+                Modifier.size(UiMetrics.touchTarget)
+                    .clickable(enabled = !finished, role = Role.Button, onClickLabel = buyLabel, onClick = onBuy),
                 contentAlignment = Alignment.Center,
             ) {
-                if (state == RowState.BOUGHT) Icon(painterResource(R.drawable.ic_check),
-                    contentDescription = null, tint = p.actionInk, modifier = Modifier.size(16.dp))
-                if (state == RowState.REMOVED) Text("−", color = p.actionInk, fontSize = 16.sp)
-            }
-        }
-        Column(Modifier.weight(1f).padding(start = 4.dp, end = 6.dp)) {
-        Column(
-            Modifier.fillMaxWidth()
-                .pointerInput(row.item) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                val held = withTimeoutOrNull(3001L) {
-                    while (true) {
-                        val event = awaitPointerEvent(PointerEventPass.Main)
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull false
-                        if (!change.pressed || change.isConsumed || (change.position - down.position).getDistance() > viewConfiguration.touchSlop)
-                            return@withTimeoutOrNull false
-                    }
-                    @Suppress("UNREACHABLE_CODE")
-                    false
-                } == null
-                if (held) {
-                    onDetails()
-                    do {
-                        val event = awaitPointerEvent(PointerEventPass.Initial)
-                        event.changes.forEach { it.consume() }
-                    } while (event.changes.any { it.pressed })
+                Box(
+                    Modifier.size(24.dp).clip(RoundedCornerShape(UiMetrics.checkboxRadius))
+                        .background(if (finished) p.actionFill else p.card)
+                        .border(1.dp, if (finished) p.actionFill else p.ring, RoundedCornerShape(UiMetrics.checkboxRadius)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state == RowState.BOUGHT) Icon(painterResource(R.drawable.ic_check),
+                        contentDescription = null, tint = p.actionInk, modifier = Modifier.size(16.dp))
+                    if (state == RowState.REMOVED) Text("−", color = p.actionInk, fontSize = 16.sp)
                 }
             }
-        }
-                .clickable(role = Role.Button, onClickLabel = "Информация о товаре", onClick = onDetails),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-        ) {
-            Text(row.item.name, color = if (finished) p.textSecondary else p.text,
-                fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
-                textDecoration = if (finished) TextDecoration.LineThrough else null)
-            subtitle?.let {
-                Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 16.sp)
+            Column(Modifier.weight(1f).padding(start = 4.dp, end = 6.dp)) {
+                Column(
+                    Modifier.fillMaxWidth()
+                        .pointerInput(row.item) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        val held = withTimeoutOrNull(3001L) {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Main)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull false
+                                if (!change.pressed || change.isConsumed || (change.position - down.position).getDistance() > viewConfiguration.touchSlop)
+                                    return@withTimeoutOrNull false
+                            }
+                            @Suppress("UNREACHABLE_CODE")
+                            false
+                        } == null
+                        if (held) {
+                            onDetails()
+                            do {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                event.changes.forEach { it.consume() }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    }
+                }
+                        .clickable(role = Role.Button, onClickLabel = "Информация о товаре", onClick = onDetails),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(row.item.name, color = if (finished) p.textSecondary else p.text,
+                        fontSize = 15.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
+                        textDecoration = if (finished) TextDecoration.LineThrough else null)
+                    subtitle?.let {
+                        Text(it, color = p.textSecondary, fontSize = 12.sp, lineHeight = 16.sp)
+                    }
+                }
+                if (stacked) {
+                    Spacer(Modifier.height(UiMetrics.gap))
+                    Box(Modifier.align(Alignment.End)) { actions() }
+                }
             }
-        }
-            if (stacked) {
-                Spacer(Modifier.height(UiMetrics.gap))
-                Box(Modifier.align(Alignment.End)) { actions() }
-            }
-        }
-        if (!stacked) actions()
+            if (!stacked) actions()
         }
     }
 }
