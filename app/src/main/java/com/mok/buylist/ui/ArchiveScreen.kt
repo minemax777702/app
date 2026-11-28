@@ -50,7 +50,6 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -271,7 +270,8 @@ private fun ArchiveCard(
     }
     val today = stringResource(R.string.archive_today)
     val yesterday = stringResource(R.string.archive_yesterday)
-    val locale = LocalConfiguration.current.locales[0]
+    // Интерфейс приложения сейчас локализован на русский; системный язык не должен менять месяц в архиве.
+    val locale = java.util.Locale.forLanguageTag("ru-RU")
     val date = remember(list.completedAt, now, today, yesterday, locale) {
         formatArchiveDate(list.completedAt, now, ZoneId.systemDefault(), today, yesterday, locale)
     }

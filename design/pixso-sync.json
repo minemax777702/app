@@ -4534,5 +4534,32 @@
       "Component property TEXT API failed across variant set; product row texts are editable instance text overrides.",
       "Old audit metrics describe pre-migration screenshots, not the new architecture."
     ]
+  },
+  "ui_ux_audit": {
+    "date": "2026-11-28",
+    "report": "design/UI_UX_AUDIT.md",
+    "canonical_frames": 37,
+    "visual_modes": [
+      "light",
+      "dark"
+    ],
+    "canonical_renders": 74,
+    "registered_capture_keys": 88,
+    "android_parity_verified": false,
+    "latest_capture_attempt": {
+      "run_id": 46145096723,
+      "artifact_id": 15263692576,
+      "status": "capture-error",
+      "reason": "Pixel Launcher ANR dialog"
+    },
+    "fixed": [
+      "UX-01",
+      "UX-02",
+      "UX-03",
+      "UX-04",
+      "UX-05",
+      "UX-06"
+    ],
+    "pending": 20
   }
 }
