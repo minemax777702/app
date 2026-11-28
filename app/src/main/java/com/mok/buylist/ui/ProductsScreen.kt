@@ -309,8 +309,8 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         AppSheet(onDismissRequest = { pendingDelete = null }, containerColor = p.sheet,
             title = { Text(product.name, color = p.text, fontWeight = FontWeight.ExtraBold) },
             text = { Text(stringResource(R.string.products_delete_text), color = p.textSecondary) },
-            confirmButton = { SheetActionButton(onClick = { scope.launch { catalog.removeById(product.id); pendingDelete = null } }, destructive = true) { Text(stringResource(R.string.products_delete), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } },
-            dismissButton = { SheetActionButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } },
+            confirmButton = { SheetActionButton(onClick = { scope.launch { catalog.removeById(product.id); pendingDelete = null } }, destructive = true) { Text(stringResource(R.string.products_delete)) } },
+            dismissButton = { SheetActionButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
