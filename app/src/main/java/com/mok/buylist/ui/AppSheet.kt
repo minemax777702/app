@@ -35,13 +35,12 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 import com.mok.buylist.ui.theme.LocalPalette
-import com.mok.buylist.ui.theme.Manrope
+import com.mok.buylist.ui.theme.UiTextStyles
 
 private val LocalSecondaryAction = staticCompositionLocalOf { false }
 internal val LocalSheetClose = staticCompositionLocalOf<(() -> Unit)?> { null }
@@ -56,7 +55,9 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
         shape = RoundedCornerShape(UiMetrics.controlRadius), colors = ButtonDefaults.buttonColors(
             containerColor = background, contentColor = ink,
             disabledContainerColor = p.field, disabledContentColor = p.textSecondary.copy(alpha = 0.7f),
-        ), content = content)
+        )) {
+        ProvideTextStyle(UiTextStyles.action) { content() }
+    }
 }
 
 @Composable
@@ -67,7 +68,7 @@ internal fun SheetDeleteButton(title: String, onClick: () -> Unit, enabled: Bool
         colors=ButtonDefaults.outlinedButtonColors(contentColor=p.error)) {
         Icon(painterResource(icon),null,Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
-        Text(title)
+        Text(title, style = UiTextStyles.action, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
@@ -81,8 +82,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
     val fieldVerticalPadding = if (LocalDensity.current.fontScale >= 1.3f) 8.dp else 0.dp
     val lineColor = when { isError -> p.error; focused -> p.text; readOnly -> p.line; else -> p.textSecondary }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(hint, color = if (isError) p.error else p.textSecondary, fontSize = 12.sp,
-            fontWeight = FontWeight.Medium)
+        Text(hint, color = if (isError) p.error else p.textSecondary, style = UiTextStyles.fieldLabel)
         Box(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
             .background(p.card).border(1.dp, lineColor, RoundedCornerShape(UiMetrics.controlRadius))
             .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
@@ -93,10 +93,10 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
                         contentDescription = hint
                         if (isError) error("Проверьте значение поля")
                     }, singleLine = true,
-                textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
+                textStyle = UiTextStyles.fieldValue.copy(color = p.text),
                 cursorBrush = SolidColor(p.text), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
                 visualTransformation = visualTransformation,
-                decorationBox = { inner -> Box { if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, color = p.textSecondary, fontSize = 15.sp); inner() } })
+                decorationBox = { inner -> Box { if (value.isEmpty() && placeholder.isNotEmpty()) Text(placeholder, color = p.textSecondary, style = UiTextStyles.fieldPlaceholder); inner() } })
             if (trailingAction != null) Box(Modifier.align(Alignment.CenterEnd)) { trailingAction() }
         }
     }
