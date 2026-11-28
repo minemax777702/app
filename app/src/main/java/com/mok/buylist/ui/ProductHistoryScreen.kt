@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.border
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -573,15 +574,29 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                     ?: ownProduct?.estimatedPriceKopecks?.let(::historyMoney)
                     ?: current?.price?.takeIf { it.isNotBlank() && it != "null" }?.plus(" ₽")
                 HistoryCard {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(64.dp))
-                        else LentaImage(product?.image.orEmpty(), Modifier.size(64.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(title, color = p.text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold)
-                            Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "—",
-                                color = p.text, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
-                            best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 12.sp) }
+                    BoxWithConstraints(Modifier.fillMaxWidth()) {
+                        val stacked = maxWidth < 300.dp || LocalDensity.current.fontScale >= UiMetrics.stackedFontScale
+                        val preview: @Composable () -> Unit = {
+                            if (ownProduct != null) CustomProductImage(ownProduct.id, Modifier.size(64.dp))
+                            else LentaImage(product?.image.orEmpty(), Modifier.size(64.dp))
+                        }
+                        val price: @Composable () -> Unit = {
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(cost?.plus(if (ownProduct?.isWeighted == true) " /кг" else "") ?: "—",
+                                    color = p.text, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
+                                best?.let { Text(it.storeName, color = p.textSecondary, fontSize = 12.sp) }
+                            }
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                preview()
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(title, color = p.text, fontSize = 18.sp, lineHeight = 23.sp, fontWeight = FontWeight.SemiBold)
+                                    if (!stacked) price()
+                                }
+                            }
+                            if (stacked) price()
                         }
                     }
                     if (!historyOpen) {
@@ -875,9 +890,18 @@ private fun PriceChart(points: List<ExpensePurchase>, zone: ZoneId) {
 @Composable
 private fun CompactProductLine(label: String, value: String) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
-        Text(value, Modifier.weight(1f), color = p.text, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+    BoxWithConstraints(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+        if (maxWidth < 300.dp || LocalDensity.current.fontScale >= UiMetrics.stackedFontScale) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, color = p.textSecondary, fontSize = 13.sp)
+                Text(value, color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(label, Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
+                Text(value, Modifier.weight(1f), color = p.text, fontSize = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            }
+        }
     }
 }
 
