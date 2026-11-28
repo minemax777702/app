@@ -1184,7 +1184,19 @@
         "x": 1902,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 13,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status bar uses placeholder glyphs"
+        ]
+      }
     },
     {
       "key": "dark/account",
@@ -1200,7 +1212,19 @@
         "x": 2352,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 13,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status bar uses placeholder glyphs"
+        ]
+      }
     },
     {
       "key": "light/account-registration",
@@ -1216,7 +1240,19 @@
         "x": 32,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 12,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status bar uses placeholder glyphs"
+        ]
+      }
     },
     {
       "key": "dark/account-registration",
@@ -1232,7 +1268,19 @@
         "x": 482,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 12,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status bar uses placeholder glyphs"
+        ]
+      }
     },
     {
       "key": "light/login-form",
@@ -1248,7 +1296,20 @@
         "x": 967,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 18,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Transient Android update notification not recreated as application UI",
+          "Background toolbar icons differ from actual capture"
+        ]
+      }
     },
     {
       "key": "dark/login-form",
@@ -1264,7 +1325,20 @@
         "x": 1417,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 18,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Transient Android update notification not recreated as application UI",
+          "Background toolbar icons differ from actual capture"
+        ]
+      }
     },
     {
       "key": "light/add",
@@ -1280,7 +1354,19 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 13,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor system inset and icon tint differences"
+        ]
+      }
     },
     {
       "key": "dark/add",
@@ -1296,7 +1382,19 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 13,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor system inset and icon tint differences"
+        ]
+      }
     },
     {
       "key": "light/custom-product",
@@ -1312,7 +1410,19 @@
         "x": 967,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 22,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor system inset and icon tint differences"
+        ]
+      }
     },
     {
       "key": "dark/custom-product",
@@ -1328,7 +1438,19 @@
         "x": 1417,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 22,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor system inset and icon tint differences"
+        ]
+      }
     },
     {
       "key": "light/notifications",
@@ -1344,7 +1466,20 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 7,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status bar uses placeholder glyphs"
+        ],
+        "bell_icon_rescaled": true
+      }
     },
     {
       "key": "dark/notifications",
@@ -1360,7 +1495,20 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 7,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status bar uses placeholder glyphs"
+        ],
+        "bell_icon_rescaled": true
+      }
     },
     {
       "key": "light/theme",
@@ -1376,7 +1524,20 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 25,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Remaining row chevron tint/geometry and system gesture indicator differences"
+        ],
+        "android_icon_instances_updated": 10
+      }
     },
     {
       "key": "dark/theme",
@@ -1392,7 +1553,20 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 25,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Remaining row chevron tint/geometry and system gesture indicator differences"
+        ],
+        "android_icon_instances_updated": 10
+      }
     },
     {
       "key": "light/backup",
@@ -1408,7 +1582,20 @@
         "x": 967,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 24,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Trailing chevron vertical alignment and system gesture indicator differ"
+        ],
+        "android_icon_instances_updated": 10
+      }
     },
     {
       "key": "dark/backup",
@@ -1424,7 +1611,20 @@
         "x": 1417,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 24,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Trailing chevron vertical alignment and system gesture indicator differ"
+        ],
+        "android_icon_instances_updated": 10
+      }
     },
     {
       "key": "light/updates",
@@ -1440,7 +1640,20 @@
         "x": 1902,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 28,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor toolbar geometry/tint and system gesture indicator differences"
+        ],
+        "android_icon_instances_updated": 10
+      }
     },
     {
       "key": "dark/updates",
@@ -1456,7 +1669,20 @@
         "x": 2352,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 28,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor toolbar geometry/tint and system gesture indicator differences"
+        ],
+        "android_icon_instances_updated": 10
+      }
     },
     {
       "key": "light/security",
@@ -1472,7 +1698,19 @@
         "x": 32,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 18,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System gesture indicator and minor icon geometry/tint differences"
+        ]
+      }
     },
     {
       "key": "dark/security",
@@ -1488,7 +1726,21 @@
         "x": 482,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 18,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System gesture indicator and minor icon geometry/tint differences"
+        ],
+        "theme_specific_coordinates": true,
+        "modal_scrim_corrected": true
+      }
     },
     {
       "key": "light/cloud-groups",
@@ -1709,9 +1961,9 @@
   },
   "layout_audit": {
     "source": "beta-ui-157",
-    "reviewed_frames": 38,
-    "matched_compose_texts": 660,
-    "remaining_frames": 32,
+    "reviewed_frames": 58,
+    "matched_compose_texts": 1020,
+    "remaining_frames": 12,
     "inventory_text_layers_excluding_os": 1258,
     "auto_line_height_layers": 950,
     "zero_pixel_letter_spacing_layers": 622,
@@ -1721,24 +1973,26 @@
     "latest_batch": {
       "date": "2026-11-28",
       "screens": [
-        "catalog-populated",
-        "stores",
-        "product-detail",
-        "archive-populated",
-        "archive-expanded",
-        "statistics-populated",
-        "stats-filters",
-        "authenticated",
-        "welcome",
-        "registration"
+        "account",
+        "account-registration",
+        "login-form",
+        "add",
+        "custom-product",
+        "notifications",
+        "theme",
+        "backup",
+        "updates",
+        "security"
       ],
       "frames": 20,
-      "matched_compose_texts": 384,
+      "matched_compose_texts": 360,
       "pixso_screenshots_compared": 20,
+      "pixso_screenshots_rechecked": 9,
+      "android_icon_instances_updated": 60,
+      "bell_instances_rescaled": 2,
       "verified_frames": 0,
       "batch_size": 20,
-      "operation_size": 2,
-      "system_status_bar_batch_interrupted": true
+      "operation_size": 2
     },
     "text_wrap_fixes_confirmed": 14,
     "inventory_metrics_source": "pre-batch inventory; not recalculated"
