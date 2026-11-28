@@ -161,7 +161,7 @@ fun AddItemSheet(
                     .fillMaxWidth()
                     .height(54.dp)
                     .clip(RoundedCornerShape(UiMetrics.controlRadius))
-                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
+                    .background(p.card).border(1.dp, p.controlOutline, RoundedCornerShape(UiMetrics.controlRadius))
                     .padding(start = 12.dp, end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
