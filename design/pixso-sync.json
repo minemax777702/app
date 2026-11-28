@@ -217,14 +217,15 @@
       "theme": "light",
       "page": "app",
       "section": "03 · Архив",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "16:3529",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7292",
       "position": {
         "x": 32,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/archive",
@@ -232,14 +233,15 @@
       "theme": "dark",
       "page": "app",
       "section": "03 · Архив",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "16:3584",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7292",
       "position": {
         "x": 482,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/archive-populated",
@@ -247,14 +249,15 @@
       "theme": "light",
       "page": "app",
       "section": "03 · Архив",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "16:3639",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7292",
       "position": {
         "x": 967,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/archive-populated",
@@ -262,14 +265,15 @@
       "theme": "dark",
       "page": "app",
       "section": "03 · Архив",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "16:3725",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7292",
       "position": {
         "x": 1417,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/archive-expanded",
