@@ -33,7 +33,15 @@ import com.mok.buylist.ui.theme.UiTextStyles
 /** Общие размеры элементов интерфейса, не зависящие от темы. */
 internal object UiMetrics {
     val screenInset = 20.dp
+    val nestedRadius = 12.dp
+    val compactCardRadius = 16.dp
     val cardRadius = 20.dp
+    val featureCardRadius = 24.dp
+    val heroIconRadius = 20.dp
+    val emptyIconRadius = 32.dp
+    val segmentedRadius = 14.dp
+    val segmentInnerRadius = 11.dp
+    val checkboxRadius = 8.dp
     val controlRadius = 16.dp
     val iconRadius = 14.dp
     val sheetRadius = 28.dp
@@ -69,7 +77,7 @@ internal fun FreshCutEmptyState(
             verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
         ) {
             Box(
-                Modifier.size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.card),
+                Modifier.size(96.dp).clip(RoundedCornerShape(UiMetrics.emptyIconRadius)).background(p.card),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(36.dp), tint = p.text)
@@ -128,7 +136,7 @@ internal fun FreshCutNavigation(
         destinations.forEach { (destination, icon, title) ->
             val active = destination == current
             val ink = if (active) p.text else p.textSecondary
-            Column(Modifier.weight(1f).heightIn(min = UiMetrics.primaryHeight).clip(RoundedCornerShape(12.dp))
+            Column(Modifier.weight(1f).heightIn(min = UiMetrics.primaryHeight).clip(RoundedCornerShape(UiMetrics.nestedRadius))
                 .clickable(role = Role.Tab) { if (!active) onSelect(destination) }
                 .semantics { selected = active },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -261,11 +269,11 @@ internal fun FreshCutToolbarAction(icon: Int, label: String, onClick: () -> Unit
 @Composable
 internal fun FreshCutTabs(labels: List<String>, current: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.field).padding(3.dp),
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.segmentedRadius)).background(p.field).padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         labels.forEachIndexed { index, label ->
             val active = index == current
-            Box(Modifier.weight(1f).heightIn(min = UiMetrics.touchTarget).clip(RoundedCornerShape(11.dp))
+            Box(Modifier.weight(1f).heightIn(min = UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.segmentInnerRadius))
                 .background(if (active) p.card else p.field)
                 .clickable(role = Role.Tab) { onSelect(index) }.semantics { selected = active }
                 .padding(horizontal = 2.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
