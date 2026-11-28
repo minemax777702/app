@@ -197,12 +197,12 @@ fun AddItemSheet(
                         }
                     },
                 )
-                IconButton(onClick = { dismissKeyboard(); voice.toggle() }, enabled = voice.available, modifier = Modifier.size(40.dp)) {
+                IconButton(onClick = { dismissKeyboard(); voice.toggle() }, enabled = voice.available, modifier = Modifier.size(UiMetrics.touchTarget)) {
                     Icon(painterResource(if (voice.listening) R.drawable.ic_close else R.drawable.ic_mic),
-                        if (voice.listening) "Остановить запись" else "Голосовой поиск", Modifier.size(22.dp), tint = p.text)
+                        if (voice.listening) "Остановить запись" else "Голосовой поиск", Modifier.size(24.dp), tint = p.text)
                 }
-                IconButton(onClick = { dismissKeyboard(); scanning = true }, modifier = Modifier.size(40.dp)) {
-                    Icon(painterResource(R.drawable.ic_scan_barcode), "Сканировать штрихкод", Modifier.size(22.dp), tint = p.text)
+                IconButton(onClick = { dismissKeyboard(); scanning = true }, modifier = Modifier.size(UiMetrics.touchTarget)) {
+                    Icon(painterResource(R.drawable.ic_scan_barcode), "Сканировать штрихкод", Modifier.size(24.dp), tint = p.text)
                 }
             }
             if (voice.listening) {
@@ -312,7 +312,7 @@ fun AddItemSheet(
 internal fun SheetHeader(title: String) {
     val p = LocalPalette.current
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp),
+        Modifier.fillMaxWidth().heightIn(min = UiMetrics.touchTarget),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
