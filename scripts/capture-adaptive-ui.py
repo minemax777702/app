@@ -139,11 +139,11 @@ def audit_navigation(ui):
     # Only fixture data. Do not save an address or mutate a real store.
     ui.start()
     ui.close_sheet()
-    if not ui.tap("Товары") or not wait_label(ui, "Найти в Ленте"):
-        check(ui, "catalog-direct-search", False, "Search action is visible without overflow menu")
+    if not ui.tap("Товары") or not ui.tap("Действия каталога") or not wait_label(ui, "Найти в Ленте"):
+        check(ui, "catalog-menu-search", False, "Search action is available in catalog menu")
         return
     opened = tap_enabled(ui, "Найти в Ленте") and wait_label(ui, "Добавить продукт")
-    check(ui, "catalog-direct-search", opened, "Search opens in one action")
+    check(ui, "catalog-menu-search", opened, "Search opens from catalog menu")
     if opened:
         if ui.fill_field(0, "AuditFlow"):
             if ime_visible(ui):
@@ -161,7 +161,7 @@ def audit_navigation(ui):
         check(ui, "store-direct-add", False, "Store detail is reachable")
         return
     opened = tap_enabled(ui, "Добавить товар") and wait_label(ui, "Товар магазина")
-    check(ui, "store-direct-add", opened, "Store picker opens from bottom action")
+    check(ui, "store-direct-add", opened, "Store picker opens from toolbar action")
     if not opened:
         return
     entered = ui.fill_field(0, "AuditStore")
