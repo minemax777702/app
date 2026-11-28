@@ -209,12 +209,12 @@ fun StatsScreen(
 private fun HistoryButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     val p = LocalPalette.current
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.card)
+        modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius)).background(p.card)
             .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(p.boughtBg), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.boughtBg), contentAlignment = Alignment.Center) {
             Icon(painterResource(R.drawable.ic_history), contentDescription = null, modifier = Modifier.size(21.dp), tint = p.text)
         }
         Text(stringResource(R.string.stats_product_history), Modifier.weight(1f), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
@@ -250,7 +250,7 @@ private fun Card(modifier: Modifier = Modifier, content: @Composable () -> Unit)
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(UiMetrics.cardRadius))
             .background(p.card)
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
