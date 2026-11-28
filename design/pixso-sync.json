@@ -1,0 +1,731 @@
+{
+  "schema": 1,
+  "file_key": "4T8MYI6qqkQjlqe3MKJY7Q",
+  "baseline_capture": "beta-ui-155",
+  "baseline_commit": "54a54ec33016fe16fd5324843b4d0b286208658a",
+  "baseline_run": 46122274115,
+  "pages": {
+    "foundation": {
+      "id": "0:1",
+      "target_name": "01 · Foundations & Components"
+    },
+    "app": {
+      "id": "3:6670",
+      "target_name": "02 · App screens"
+    },
+    "flows": {
+      "id": "3:6671",
+      "target_name": "03 · Flows & states"
+    },
+    "archive_app": {
+      "id": "2:37",
+      "target_name": "90 · Archive · исходные экраны"
+    },
+    "archive_flows": {
+      "id": "2:38",
+      "target_name": "91 · Archive · исходные сценарии"
+    }
+  },
+  "screens": [
+    {
+      "key": "light/shopping",
+      "screen": "shopping",
+      "theme": "light",
+      "page": "app",
+      "section": "01 · Покупки",
+      "frame_id": "3:6672",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/shopping",
+      "screen": "shopping",
+      "theme": "dark",
+      "page": "app",
+      "section": "01 · Покупки",
+      "frame_id": "3:6972",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/shopping-populated",
+      "screen": "shopping-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "01 · Покупки",
+      "frame_id": "3:6717",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/shopping-populated",
+      "screen": "shopping-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "01 · Покупки",
+      "frame_id": "3:7017",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/catalog",
+      "screen": "catalog",
+      "theme": "light",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": "3:6804",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/catalog",
+      "screen": "catalog",
+      "theme": "dark",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": "3:7104",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/catalog-populated",
+      "screen": "catalog-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/catalog-populated",
+      "screen": "catalog-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/stores",
+      "screen": "stores",
+      "theme": "light",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/stores",
+      "screen": "stores",
+      "theme": "dark",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/product-detail",
+      "screen": "product-detail",
+      "theme": "light",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/product-detail",
+      "screen": "product-detail",
+      "theme": "dark",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/archive",
+      "screen": "archive",
+      "theme": "light",
+      "page": "app",
+      "section": "03 · Архив",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/archive",
+      "screen": "archive",
+      "theme": "dark",
+      "page": "app",
+      "section": "03 · Архив",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/archive-populated",
+      "screen": "archive-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "03 · Архив",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/archive-populated",
+      "screen": "archive-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "03 · Архив",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/archive-expanded",
+      "screen": "archive-expanded",
+      "theme": "light",
+      "page": "app",
+      "section": "03 · Архив",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/archive-expanded",
+      "screen": "archive-expanded",
+      "theme": "dark",
+      "page": "app",
+      "section": "03 · Архив",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/statistics",
+      "screen": "statistics",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/statistics",
+      "screen": "statistics",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/statistics-populated",
+      "screen": "statistics-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/statistics-populated",
+      "screen": "statistics-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/stats-stores",
+      "screen": "stats-stores",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/stats-stores",
+      "screen": "stats-stores",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/stats-products",
+      "screen": "stats-products",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/stats-products",
+      "screen": "stats-products",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/stats-trend",
+      "screen": "stats-trend",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/stats-trend",
+      "screen": "stats-trend",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/stats-filters",
+      "screen": "stats-filters",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/stats-filters",
+      "screen": "stats-filters",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/profile",
+      "screen": "profile",
+      "theme": "light",
+      "page": "app",
+      "section": "05 · Профиль",
+      "frame_id": "3:6848",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/profile",
+      "screen": "profile",
+      "theme": "dark",
+      "page": "app",
+      "section": "05 · Профиль",
+      "frame_id": "3:7148",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/authenticated",
+      "screen": "authenticated",
+      "theme": "light",
+      "page": "app",
+      "section": "05 · Профиль",
+      "frame_id": "3:6918",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/authenticated",
+      "screen": "authenticated",
+      "theme": "dark",
+      "page": "app",
+      "section": "05 · Профиль",
+      "frame_id": "3:7218",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/welcome",
+      "screen": "welcome",
+      "theme": "light",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/welcome",
+      "screen": "welcome",
+      "theme": "dark",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/registration",
+      "screen": "registration",
+      "theme": "light",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/registration",
+      "screen": "registration",
+      "theme": "dark",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/account",
+      "screen": "account",
+      "theme": "light",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/account",
+      "screen": "account",
+      "theme": "dark",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/account-registration",
+      "screen": "account-registration",
+      "theme": "light",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/account-registration",
+      "screen": "account-registration",
+      "theme": "dark",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/login-form",
+      "screen": "login-form",
+      "theme": "light",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/login-form",
+      "screen": "login-form",
+      "theme": "dark",
+      "page": "flows",
+      "section": "01 · Авторизация",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/add",
+      "screen": "add",
+      "theme": "light",
+      "page": "flows",
+      "section": "02 · Добавление",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/add",
+      "screen": "add",
+      "theme": "dark",
+      "page": "flows",
+      "section": "02 · Добавление",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/custom-product",
+      "screen": "custom-product",
+      "theme": "light",
+      "page": "flows",
+      "section": "02 · Добавление",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/custom-product",
+      "screen": "custom-product",
+      "theme": "dark",
+      "page": "flows",
+      "section": "02 · Добавление",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/notifications",
+      "screen": "notifications",
+      "theme": "light",
+      "page": "flows",
+      "section": "03 · Уведомления",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/notifications",
+      "screen": "notifications",
+      "theme": "dark",
+      "page": "flows",
+      "section": "03 · Уведомления",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/theme",
+      "screen": "theme",
+      "theme": "light",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/theme",
+      "screen": "theme",
+      "theme": "dark",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/backup",
+      "screen": "backup",
+      "theme": "light",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/backup",
+      "screen": "backup",
+      "theme": "dark",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/updates",
+      "screen": "updates",
+      "theme": "light",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/updates",
+      "screen": "updates",
+      "theme": "dark",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/security",
+      "screen": "security",
+      "theme": "light",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/security",
+      "screen": "security",
+      "theme": "dark",
+      "page": "flows",
+      "section": "04 · Настройки",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/cloud-groups",
+      "screen": "cloud-groups",
+      "theme": "light",
+      "page": "flows",
+      "section": "05 · Группы",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/cloud-groups",
+      "screen": "cloud-groups",
+      "theme": "dark",
+      "page": "flows",
+      "section": "05 · Группы",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/group-detail",
+      "screen": "group-detail",
+      "theme": "light",
+      "page": "flows",
+      "section": "05 · Группы",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/group-detail",
+      "screen": "group-detail",
+      "theme": "dark",
+      "page": "flows",
+      "section": "05 · Группы",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/group-add-member",
+      "screen": "group-add-member",
+      "theme": "light",
+      "page": "flows",
+      "section": "05 · Группы",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/group-add-member",
+      "screen": "group-add-member",
+      "theme": "dark",
+      "page": "flows",
+      "section": "05 · Группы",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/administration",
+      "screen": "administration",
+      "theme": "light",
+      "page": "flows",
+      "section": "06 · Администрирование",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/administration",
+      "screen": "administration",
+      "theme": "dark",
+      "page": "flows",
+      "section": "06 · Администрирование",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/admin-user",
+      "screen": "admin-user",
+      "theme": "light",
+      "page": "flows",
+      "section": "06 · Администрирование",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/admin-user",
+      "screen": "admin-user",
+      "theme": "dark",
+      "page": "flows",
+      "section": "06 · Администрирование",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "light/admin-groups",
+      "screen": "admin-groups",
+      "theme": "light",
+      "page": "flows",
+      "section": "06 · Администрирование",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    },
+    {
+      "key": "dark/admin-groups",
+      "screen": "admin-groups",
+      "theme": "dark",
+      "page": "flows",
+      "section": "06 · Администрирование",
+      "frame_id": null,
+      "status": "pending",
+      "last_verified": null
+    }
+  ]
+}

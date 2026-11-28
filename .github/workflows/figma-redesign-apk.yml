@@ -285,6 +285,16 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: adb install -g app/build/outputs/apk/uiCapture/app-uiCapture.apk && CAPTURE_FIXTURE=1 python3 scripts/capture-ui.py
+      - name: Prepare Pixso incremental update plan
+        run: |
+          python3 scripts/plan-pixso-sync.py --registry design/pixso-sync.json --handoff ui-handoff --output pixso-sync-input
+      - name: Upload Pixso update inputs
+        uses: actions/upload-artifact@v6
+        with:
+          name: pixso-sync-input
+          path: pixso-sync-input/
+          if-no-files-found: error
+          retention-days: 30
       - name: Generate editable FIG layers from full capture
         id: fig
         shell: bash
