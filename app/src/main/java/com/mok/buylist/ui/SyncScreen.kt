@@ -239,12 +239,12 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
             text = { Text(stringResource(R.string.restore_owner_text), color = p.textSecondary) },
             confirmButton = {
                 SheetActionButton(onClick = { controller.confirmRestore(asMe = true) }) {
-                    Text(stringResource(R.string.restore_owner_me), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.restore_owner_me))
                 }
             },
             dismissButton = {
                 SheetActionButton(onClick = { controller.confirmRestore(asMe = false) }) {
-                    Text(stringResource(R.string.restore_owner_other), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.restore_owner_other))
                 }
             },
         )
