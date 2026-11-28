@@ -1,0 +1,512 @@
+{
+  "date": "2026-11-28",
+  "code_commit": "b37c8481a422343ba685e419e0a0fac1c233f46e",
+  "backup_branch": "backup/ui-ux-before-2026-11-28",
+  "file_key": "4T8MYI6qqkQjlqe3MKJY7Q",
+  "pixso_history_version": null,
+  "warning": "Control hashes only, not a restorable Pixso file. Save named version in editor before further design mutations.",
+  "snapshot": {
+    "components": {
+      "navigation": {
+        "id": "24:7763",
+        "hash": "9aa8406029ed94e8"
+      },
+      "statistics_tabs": {
+        "id": "24:9195",
+        "hash": "eb69de580af12f6c"
+      },
+      "product_row": {
+        "id": "24:9276",
+        "hash": "801eda9c1ca636c8"
+      },
+      "empty_state": {
+        "id": "27:2137",
+        "hash": "e0a3be6610765e42"
+      },
+      "secondary_button": {
+        "id": "28:2745",
+        "hash": "4f3e0c675918874b"
+      },
+      "primary_toolbar_action": {
+        "id": "28:2750",
+        "hash": "1618e50d81f909cd"
+      },
+      "store_detail": {
+        "id": "28:2955",
+        "hash": "740f77bc86e12f8c"
+      },
+      "store_product_picker": {
+        "id": "28:3859",
+        "hash": "f8cadeec91adda54"
+      },
+      "custom_product_form": {
+        "id": "28:3460",
+        "hash": "2ddaa829082506d1"
+      }
+    },
+    "pages": [
+      {
+        "id": "7:2575",
+        "name": "00 · Index & Sync",
+        "frames": [
+          [
+            "7:2575",
+            "24:5549",
+            "Навигация · единый макет"
+          ]
+        ]
+      },
+      {
+        "id": "0:1",
+        "name": "01 · Foundations & Components",
+        "frames": [
+          [
+            "0:1",
+            "28:2557",
+            "App / Empty state · scenarios"
+          ]
+        ]
+      },
+      {
+        "id": "3:6670",
+        "name": "02 · App screens",
+        "frames": [
+          [
+            "3:7302",
+            "16:3001",
+            "statistics"
+          ],
+          [
+            "3:7292",
+            "16:3529",
+            "archive"
+          ],
+          [
+            "3:7292",
+            "16:3639",
+            "archive-populated"
+          ],
+          [
+            "3:7302",
+            "21:4469",
+            "stats-filters"
+          ],
+          [
+            "3:7279",
+            "28:2763",
+            "store-detail"
+          ],
+          [
+            "3:7272",
+            "3:6672",
+            "shopping"
+          ],
+          [
+            "3:7272",
+            "3:6717",
+            "shopping-populated"
+          ],
+          [
+            "3:7279",
+            "3:6804",
+            "catalog"
+          ],
+          [
+            "3:7321",
+            "3:6848",
+            "profile"
+          ],
+          [
+            "3:7321",
+            "3:6918",
+            "authenticated"
+          ],
+          [
+            "3:7279",
+            "9:2676",
+            "stores"
+          ],
+          [
+            "3:7279",
+            "9:2802",
+            "catalog-populated"
+          ],
+          [
+            "3:7279",
+            "9:3088",
+            "product-detail"
+          ],
+          [
+            "3:7292",
+            "9:3316",
+            "archive-expanded"
+          ],
+          [
+            "3:7302",
+            "9:3558",
+            "statistics-populated"
+          ]
+        ]
+      },
+      {
+        "id": "3:6671",
+        "name": "03 · Flows & states",
+        "frames": [
+          [
+            "7:2538",
+            "20:3377",
+            "notifications"
+          ],
+          [
+            "7:2515",
+            "20:3509",
+            "account"
+          ],
+          [
+            "7:2515",
+            "20:3641",
+            "account-registration"
+          ],
+          [
+            "7:2565",
+            "20:3763",
+            "administration"
+          ],
+          [
+            "7:2565",
+            "20:3931",
+            "admin-groups"
+          ],
+          [
+            "7:2555",
+            "20:4175",
+            "cloud-groups"
+          ],
+          [
+            "7:2555",
+            "20:4393",
+            "group-detail"
+          ],
+          [
+            "7:2555",
+            "20:4743",
+            "group-add-member"
+          ],
+          [
+            "7:2565",
+            "20:4993",
+            "admin-user"
+          ],
+          [
+            "7:2542",
+            "20:5269",
+            "security"
+          ],
+          [
+            "7:2515",
+            "20:5685",
+            "welcome"
+          ],
+          [
+            "7:2515",
+            "20:5853",
+            "registration"
+          ],
+          [
+            "7:2531",
+            "20:6179",
+            "add"
+          ],
+          [
+            "7:2531",
+            "20:6357",
+            "custom-product"
+          ],
+          [
+            "7:2542",
+            "23:4537",
+            "theme"
+          ],
+          [
+            "7:2542",
+            "23:4769",
+            "backup"
+          ],
+          [
+            "7:2542",
+            "23:4989",
+            "updates"
+          ],
+          [
+            "28:3008",
+            "28:3009",
+            "store-product-picker"
+          ],
+          [
+            "28:3008",
+            "28:3161",
+            "store-product-price"
+          ],
+          [
+            "28:3008",
+            "28:3301",
+            "store-custom-product"
+          ],
+          [
+            "28:3008",
+            "28:3515",
+            "store-edit"
+          ],
+          [
+            "28:3008",
+            "28:3626",
+            "store-remove-product"
+          ]
+        ]
+      }
+    ],
+    "schema": 1,
+    "targets": {
+      "shopping": {
+        "id": "3:6672",
+        "hash": "1d39673d1ec980fd"
+      },
+      "shopping-populated": {
+        "id": "3:6717",
+        "hash": "c43a6f3d2c8d55f5"
+      },
+      "catalog": {
+        "id": "3:6804",
+        "hash": "0223c93a79cc7faa"
+      },
+      "catalog-populated": {
+        "id": "9:2802",
+        "hash": "e995d3594d1da755"
+      },
+      "stores": {
+        "id": "9:2676",
+        "hash": "8d92c202e5539036"
+      },
+      "product-detail": {
+        "id": "9:3088",
+        "hash": "09ecc3a47d0ff1ac"
+      },
+      "archive": {
+        "id": "16:3529",
+        "hash": "ab21531d6875c6b9"
+      },
+      "archive-populated": {
+        "id": "16:3639",
+        "hash": "bb55d764888f5eec"
+      },
+      "archive-expanded": {
+        "id": "9:3316",
+        "hash": "47aff0fa7ac2ce6e"
+      },
+      "statistics": {
+        "id": "16:3001",
+        "hash": "af8c2659777152fd"
+      },
+      "statistics-populated": {
+        "id": "9:3558",
+        "hash": "98c6dc095d2dce5d"
+      },
+      "stats-filters": {
+        "id": "21:4469",
+        "hash": "f1615bfa5df1c496"
+      },
+      "profile": {
+        "id": "3:6848",
+        "hash": "c2a4a952632de1d2"
+      },
+      "authenticated": {
+        "id": "3:6918",
+        "hash": "7c2cb6845f22407c"
+      },
+      "welcome": {
+        "id": "20:5685",
+        "hash": "0c334b5199c9cd25"
+      },
+      "registration": {
+        "id": "20:5853",
+        "hash": "7c2fefbcbcbb3ff0"
+      },
+      "account": {
+        "id": "20:3509",
+        "hash": "05cc84672de195fb"
+      },
+      "account-registration": {
+        "id": "20:3641",
+        "hash": "6dab770677488b3a"
+      },
+      "add": {
+        "id": "20:6179",
+        "hash": "6dec1b8ddd4b5589"
+      },
+      "custom-product": {
+        "id": "20:6357",
+        "hash": "c5e93443af13baaf"
+      },
+      "notifications": {
+        "id": "20:3377",
+        "hash": "3e5dc111965a1659"
+      },
+      "theme": {
+        "id": "23:4537",
+        "hash": "3124b4b9af3373e5"
+      },
+      "backup": {
+        "id": "23:4769",
+        "hash": "9f794e90517c2b44"
+      },
+      "updates": {
+        "id": "23:4989",
+        "hash": "fcf8e87b0075b7f7"
+      },
+      "security": {
+        "id": "20:5269",
+        "hash": "c2e57aa724a2e377"
+      },
+      "cloud-groups": {
+        "id": "20:4175",
+        "hash": "c15d4e29e73f8459"
+      },
+      "group-detail": {
+        "id": "20:4393",
+        "hash": "afdecc08286ffb9c"
+      },
+      "group-add-member": {
+        "id": "20:4743",
+        "hash": "11bece100f29c380"
+      },
+      "administration": {
+        "id": "20:3763",
+        "hash": "7b82b51b7bc62a5f"
+      },
+      "admin-user": {
+        "id": "20:4993",
+        "hash": "1a0d428811e5dd40"
+      },
+      "admin-groups": {
+        "id": "20:3931",
+        "hash": "aee0991f3192b123"
+      },
+      "store-detail": {
+        "id": "28:2763",
+        "hash": "d7c9b69e3db469fa"
+      },
+      "store-product-picker": {
+        "id": "28:3009",
+        "hash": "4d0416cc326063f4"
+      },
+      "store-product-price": {
+        "id": "28:3161",
+        "hash": "df9305dbf60409f3"
+      },
+      "store-custom-product": {
+        "id": "28:3301",
+        "hash": "fdbd322f55e652f3"
+      },
+      "store-edit": {
+        "id": "28:3515",
+        "hash": "6fb39964572e99cc"
+      },
+      "store-remove-product": {
+        "id": "28:3626",
+        "hash": "85b4265359c2c18f"
+      }
+    },
+    "tokens": {
+      "Theme/System foreground": {
+        "id": "24:7545",
+        "light": "626260",
+        "dark": "FFFFFF"
+      },
+      "Theme/Background": {
+        "id": "24:7546",
+        "light": "F6F5F0",
+        "dark": "171B18"
+      },
+      "Theme/Surface": {
+        "id": "24:7547",
+        "light": "FFFFFF",
+        "dark": "232924"
+      },
+      "Theme/Field": {
+        "id": "24:7548",
+        "light": "EFEEE8",
+        "dark": "2B332C"
+      },
+      "Theme/Text": {
+        "id": "24:7549",
+        "light": "171C19",
+        "dark": "F4F6EE"
+      },
+      "Theme/Text secondary": {
+        "id": "24:7550",
+        "light": "646B63",
+        "dark": "A3AEA0"
+      },
+      "Theme/Border": {
+        "id": "24:7551",
+        "light": "E1E2D9",
+        "dark": "39433A"
+      },
+      "Theme/Accent": {
+        "id": "24:7552",
+        "light": "D6F36D",
+        "dark": "D6F36D"
+      },
+      "Theme/On accent": {
+        "id": "24:7553",
+        "light": "18230C",
+        "dark": "18230C"
+      },
+      "Theme/Brand": {
+        "id": "24:7554",
+        "light": "35491C",
+        "dark": "D6F36D"
+      },
+      "Theme/Danger": {
+        "id": "24:7555",
+        "light": "B84038",
+        "dark": "FF9B92"
+      },
+      "Theme/System foreground dimmed": {
+        "id": "24:7556",
+        "light": "3B3B3A",
+        "dark": "FFFFFF"
+      },
+      "Theme/System gesture": {
+        "id": "24:7557",
+        "light": "626260",
+        "dark": "EDEDED"
+      },
+      "Theme/Scrim": {
+        "id": "24:7558",
+        "light": "000000",
+        "dark": "000000"
+      },
+      "Theme/Danger surface": {
+        "id": "24:7559",
+        "light": "F3E5E2",
+        "dark": "463B35"
+      },
+      "Theme/White fixed": {
+        "id": "24:7560",
+        "light": "FFFFFF",
+        "dark": "FFFFFF"
+      },
+      "Theme/Dark fixed": {
+        "id": "24:7561",
+        "light": "171C19",
+        "dark": "171C19"
+      },
+      "Theme/Icon adaptive": {
+        "id": "24:7562",
+        "light": "171C19",
+        "dark": "A3AEA0"
+      }
+    }
+  }
+}
