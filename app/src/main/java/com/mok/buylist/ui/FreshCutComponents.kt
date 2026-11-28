@@ -16,6 +16,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -54,46 +55,51 @@ internal fun FreshCutEmptyState(
 ) {
     val p = LocalPalette.current
     val bounds = if (fillAvailable) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
-    Column(
-        modifier.then(bounds).padding(
-            horizontal = if (fillAvailable) UiMetrics.screenInset else 0.dp,
-            vertical = UiMetrics.gap,
-        ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
-    ) {
-        Box(
-            Modifier.size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.card),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(36.dp), tint = p.text)
-        }
+    BoxWithConstraints(modifier.then(bounds)) {
+        val viewport = if (fillAvailable && constraints.hasBoundedHeight) {
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        } else Modifier.fillMaxWidth()
         Column(
-            Modifier.fillMaxWidth().heightIn(min = 60.dp),
+            viewport.padding(
+                horizontal = if (fillAvailable) UiMetrics.screenInset else 0.dp,
+                vertical = UiMetrics.gap,
+            ),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
         ) {
-            Text(
-                title,
-                modifier = Modifier.fillMaxWidth(),
-                color = p.text,
-                fontSize = 23.sp,
-                lineHeight = 28.sp,
-                letterSpacing = 0.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            )
-            if (description != null) {
+            Box(
+                Modifier.size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.card),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(36.dp), tint = p.text)
+            }
+            Column(
+                Modifier.fillMaxWidth().heightIn(min = 60.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
-                    description,
+                    title,
                     modifier = Modifier.fillMaxWidth(),
-                    color = p.textSecondary,
-                    fontSize = 14.sp,
-                    lineHeight = 24.sp,
+                    color = p.text,
+                    fontSize = 23.sp,
+                    lineHeight = 28.sp,
                     letterSpacing = 0.5.sp,
-                    fontWeight = FontWeight.Normal,
+                    fontWeight = FontWeight.SemiBold,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 )
+                if (description != null) {
+                    Text(
+                        description,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = p.textSecondary,
+                        fontSize = 14.sp,
+                        lineHeight = 24.sp,
+                        letterSpacing = 0.5.sp,
+                        fontWeight = FontWeight.Normal,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    )
+                }
             }
         }
     }
@@ -131,7 +137,7 @@ internal fun FreshCutNavigation(
                 Spacer(Modifier.height(4.dp))
                 Icon(painterResource(icon), null, Modifier.size(24.dp), tint = ink)
                 Text(title, color = ink, fontSize = 11.sp,
-                    maxLines = if (LocalDensity.current.fontScale > 1.3f) Int.MAX_VALUE else 2,
+                    maxLines = if (LocalDensity.current.fontScale >= 1.3f) Int.MAX_VALUE else 2,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     overflow = TextOverflow.Ellipsis, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium)
             }
@@ -147,13 +153,14 @@ internal fun FreshCutRootHeader(
     trailing: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
+    val headerMaxLines = if (LocalDensity.current.fontScale >= 1.3f) Int.MAX_VALUE else 2
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = UiMetrics.screenInset, end = UiMetrics.screenInset, top = 6.dp, bottom = 12.dp),
         verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                maxLines = headerMaxLines, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 13.sp, lineHeight = 18.sp,
-                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                maxLines = headerMaxLines, overflow = TextOverflow.Ellipsis)
         }
         trailing()
     }
