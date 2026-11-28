@@ -183,10 +183,12 @@ internal fun StoresScreen(
                 }, primary = true)
             }
             if (visibleEntries.isEmpty()) {
-                FreshCutEmptyState(R.drawable.ic_package,
-                    stringResource(if (productQuery.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
+                FreshCutEmptyState(
+                    icon = if (productQuery.isBlank()) R.drawable.ic_package else R.drawable.ic_search,
+                    title = stringResource(if (productQuery.isBlank()) R.string.empty_catalog_title else R.string.empty_store_search_title),
                     modifier = Modifier.weight(1f),
-                    description = stringResource(if (productQuery.isBlank()) R.string.empty_store_products_description else R.string.empty_name_search_description))
+                    description = stringResource(if (productQuery.isBlank()) R.string.empty_store_products_description else R.string.empty_store_search_description),
+                )
             } else LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
@@ -262,7 +264,12 @@ internal fun StoresScreen(
                         })
                         if (options.isEmpty()) {
                             if (choiceQuery.isNotBlank()) {
-                                Text("Нет результатов. Измените название.", color = p.textSecondary, fontSize = 13.sp)
+                                FreshCutEmptyState(
+                                    icon = R.drawable.ic_search,
+                                    title = stringResource(R.string.empty_store_search_title),
+                                    description = stringResource(R.string.empty_store_search_description),
+                                    fillAvailable = false,
+                                )
                             }
                         } else LazyColumn(
                             Modifier.fillMaxWidth().heightIn(max = 270.dp),

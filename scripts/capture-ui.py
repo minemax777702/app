@@ -275,7 +275,7 @@ def capture_authenticated():
                     ime = shell("dumpsys", "input_method")
                     if re.search(r"mInputShown=true|mIsInputViewShown=true|isInputViewShown=true", ime):
                         back()
-                    capture("store-product-picker-no-results", ("Нет результатов. Измените название.",))
+                    capture("store-product-picker-no-results", ("Товары не найдены",))
                 if tap("Создать свой товар"):
                     capture("store-custom-product", ("Свой товар",))
                 close_sheet()

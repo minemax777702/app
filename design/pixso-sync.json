@@ -4401,7 +4401,7 @@
         "custom-product"
       ],
       "status": "draft",
-      "note": "36 dp icon within 96 dp tile. Full-page empty states remain; redundant empty blocks in action sheets are omitted. Search without matches in small sheets uses a compact hint.",
+      "note": "36 dp icon within 96 dp tile. Empty base in action sheet omits empty state; explicit unsuccessful product search uses common inline Empty state. Other compact action sheets may use short contextual hints.",
       "alignment": {
         "horizontal": "center",
         "vertical": "center_available_content",
@@ -4473,7 +4473,8 @@
         "SupabasePanel",
         "ExpenseStatsPanel",
         "AppUpdateSheet"
-      ]
+      ],
+      "theme_inheritance": "All 2 masters and 20 instances cleared explicit variable modes; inherit section or screen; checked on dark catalog, shopping and picker."
     },
     "secondary_button": {
       "id": "28:2745",
@@ -4496,7 +4497,14 @@
       "variant": "State",
       "count": 3,
       "compose": "StoresScreen",
-      "bottom_anchor": true
+      "bottom_anchor": true,
+      "no_results": {
+        "instance_id": "32:2887",
+        "title": "Товары не найдены",
+        "description": "Попробуйте другой запрос.",
+        "component": "App / Empty state",
+        "only_when_query_nonblank": true
+      }
     },
     "custom_product_form": {
       "id": "28:3460",

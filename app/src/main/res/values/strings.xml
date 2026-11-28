@@ -201,4 +201,6 @@
     <string name="empty_lists_description">Создайте первый список группы.</string>
     <string name="empty_updates_title">Нет версий</string>
     <string name="empty_updates_description">Здесь появится история обновлений.</string>
+    <string name="empty_store_search_title">Товары не найдены</string>
+    <string name="empty_store_search_description">Попробуйте другой запрос.</string>
 </resources>
