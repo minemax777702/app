@@ -293,7 +293,10 @@ def capture_authenticated():
         return
     if route("cloud-groups", ("Группы",), ("Семья","Дача","Пустая группа")):
         if route("group-detail", ("Семья",), ("Участники · 2","Мария")):
-            child("group-add-member", ("Добавить участников",), ("Добавить участников","Поиск пользователя","Создать пользователя"))
+            child("group-remove-member-confirm", ("Исключить из группы",), ("Исключить участника?",))
+            if route("group-add-member", ("Добавить участников",), ("Добавить участников",)):
+                child("group-create-user", ("Создать пользователя",), ("Новый пользователь",))
+                close_sheet()
             back()
     start()
     tap("Профиль")
@@ -373,7 +376,8 @@ def main():
         required.update({"store-detail", "store-detail-empty", "store-product-picker", "store-product-picker-empty",
                          "store-product-picker-no-results", "store-product-price", "store-custom-product",
                          "store-edit", "store-remove-product", "stats-stores-populated",
-                         "stats-products-populated", "stats-trend-populated"})
+                         "stats-products-populated", "stats-trend-populated",
+                         "group-remove-member-confirm", "group-create-user"})
     captured = {(r["theme"], r["screen"]) for r in records if r["status"] == "captured"}
     auth_complete = all((mode, "authenticated") in captured for mode in ("light", "dark"))
     coverage_complete = auth_complete and all((mode, screen) in captured for mode in ("light", "dark") for screen in required) and all(r["status"] == "captured" for r in records)

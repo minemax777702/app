@@ -1028,6 +1028,9 @@
       "variant_overrides": {
         "App / Statistics tabs": {
           "Tab": "Обзор"
+        },
+        "App / Statistics content": {
+          "Tab": "Обзор"
         }
       }
     },
@@ -1078,6 +1081,9 @@
       "theme_mode": "24:7544",
       "variant_overrides": {
         "App / Statistics tabs": {
+          "Tab": "Обзор"
+        },
+        "App / Statistics content": {
           "Tab": "Обзор"
         }
       }
@@ -2992,7 +2998,12 @@
       },
       "previous_frame_id": "20:4393",
       "target_key": "group-detail",
-      "theme_mode": "2:0"
+      "theme_mode": "2:0",
+      "variant_overrides": {
+        "App / Group detail sheet": {
+          "State": "Detail"
+        }
+      }
     },
     {
       "key": "dark/group-detail",
@@ -3040,7 +3051,12 @@
       },
       "previous_frame_id": "20:4568",
       "target_key": "group-detail",
-      "theme_mode": "24:7544"
+      "theme_mode": "24:7544",
+      "variant_overrides": {
+        "App / Group detail sheet": {
+          "State": "Detail"
+        }
+      }
     },
     {
       "key": "light/group-add-member",
@@ -3087,7 +3103,12 @@
       },
       "previous_frame_id": "20:4743",
       "target_key": "group-add-member",
-      "theme_mode": "2:0"
+      "theme_mode": "2:0",
+      "variant_overrides": {
+        "App / Group member sheet": {
+          "State": "Add"
+        }
+      }
     },
     {
       "key": "dark/group-add-member",
@@ -3134,7 +3155,12 @@
       },
       "previous_frame_id": "20:4868",
       "target_key": "group-add-member",
-      "theme_mode": "24:7544"
+      "theme_mode": "24:7544",
+      "variant_overrides": {
+        "App / Group member sheet": {
+          "State": "Add"
+        }
+      }
     },
     {
       "key": "light/administration",
@@ -3795,6 +3821,244 @@
           "State": "No results"
         }
       }
+    },
+    {
+      "key": "light/stats-stores-populated",
+      "screen": "stats-stores-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "section_id": "3:7302",
+      "frame_id": "9:3558",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "statistics-populated",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Statistics tabs": {
+          "Tab": "Магазины"
+        },
+        "App / Statistics content": {
+          "Tab": "Магазины"
+        }
+      }
+    },
+    {
+      "key": "light/stats-products-populated",
+      "screen": "stats-products-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "section_id": "3:7302",
+      "frame_id": "9:3558",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "statistics-populated",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Statistics tabs": {
+          "Tab": "Товары"
+        },
+        "App / Statistics content": {
+          "Tab": "Товары"
+        }
+      }
+    },
+    {
+      "key": "light/stats-trend-populated",
+      "screen": "stats-trend-populated",
+      "theme": "light",
+      "page": "app",
+      "section": "04 · Статистика",
+      "section_id": "3:7302",
+      "frame_id": "9:3558",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "statistics-populated",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Statistics tabs": {
+          "Tab": "Динамика"
+        },
+        "App / Statistics content": {
+          "Tab": "Динамика"
+        }
+      }
+    },
+    {
+      "key": "light/group-remove-member-confirm",
+      "screen": "group-remove-member-confirm",
+      "theme": "light",
+      "page": "flows",
+      "section": "05 · Группы",
+      "section_id": "7:2555",
+      "frame_id": "20:4393",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "group-detail",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Group detail sheet": {
+          "State": "Remove member"
+        }
+      }
+    },
+    {
+      "key": "light/group-create-user",
+      "screen": "group-create-user",
+      "theme": "light",
+      "page": "flows",
+      "section": "05 · Группы",
+      "section_id": "7:2555",
+      "frame_id": "20:4743",
+      "position": {
+        "x": 952,
+        "y": 92
+      },
+      "target_key": "group-add-member",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Group member sheet": {
+          "State": "Create user"
+        }
+      }
+    },
+    {
+      "key": "dark/stats-stores-populated",
+      "screen": "stats-stores-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "section_id": "3:7302",
+      "frame_id": "9:3558",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "statistics-populated",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Statistics tabs": {
+          "Tab": "Магазины"
+        },
+        "App / Statistics content": {
+          "Tab": "Магазины"
+        }
+      }
+    },
+    {
+      "key": "dark/stats-products-populated",
+      "screen": "stats-products-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "section_id": "3:7302",
+      "frame_id": "9:3558",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "statistics-populated",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Statistics tabs": {
+          "Tab": "Товары"
+        },
+        "App / Statistics content": {
+          "Tab": "Товары"
+        }
+      }
+    },
+    {
+      "key": "dark/stats-trend-populated",
+      "screen": "stats-trend-populated",
+      "theme": "dark",
+      "page": "app",
+      "section": "04 · Статистика",
+      "section_id": "3:7302",
+      "frame_id": "9:3558",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "statistics-populated",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Statistics tabs": {
+          "Tab": "Динамика"
+        },
+        "App / Statistics content": {
+          "Tab": "Динамика"
+        }
+      }
+    },
+    {
+      "key": "dark/group-remove-member-confirm",
+      "screen": "group-remove-member-confirm",
+      "theme": "dark",
+      "page": "flows",
+      "section": "05 · Группы",
+      "section_id": "7:2555",
+      "frame_id": "20:4393",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "group-detail",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Group detail sheet": {
+          "State": "Remove member"
+        }
+      }
+    },
+    {
+      "key": "dark/group-create-user",
+      "screen": "group-create-user",
+      "theme": "dark",
+      "page": "flows",
+      "section": "05 · Группы",
+      "section_id": "7:2555",
+      "frame_id": "20:4743",
+      "position": {
+        "x": 952,
+        "y": 92
+      },
+      "target_key": "group-add-member",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Group member sheet": {
+          "State": "Create user"
+        }
+      }
     }
   ],
   "structure_status": "shared_theme_modes_and_state_aliases",
@@ -3812,11 +4076,11 @@
   },
   "inventory_check": {
     "canonical_frames": 37,
-    "capture_keys": 88,
+    "capture_keys": 98,
     "pages": 4,
     "theme_modes": 2,
     "status": "draft",
-    "note": "Store scenarios constructed from current Compose source; Android captures pending."
+    "note": "New populated statistics and group confirmation/user creation variants; capture pending."
   },
   "layout_audit": {
     "source": "beta-ui-157",
@@ -4530,13 +4794,40 @@
       "compose": "SupabasePanel",
       "status": "draft",
       "note": "Error / Registration error / Confirmation; inline messages; not yet mapped to capture variants."
+    },
+    "statistics_content": {
+      "id": "34:3837",
+      "variant": "Tab",
+      "count": 4,
+      "instance": "34:3838",
+      "compose": "ExpenseStatsPanel / StatsScreen",
+      "status": "draft",
+      "note": "Populated tab content; synthetic examples pending new fixture captures. Empty tabs keep shared Empty state."
+    },
+    "group_detail_sheet": {
+      "id": "34:4064",
+      "variant": "State",
+      "count": 3,
+      "instance": "34:4065",
+      "bottom_anchor": true,
+      "compose": "SupabasePanel",
+      "status": "draft"
+    },
+    "group_member_sheet": {
+      "id": "34:4164",
+      "variant": "State",
+      "count": 2,
+      "instance": "34:4165",
+      "bottom_anchor": true,
+      "compose": "SupabasePanel",
+      "status": "draft"
     }
   },
   "optimization": {
     "date": "2026-11-28",
     "canonical_frames": 37,
-    "capture_keys": 88,
-    "distinct_capture_states": 44,
+    "capture_keys": 98,
+    "distinct_capture_states": 49,
     "removed_duplicate_frames": 39,
     "removed_archive_page_ids": [
       "2:37",
@@ -4546,7 +4837,12 @@
       "stats-stores": "statistics",
       "stats-products": "statistics",
       "stats-trend": "statistics",
-      "login-form": "welcome"
+      "login-form": "welcome",
+      "stats-stores-populated": "statistics-populated",
+      "stats-products-populated": "statistics-populated",
+      "stats-trend-populated": "statistics-populated",
+      "group-remove-member-confirm": "group-detail",
+      "group-create-user": "group-add-member"
     },
     "visual_parity_verified": false,
     "notes": [
@@ -4623,7 +4919,21 @@
       ],
       "capture_recovery": "UX-07 resolved on run 46158987617: 88/88 captured",
       "checkpoint_reported_by_user": "Backup · UI/UX · 2026-11-28",
-      "checkpoint_verified_via_api": false
+      "checkpoint_verified_via_api": false,
+      "cycle3": {
+        "date": "2026-11-28",
+        "code_commit": "4e5d7071f63e95447680dedab15caab1d4a21bc0",
+        "prior_android_ci": "46165095572 success",
+        "talkback_manual_test": "excluded at user request; existing semantics preserved",
+        "issues": {
+          "UX-08": "implemented populated tabs in Pixso + capture routes; visual parity pending",
+          "UX-09": "5 additional scenarios per theme; remaining states still open",
+          "UX-24": "group creation form fix, member confirmation, draft protection and bounded participant search; runtime pending"
+        },
+        "new_scenarios": 5,
+        "capture_keys": 98,
+        "canonical_frames": 37
+      }
     }
   }
 }
