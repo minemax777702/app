@@ -75,7 +75,7 @@ internal class SupabaseCloud(private val context: Context, parentScope: Coroutin
     private val lentaSettings: LentaAddressSettings) {
     private val scope = CoroutineScope(parentScope.coroutineContext + SupervisorJob(parentScope.coroutineContext[Job]) +
         CoroutineExceptionHandler { _, error -> reportFailure("worker", error) })
-    val configured = BuildConfig.SUPABASE_URL.startsWith("https://") && BuildConfig.SUPABASE_KEY.isNotBlank()
+    val configured = (BuildConfig.SUPABASE_URL.startsWith("https://") || (BuildConfig.UI_CAPTURE && BuildConfig.SUPABASE_URL == "http://10.0.2.2:54321")) && BuildConfig.SUPABASE_KEY.isNotBlank()
     private val client = if (configured) createSupabaseClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_KEY) {
         httpEngine = OkHttp.create()
         install(Auth) {
