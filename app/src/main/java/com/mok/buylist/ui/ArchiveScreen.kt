@@ -289,7 +289,7 @@ private fun ArchiveCard(
     Column(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(UiMetrics.featureCardRadius))
             .background(p.card)
             .animateContentSize(Motion.smooth())
             .padding(16.dp),
@@ -336,7 +336,7 @@ private fun ArchiveCard(
                         Modifier
                             .weight(1f)
                             .height(52.dp)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(UiMetrics.controlRadius))
                             .background(if (chosen > 0) p.actionFill else p.field)
                             .clickable(enabled = chosen > 0, role = Role.Button, onClick = onRepeat)
                             .padding(horizontal = 12.dp),
@@ -359,7 +359,7 @@ private fun ArchiveCard(
                     Box(
                         Modifier
                             .size(52.dp)
-                            .clip(CircleShape)
+                            .clip(RoundedCornerShape(UiMetrics.controlRadius))
                             .background(p.error.copy(alpha = if (p.isDark) 0.16f else 0.1f))
                             .clickable(role = Role.Button, onClickLabel = deleteLabel, onClick = onDelete),
                         contentAlignment = Alignment.Center,
@@ -380,7 +380,7 @@ private fun ArchiveItemRow(name: String, store: String?, impulsive: Boolean, che
         Modifier
             .fillMaxWidth()
             .heightIn(min = 44.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(UiMetrics.nestedRadius))
             .toggleable(value = checked, role = Role.Checkbox, onValueChange = { onToggle() })
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -447,7 +447,7 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
                         color = p.textSecondary, fontSize = 13.sp)
                 }
             }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(16.dp),
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.featureCardRadius)).background(p.card).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("СТОИМОСТЬ ПОКУПКИ", color = p.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Text(total?.let(::money) ?: "Цена не указана", color = p.text, fontSize = 32.sp, fontWeight = FontWeight.SemiBold)
