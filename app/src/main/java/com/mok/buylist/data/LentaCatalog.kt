@@ -207,6 +207,11 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
         val request = JSONObject().put("jsonrpc", "2.0").put("id", 1).put("method", "tools/call")
             .put("params", JSONObject().put("name", name).put("arguments", args))
         val c = URL("https://mcp.lenta.com/mcp").openConnection() as HttpURLConnection
+        val startedAt = System.nanoTime()
+        fun checkDeadline() {
+            if (System.nanoTime() - startedAt >= java.util.concurrent.TimeUnit.SECONDS.toNanos(45))
+                throw java.net.SocketTimeoutException("Время ожидания ответа Ленты истекло")
+        }
         try {
             c.requestMethod = "POST"; c.connectTimeout = 12000; c.readTimeout = 20000; c.doOutput = true
             c.setRequestProperty("Content-Type", "application/json")
@@ -214,7 +219,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
             c.outputStream.use { it.write(request.toString().toByteArray(Charsets.UTF_8)) }
             if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
             val payload = c.inputStream.use { input ->
-                readMcpResponse(c.contentType, input) { candidate ->
+                readMcpResponse(c.contentType, input, checkDeadline = ::checkDeadline) { candidate ->
                     val rpc = runCatching { JSONObject(candidate) }.getOrNull()
                     rpc?.optInt("id") == 1 && (rpc.has("result") || rpc.has("error"))
                 }
@@ -238,6 +243,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
 internal fun readMcpResponse(
     contentType: String?,
     input: java.io.InputStream,
+    checkDeadline: () -> Unit = {},
     isReply: (String) -> Boolean = { true },
 ): String {
     val maxBytes = 4 * 1024 * 1024
@@ -247,7 +253,9 @@ internal fun readMcpResponse(
         val output = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(8192)
         while (true) {
+            checkDeadline()
             val n = input.read(buffer)
+            checkDeadline()
             if (n < 0) break
             require(output.size() + n <= maxBytes) { "Ответ MCP слишком большой" }
             output.write(buffer, 0, n)
@@ -265,9 +273,11 @@ internal fun readMcpResponse(
         return payload.takeIf(isReply)
     }
     while (true) {
+        checkDeadline()
         val buffer = StringBuilder()
         var eof = false
         while (true) {
+            if (charsRead % 4096 == 0) checkDeadline()
             val ch = reader.read()
             if (ch == -1) { eof = true; break }
             require(++charsRead <= maxBytes) { "Ответ MCP слишком большой" }
