@@ -183,12 +183,12 @@ fun ArchiveScreen(
             text = { Text(stringResource(R.string.archive_delete_text), color = p.textSecondary) },
             confirmButton = {
                 SheetActionButton(onClick = { onDelete(list); pendingDelete = null }, destructive = true) {
-                    Text(stringResource(R.string.archive_delete), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.archive_delete))
                 }
             },
             dismissButton = {
                 SheetActionButton(onClick = { pendingDelete = null }) {
-                    Text(stringResource(R.string.cancel), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(stringResource(R.string.cancel))
                 }
             },
         )
