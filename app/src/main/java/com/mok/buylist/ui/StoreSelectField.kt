@@ -42,8 +42,8 @@ internal fun StoreSelectField(
     fun choose(store: ShoppingStore?) { close(); onSelected(store) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Магазин", color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        Row(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp)).background(p.card)
-            .border(1.dp, p.line, RoundedCornerShape(16.dp)).clickable { expanded = true }.padding(horizontal = 16.dp),
+        Row(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(UiMetrics.controlRadius)).background(p.card)
+            .border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius)).clickable { expanded = true }.padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Text(selectedStore?.name ?: "Без магазина", Modifier.weight(1f), color = p.text, fontSize = 15.sp)
             Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать магазин", Modifier.size(20.dp), tint = p.textSecondary)
