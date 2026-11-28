@@ -201,6 +201,9 @@ internal fun AppModalSheet(
             }
         }
     }
+    val animatedHandle: (@Composable () -> Unit)? = if (dragHandle == null) null else {
+        { CompositionLocalProvider(LocalSheetClose provides requestClose) { dragHandle() } }
+    }
     ModalBottomSheet(
         onDismissRequest = {
             // Material already animates Back/scrim/swipe; do not run a second hide.
@@ -211,9 +214,7 @@ internal fun AppModalSheet(
         containerColor = containerColor,
         contentColor = contentColor,
         shape = RoundedCornerShape(topStart = UiMetrics.sheetRadius, topEnd = UiMetrics.sheetRadius),
-        dragHandle = dragHandle?.let { handle ->
-            { CompositionLocalProvider(LocalSheetClose provides requestClose) { handle() } }
-        },
+        dragHandle = animatedHandle,
         sheetGesturesEnabled = sheetGesturesEnabled && !closing,
         scrimColor = Color.Black.copy(alpha = 0.40f),
         content = {
