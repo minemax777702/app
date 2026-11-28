@@ -33,6 +33,7 @@ android {
         versionCode = appVersionCode.get()
         versionName = appVersionName.get()
 
+        buildConfigField("boolean", "UI_CAPTURE", "false")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val url = providers.environmentVariable("SUPABASE_URL").filter { it.isNotBlank() }
             .orElse(providers.gradleProperty("SUPABASE_URL")).orElse("").get()
@@ -54,6 +55,16 @@ android {
     }
 
     buildTypes {
+        create("uiCapture") {
+            initWith(getByName("debug"))
+            matchingFallbacks += listOf("debug")
+            applicationIdSuffix = ".capture"
+            buildConfigField("String", "SUPABASE_URL", "\"http://10.0.2.2:54321\"")
+            val captureKey = providers.environmentVariable("CAPTURE_SUPABASE_KEY").orElse("").get()
+            require(captureKey.matches(Regex("[A-Za-z0-9_.-]*")))
+            buildConfigField("String", "SUPABASE_KEY", "\"$captureKey\"")
+            buildConfigField("boolean", "UI_CAPTURE", "true")
+        }
         release {
             // Один постоянный ключ для всех обновлений приложения.
             signingConfig = signingConfigs.getByName("release")
