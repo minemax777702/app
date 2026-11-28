@@ -41,11 +41,11 @@ internal fun PasskeyAction(stage: PasskeyStage, registration: Boolean, enabled: 
         val transition=rememberInfiniteTransition(label="passkey-pulse")
         transition.animateFloat(1f,0.88f,infiniteRepeatable(tween(650),RepeatMode.Reverse),label="pulse").value
     } else 1f
-    val shape=RoundedCornerShape(22.dp)
+    val shape=RoundedCornerShape(UiMetrics.cardRadius)
     Row(Modifier.fillMaxWidth().clip(shape).background(p.card).border(1.dp,p.line,shape)
         .clickable(enabled=enabled && !busy,role=Role.Button,onClick=onClick).padding(12.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(p.actionFill),contentAlignment=Alignment.Center) {
+        Box(Modifier.size(48.dp).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.actionFill),contentAlignment=Alignment.Center) {
             Icon(painterResource(R.drawable.ic_fingerprint),null,Modifier.size(27.dp).graphicsLayer {
                 scaleX=scale;scaleY=scale
             },tint=p.actionInk)
@@ -87,9 +87,9 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
     val busy=loading || deleting || revoking || stage!=PasskeyStage.IDLE
     AppSheet(onDismissRequest={if(!deleting && !revoking && stage==PasskeyStage.IDLE)onClose()},containerColor=p.sheet,title={SheetHeader("Безопасность")},text={
         Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card).padding(18.dp)) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.featureCardRadius)).background(p.card).padding(18.dp)) {
                 Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.size(64.dp).clip(RoundedCornerShape(22.dp)).background(p.actionFill),contentAlignment=Alignment.Center){
+                    Box(Modifier.size(64.dp).clip(RoundedCornerShape(UiMetrics.heroIconRadius)).background(p.actionFill),contentAlignment=Alignment.Center){
                         Icon(painterResource(R.drawable.ic_fingerprint),null,Modifier.size(36.dp),tint=p.actionInk)
                     }
                     Text("Вход без пароля",color=p.text,fontSize=20.sp,fontWeight=FontWeight.SemiBold)
