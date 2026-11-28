@@ -187,7 +187,12 @@ internal fun StoresScreen(
                 if (productQuery.trim() != it.trim()) { shown = 8; resetProductScroll() }
                 productQuery = it
             }, Modifier.padding(horizontal = 20.dp))
-            FreshCutSectionTitle("Товары", Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                FreshCutSectionTitle("Товары", Modifier.weight(1f))
+                FreshCutToolbarAction(R.drawable.ic_plus, "Добавить товар", {
+                    choosingProduct = true; chosenProductKey = null; choiceQuery = ""; linkPrice = ""; linkError = null
+                }, primary = true)
+            }
             if (visibleEntries.isEmpty()) {
                 FreshCutEmptyState(
                     icon = if (productQuery.isBlank()) R.drawable.ic_package else R.drawable.ic_search,
@@ -243,11 +248,6 @@ internal fun StoresScreen(
                 if (shown < visibleEntries.size) item {
                     FreshCutSecondaryButton("Показать ещё", { shown += 8 })
                 }
-            }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-                SheetActionButton(onClick = {
-                    choosingProduct = true; chosenProductKey = null; choiceQuery = ""; linkPrice = ""; linkError = null
-                }) { Text("Добавить товар") }
             }
         }
     }
