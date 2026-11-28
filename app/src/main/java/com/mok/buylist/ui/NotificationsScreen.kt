@@ -154,9 +154,9 @@ private fun NotificationRow(action: ListAction, group: NotificationGroup, timest
         }
         NotificationGroup.OTHER -> if(noticeStyle(action.title)==NoticeStyle.WARNING) R.drawable.ic_info else R.drawable.ic_bell
     }
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius)).background(p.card).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(p.field), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.field), contentAlignment = Alignment.Center) {
             Icon(painterResource(icon), null, Modifier.size(22.dp), tint = p.text)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
