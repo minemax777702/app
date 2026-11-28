@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -94,6 +95,7 @@ fun ArchiveScreen(
     listPicker: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
+    val archiveListState = rememberLazyListState()
     var expandedId by rememberSaveable(initiallyExpandedId) { mutableStateOf(initiallyExpandedId) }
     var pendingDelete by remember { mutableStateOf<ArchivedList?>(null) }
     var details by remember { mutableStateOf<Pair<ArchivedList, Int>?>(null) }
@@ -112,7 +114,7 @@ fun ArchiveScreen(
     }
     details?.let { (list, index) ->
         ArchiveProductDetails(list, index, userNames, meId, multiUser, stores,
-            onProduct = { id -> details = null; selectedProduct = id },
+            onProduct = { id -> selectedProduct = id },
             onDismiss = { details = null }, navigation = navigation)
         return
     }
@@ -132,11 +134,12 @@ fun ArchiveScreen(
         } else {
             LazyColumn(
                 Modifier.weight(1f),
+                state = archiveListState,
                 contentPadding = PaddingValues(
                     start = 20.dp,
                     end = 20.dp,
                     top = 0.dp,
-                    bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding(),
+                    bottom = 8.dp,
                 ),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
