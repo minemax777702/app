@@ -94,16 +94,16 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                     Box(Modifier.width(bucketWidth).fillMaxHeight().then(action), contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
                         if (total != null) Box(Modifier.fillMaxWidth(0.70f)
                             .fillMaxHeight((total.toDouble() / peak).toFloat().coerceIn(0.03f, 1f))
-                            .clip(RoundedCornerShape(7.dp)).background(if (index == activeBucket) p.text else p.actionFill))
-                        else Box(Modifier.fillMaxWidth(0.70f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.line))
+                            .clip(RoundedCornerShape(7.dp)).background(if (index == activeBucket) p.text else p.chartFill))
+                        else Box(Modifier.fillMaxWidth(0.70f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.controlOutline))
                     }
                 }
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val label = DateTimeFormatter.ofPattern("dd.MM")
-            Text(first.format(label), color = p.textSecondary, fontSize = 10.sp)
-            Text(today.format(label), color = p.textSecondary, fontSize = 10.sp)
+            Text(first.format(label), color = p.textSecondary, fontSize = 11.sp)
+            Text(today.format(label), color = p.textSecondary, fontSize = 11.sp)
         }
         buckets.getOrNull(activeBucket)?.third?.let { Text(money(it), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
         }
@@ -258,7 +258,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                                 .fillMaxHeight((total.toDouble() / peak.coerceAtLeast(1)).toFloat().coerceIn(0.03f, 1f))
                                 .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp)).background(if (selectedBucket == index) p.accent else p.ring))
                         }
-                        Text(label, color = p.textSecondary, fontSize = 10.sp, maxLines = 1)
+                        Text(label, color = p.textSecondary, fontSize = 11.sp, maxLines = 1)
                     }
                 }
             }
