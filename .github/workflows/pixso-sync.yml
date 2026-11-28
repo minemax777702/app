@@ -74,6 +74,7 @@ jobs:
             exit 1
           fi
       - name: Compare and sync
+        id: compare
         env:
           PIXSO_ACCESS_TOKEN: ${{ secrets.PIXSO_ACCESS_TOKEN }}
           APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
@@ -85,8 +86,34 @@ jobs:
           args=()
           if [[ "$APPLY" == "true" ]]; then args+=(--apply); fi
           if [[ "$ACCEPT_STRUCTURE" == "true" ]]; then args+=(--accept-structure); fi
-          python scripts/pixso-sync.py "${args[@]}"
+          result=0
+          python scripts/pixso-sync.py "${args[@]}" || result=$?
+          if [[ "$result" == "2" ]]; then
+            # Only the explicit structural-review result is non-fatal.
+            # Palette conflicts, unknown tokens and actual execution errors remain failures.
+            python - <<'PY'
+          import json
+          from pathlib import Path
+          report = json.loads(Path("pixso-sync-report/report.json").read_text())
+          structural = report["structural"]
+          assert report["blocked"] and not report["applied"]
+          assert not report["conflicts"] and not report["unmapped"]
+          assert structural["targets"] or structural["components"] or structural["pages"]
+          PY
+            echo "review_required=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Pixso structure changed; review required. No writes or release dispatch."
+            {
+              echo "## Pixso: review required"
+              echo "Structural changes detected. No changes applied; no baseline advanced."
+              echo "See pixso-sync-report for changed targets and components."
+            } >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$result" != "0" ]]; then
+            exit "$result"
+          else
+            echo "review_required=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Commit synchronized changes to beta
+        if: steps.compare.outputs.review_required == 'false'
         id: commit
         run: |
           set -euo pipefail
@@ -101,7 +128,7 @@ jobs:
           git push origin HEAD:beta
           echo "changed=true" >> "$GITHUB_OUTPUT"
       - name: Request beta capture or release
-        if: steps.commit.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.apply && inputs.release)
+        if: steps.compare.outputs.review_required == 'false' && (steps.commit.outputs.changed == 'true' || (github.event_name == 'workflow_dispatch' && inputs.apply && inputs.release))
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
