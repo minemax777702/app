@@ -14,6 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -48,6 +51,8 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
+    var authNotice by remember { mutableStateOf<String?>(null) }
+    var authFailed by remember { mutableStateOf(false) }
     var tab by remember { mutableIntStateOf(0) }
     var editingList by remember { mutableStateOf<CloudList?>(null) }
     var listSheet by remember { mutableStateOf(false) }
@@ -78,19 +83,36 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     }
     if (!signedIn) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            FreshCutTabs(listOf("Вход","Регистрация"), if (registration) 1 else 0, { registration = it == 1 })
-            if (registration) SheetTextField(name,{ name=it.take(50) },"Имя")
-            SheetTextField(email,{ email=it.take(254) },"Электронная почта",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))
-            SheetTextField(password,{ password=it.take(128) },"Пароль",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),
+            FreshCutTabs(listOf("Вход","Регистрация"), if (registration) 1 else 0, {
+                if (!busy && passkeyStage == PasskeyStage.IDLE) { registration = it == 1; authNotice = null }
+            })
+            if (registration) SheetTextField(name,{ name=it.take(50); authNotice=null },"Имя")
+            SheetTextField(email,{ email=it.take(254); authNotice=null },"Электронная почта",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Email))
+            SheetTextField(password,{ password=it.take(128); authNotice=null },"Пароль",keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Password),
                 visualTransformation=PasswordVisualTransformation())
+            authNotice?.let { message ->
+                Text(message, Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+                    color = if (authFailed) p.error else p.text, fontSize = 14.sp)
+            }
+            val registering = registration
             FreshCutSecondaryButton(if (busy) "Подключение…" else if (registration) "Зарегистрироваться" else "Войти", {
                 perform {
-                    if (registration) {
-                        if (!cloud.signUp(name,email,password)) {
-                            registration=false; notify("Подтвердите почту и войдите")
-                        }
-                    } else cloud.signIn(email,password)
-                    password=""
+                    authNotice = null
+                    authFailed = false
+                    try {
+                        if (registering) {
+                            if (!cloud.signUp(name,email,password)) {
+                                registration = false
+                                authNotice = "Подтвердите почту по ссылке в письме, затем войдите."
+                            }
+                        } else cloud.signIn(email,password)
+                        password = ""
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        authFailed = true
+                        authNotice = if (registering) "Не удалось зарегистрироваться. Проверьте данные и подключение." else "Не удалось войти. Проверьте почту, пароль и подключение."
+                    }
                 }
             },enabled=!busy && passkeyStage==PasskeyStage.IDLE && email.contains('@') && password.length>=6 && (!registration || name.isNotBlank()))
             if(!registration && activity!=null) PasskeyAction(passkeyStage, false, enabled=!busy) {
@@ -99,7 +121,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 scope.launch {
                     try { cloud.passkeys.signIn(activity){passkeyStage=it}; password="";notify("Вход по ключу доступа выполнен") }
                     catch(e:CancellationException){throw e}
-                    catch(e:Exception){passkeyError(e).takeIf{it.isNotBlank()}?.let(::notify)}
+                    catch(e:Exception){passkeyError(e).takeIf{it.isNotBlank()}?.let{authFailed=true;authNotice=it}}
                     finally{passkeyStage=PasskeyStage.IDLE}
                 }
             }

@@ -129,13 +129,13 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                 else -> stores.firstOrNull { it.id == store.id }?.name ?: "Другой магазин"
             }
             FreshCutListRow(R.drawable.ic_store, title, tripCountLabel(closedByStore[store.id]?.trips ?: 0),
-                value = if (store.priced > 0) money(store.total) else "—")
+                value = if (store.priced > 0) money(store.total) else stringResource(R.string.stats_no_prices_short))
         }
         if (byStore.size > storeLimit) FreshCutSecondaryButton("Показать ещё", { storeLimit += 10 })
     }
     if (section == 0) PanelCard {
         Text("Расходы подробнее", color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-        FreshCutDetailLine("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else "—")
+        FreshCutDetailLine("За всё время", if (allCoverage.priced > 0) money(allCoverage.amount) else stringResource(R.string.stats_no_prices_short))
         if (pricedTrips > 0) FreshCutDetailLine("Средний чек", money(expenseSum(pricedClosed) / pricedTrips))
     }
 
@@ -147,10 +147,11 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         FreshCutSectionTitle("Чаще всего покупаю")
         if (topProducts.isEmpty()) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
             description = stringResource(R.string.empty_period_description), fillAvailable = false)
+        val pricedProductKeys = remember(selected) { selected.filter { it.total != null }.mapTo(HashSet()) { it.productKey } }
         topProducts.take(productLimit).forEach { product ->
             FreshCutListRow(R.drawable.ic_package, product.name,
                 "${tripCountLabel(closedByProduct[product.key]?.trips ?: 0)} · ${product.units} ед.",
-                value = product.knownTotal.takeIf { it > 0L }?.let(::money),
+                value = if (product.key in pricedProductKeys) money(product.knownTotal) else null,
                 onClick = { onProductClick(product.key) })
         }
         if (topProducts.size > productLimit) FreshCutSecondaryButton("Показать ещё", { productLimit += 10 })

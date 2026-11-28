@@ -801,8 +801,8 @@ private fun Header(
 
 @Composable
 internal fun SummaryAmount(icon: Int, label: String, amount: PartialAmount?, color: Color) {
-    if (amount == null || amount.known == 0) return
-    val value = formatAmount(amount)
+    if (amount == null || (amount.known == 0 && amount.unknown == 0)) return
+    val value = if (amount.known == 0) stringResource(R.string.stats_no_prices_short) else formatAmount(amount)
     val detail = when {
         amount.unknown > 0 -> "$value, позиций без цены: ${amount.unknown}"
         else -> value
@@ -1130,7 +1130,7 @@ private fun ItemRowContent(
         }
         row.item.customProductId.isNotBlank() && shopPrices.isNotEmpty() ->
             shopPrices.take(2).joinToString(" · ") { it.storeName }
-        else -> null
+        else -> if (!finished && shown == null) "Без цены" else null
     }
     Row(
         modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RowShape)

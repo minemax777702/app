@@ -209,4 +209,6 @@
     <string name="passkey_error_title">Не удалось загрузить ключи</string>
     <string name="passkey_retry">Повторить</string>
     <string name="store_product_linked">Уже в магазине</string>
+    <string name="stats_no_prices_short">Без цены</string>
+    <string name="stats_no_completed_lists">Нет завершённых списков за этот период.</string>
 </resources>

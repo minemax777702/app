@@ -155,8 +155,9 @@ fun StatsScreen(
         }
         FreshCutTabs(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
-        if (stats.lists == 0 && purchases.none { userId == null || it.buyer == userId }) {
-            EmptyStats(Modifier.weight(1f))
+        if (shownArchive.isEmpty() && historyPurchases.isEmpty()) {
+            val hasHistory = archive.isNotEmpty() || purchases.any { userId == null || it.buyer == userId }
+            EmptyStats(Modifier.weight(1f), hasHistory)
         } else {
             androidx.compose.runtime.key(section) {
             LazyColumn(
@@ -180,7 +181,7 @@ fun StatsScreen(
                 if (section == 3) item { WeeksCard(if (monthly) stats.months else stats.weeks, shown, monthly) { monthly = it } }
                 if (section == 0) stats.busiestDay?.let { day ->
                     item {
-                    val name = day.getDisplayName(TextStyle.FULL_STANDALONE, LocalConfiguration.current.locales[0])
+                    val name = day.getDisplayName(TextStyle.FULL_STANDALONE, java.util.Locale.forLanguageTag("ru-RU"))
                     Card {
                         Text(
                             stringResource(R.string.stats_busiest_day),
@@ -290,7 +291,7 @@ private fun WeeksCard(weeks: List<WeekBar>, shown: Boolean, monthly: Boolean, on
     val p = LocalPalette.current
     val locale = LocalConfiguration.current.locales[0]
     val label = remember(locale, monthly) { DateTimeFormatter.ofPattern(if (monthly) "MM.yy" else "d.MM", locale) }
-    val max = weeks.maxOf { it.lists }.coerceAtLeast(1)
+    val max = weeks.maxOfOrNull { it.lists }?.coerceAtLeast(1) ?: 1
     Card {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(stringResource(R.string.stats_activity), Modifier.weight(1f), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1)
@@ -298,6 +299,10 @@ private fun WeeksCard(weeks: List<WeekBar>, shown: Boolean, monthly: Boolean, on
             PeriodChip(stringResource(R.string.stats_by_month), monthly) { onMonthlyChange(true) }
         }
         Text(stringResource(if (monthly) R.string.stats_months_subtitle else R.string.stats_weeks_subtitle), color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        if (weeks.none { it.lists > 0 }) {
+            Text(stringResource(R.string.stats_no_completed_lists), color = p.textSecondary, fontSize = 13.sp)
+            return@Card
+        }
         Spacer(Modifier.height(12.dp))
         Row(
             Modifier.fillMaxWidth().height(132.dp),
@@ -350,18 +355,18 @@ private fun WeeksCard(weeks: List<WeekBar>, shown: Boolean, monthly: Boolean, on
 @Composable
 private fun PeriodChip(text: String, selected: Boolean, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Box(Modifier.height(36.dp).clip(CircleShape).background(if (selected) p.accent else p.chipBg)
+    Box(Modifier.height(48.dp).clip(CircleShape).background(if (selected) p.accent else p.chipBg)
         .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
         Text(text, color = if (selected) p.onAccent else p.chipText, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
 @Composable
-private fun EmptyStats(modifier: Modifier = Modifier) {
+private fun EmptyStats(modifier: Modifier = Modifier, filtered: Boolean = false) {
     FreshCutEmptyState(
         icon = R.drawable.ic_chart,
         title = stringResource(R.string.empty_statistics_title),
-        description = stringResource(R.string.empty_statistics_description),
+        description = stringResource(if (filtered) R.string.empty_period_description else R.string.empty_statistics_description),
         modifier = modifier,
     )
 }
