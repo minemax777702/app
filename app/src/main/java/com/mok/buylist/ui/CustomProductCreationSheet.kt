@@ -162,7 +162,7 @@ internal fun CustomProductCreationSheet(
                 SheetTextField(
                     price,
                     { price = it; error = null },
-                    if (isWeighted) "Цена за кг, ₽" else "Цена, ₽",
+                    if (isWeighted) "Цена за кг, ₽ (необязательно)" else "Цена, ₽ (необязательно)",
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 )
                 error?.let { Text(it, color = p.error, fontSize = 13.sp) }

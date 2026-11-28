@@ -425,8 +425,7 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
     val quantity = event?.quantity ?: list.counts.getOrNull(index) ?: 1
     val weight = event?.weightGrams
     val quantityText = weight?.let {
-        java.math.BigDecimal.valueOf(it.toLong(), 3)
-            .stripTrailingZeros().toPlainString() + " кг"
+        formatUiWeight(it.toLong())
     } ?: "$quantity шт."
     val productKey = event?.customProductId?.takeIf { it.isNotBlank() }?.let { "custom:$it" }
         ?: event?.productId?.let { "lenta:$it" }

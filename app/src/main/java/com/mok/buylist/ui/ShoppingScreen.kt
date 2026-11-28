@@ -424,7 +424,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     request.prices.forEach { option ->
                         FreshCutListRow(R.drawable.ic_store, option.storeName,
-                            value = option.priceKopecks?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" } ?: "—",
+                            value = option.priceKopecks?.let { formatUiMoney(it) } ?: "—",
                             showChevron = false, onClick = { viewModel.confirmCustomStore(option.storeId) })
                     }
                 }
@@ -628,7 +628,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     com.mok.buylist.sync.lentaWeightGrams(code)?.let { grams ->
-                        Text("${java.math.BigDecimal.valueOf(grams.toLong(), 3).toPlainString()} кг", color = p.text)
+                        Text(formatUiWeight(grams.toLong()), color = p.text)
                     }
                     SheetTextField(price, { price = it }, "Цена одной упаковки",
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal))
@@ -1125,7 +1125,7 @@ private fun ItemRowContent(
     val ownPrice = lowest?.priceKopecks ?: ownEstimate
     val subtitle = when {
         ownPrice != null -> {
-            val price = java.math.BigDecimal.valueOf(ownPrice, 2).stripTrailingZeros().toPlainString() + " ₽"
+            val price = formatUiMoney(ownPrice)
             if (lowest != null) "${lowest.storeName} · $price" else price
         }
         row.item.customProductId.isNotBlank() && shopPrices.isNotEmpty() ->
@@ -1221,7 +1221,7 @@ private fun ItemRowContent(
                 }
                 Box {
                     val amount = weight?.let {
-                        "${java.math.BigDecimal.valueOf(it.toLong(), 3).stripTrailingZeros().toPlainString()} кг"
+                        formatUiWeight(it.toLong())
                     } ?: row.item.quantity.toString()
                     Box(
                         Modifier.height(48.dp).clickable(role = Role.Button) { actionsExpanded = true }

@@ -205,7 +205,7 @@ internal fun StoresScreen(
                         listOfNotNull(if (store.id == lentaStoreId() && storeLinks.any { !it.deleted && it.storeId == store.id &&
                             (identities[it.productKey] ?: it.productKey) == (identities[entry.key] ?: entry.key) && it.priceKopecks != null }) "Ручная цена" else null,
                             if (entry.weighted) "Цена за кг" else null).joinToString(" · "),
-                        entry.price?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                        entry.price?.let { formatUiMoney(it) },
                         onClick = { onProductClick(entry.key) },
                         leading = {
                             if (entry.key.startsWith("custom:")) CustomProductImage(entry.key.removePrefix("custom:"), Modifier.size(44.dp))
@@ -215,7 +215,7 @@ internal fun StoresScreen(
                             val attached = storeLinks.any { !it.deleted && it.storeId == store.id &&
                                 (identities[it.productKey] ?: it.productKey) == (identities[entry.key] ?: entry.key) }
                             androidx.compose.foundation.layout.Box {
-                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(UiMetrics.touchTarget)) {
                                     Icon(painterResource(R.drawable.ic_more), "Действия с ценой", Modifier.size(20.dp), tint = p.textSecondary)
                                 }
                                 AppDropdownMenu(menu, { menu = false }) {
@@ -345,7 +345,7 @@ internal fun StoresScreen(
         AppSheet(
             onDismissRequest = { creating = false; editing = null },
             containerColor = p.sheet,
-            title = { SheetHeader(if (current == null) "Новый магазин" else "Название магазина") }, minBodyHeight = 240.dp,
+            title = { SheetHeader(if (current == null) "Новый магазин" else "Название магазина") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SheetTextField(shopName, { shopName = it; error = null }, "Название магазина", placeholder = "Введите название")

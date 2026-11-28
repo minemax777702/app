@@ -167,7 +167,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         }
         if (rows.isEmpty() && ownRows.isEmpty()) {
             FreshCutEmptyState(
-                icon = R.drawable.ic_package,
+                icon = if (query.isBlank()) R.drawable.ic_package else R.drawable.ic_search,
                 title = stringResource(if (query.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
                 description = stringResource(if (query.isBlank()) R.string.empty_catalog_description else R.string.empty_search_description),
                 modifier = Modifier.weight(1f),
@@ -184,12 +184,12 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                         .joinToString(" · ").ifBlank { "Свой товар" }
                     var menu by remember { mutableStateOf(false) }
                     FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
-                        value = best?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                        value = best?.let { formatUiMoney(it) },
                         onClick = { onProductClick("custom:${product.id}") },
                         leading = { CustomProductImage(product.id, Modifier.size(44.dp)) },
                         trailing = {
                             Box {
-                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(UiMetrics.touchTarget)) {
                                     Icon(painterResource(R.drawable.ic_more), "Действия с товаром", Modifier.size(20.dp), tint = p.textSecondary)
                                 }
                                 AppDropdownMenu(menu, { menu = false }) {
@@ -211,12 +211,12 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                     val subtitle = (listOfNotNull(row.normalized?.label(), "Лента") + prices.map { it.storeName }).distinct().joinToString(" · ")
                     var menu by remember { mutableStateOf(false) }
                     FreshCutListRow(R.drawable.ic_package, product.name, subtitle,
-                        value = value?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽" },
+                        value = value?.let { formatUiMoney(it) },
                         onClick = { onProductClick("lenta:${product.id}") },
                         leading = { LentaImage(product.image, Modifier.size(44.dp)) },
                         trailing = {
                             Box {
-                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(UiMetrics.touchTarget)) {
                                     Icon(painterResource(R.drawable.ic_more), "Действия с товаром", Modifier.size(20.dp), tint = p.textSecondary)
                                 }
                                 AppDropdownMenu(menu, { menu = false }) {

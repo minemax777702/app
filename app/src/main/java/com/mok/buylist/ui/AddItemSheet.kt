@@ -236,7 +236,7 @@ fun AddItemSheet(
                                 title = custom.name,
                                 subtitle = listOfNotNull(if (custom.isWeighted) "Весовой товар" else "Свой товар", row.normalized?.label()).joinToString(" · "),
                                 value = row.price?.let {
-                                    java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() + " ₽"
+                                    formatUiMoney(it)
                                 },
                                 onClick = {
                                     dismissKeyboard()
