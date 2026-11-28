@@ -13,6 +13,7 @@ HERE = Path(__file__).resolve().parent
 SIZES = ((320, 640), (360, 720), (411, 844))
 SCALES = ("1.0", "1.3", "2.0")
 SMOKE = ((SIZES[0], "2.0"), (SIZES[1], "1.3"), (SIZES[2], "1.0"))
+LONG_PRODUCT = "Audit Wholegrain Lactose Free Ultra Pasteurized Milk Large Family Package 1.4 L"
 
 
 def load_capture():
@@ -32,6 +33,66 @@ def check(ui, name, ok, reason):
                            status="passed" if ok else "failed", reason=reason))
 
 
+
+def labels(ui):
+    _, root = ui.hierarchy()
+    return {v for n in root.iter("node") if n.get("package") == ui.PKG
+            for v in (n.get("text"), n.get("content-desc")) if v}
+
+
+def wait_label(ui, label, attempts=8):
+    for _ in range(attempts):
+        if label in labels(ui):
+            return True
+        time.sleep(.5)
+    return False
+
+
+def tap_enabled(ui, label):
+    """Select the smallest enabled clickable node containing the exact action label."""
+    _, root = ui.hierarchy()
+    candidates = []
+    for node in root.iter("node"):
+        if node.get("package") != ui.PKG or node.get("clickable") != "true" or node.get("enabled") != "true":
+            continue
+        if not any(label in (child.get("text"), child.get("content-desc")) for child in node.iter("node")):
+            continue
+        b = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+        if len(b) == 4 and b[2] > b[0] and b[3] > b[1]:
+            candidates.append(((b[2]-b[0])*(b[3]-b[1]), b))
+    if not candidates:
+        return False
+    _, b = min(candidates, key=lambda item: item[0])
+    ui.shell("input", "tap", str((b[0]+b[2])//2), str((b[1]+b[3])//2))
+    time.sleep(.5)
+    return True
+
+
+def audit_populated_card(ui):
+    # Called from the disposable offline product creation form, after entering LONG_PRODUCT.
+    price_entered = ui.fill_field(2, "123456.78")
+    check(ui, "large-price-input", price_entered, "Large price field reachable")
+    if ime_visible(ui):
+        ui.back()
+    if not price_entered or not tap_enabled(ui, "Добавить товар"):
+        check(ui, "long-product-save", False, "Create product action unavailable")
+        return
+    saved = wait_label(ui, LONG_PRODUCT)
+    check(ui, "long-product-save", saved, "Full long product name exposed in list")
+    if not saved:
+        ui.capture("long-product-save-failure")
+        return
+    ui.capture("shopping-long-product", (LONG_PRODUCT,))
+    increased = tap_enabled(ui, "Увеличить количество") and wait_label(ui, "Количество: 2. Действия с товаром")
+    check(ui, "quantity-increase", increased, "Plus updates quantity without opening product detail")
+    if increased:
+        ui.capture("shopping-quantity-increased", (LONG_PRODUCT,))
+        decreased = tap_enabled(ui, "Уменьшить количество") and wait_label(ui, "Количество: 1. Действия с товаром")
+        check(ui, "quantity-decrease", decreased, "Minus restores quantity")
+    if ui.route("catalog-long-product", ("Товары",), (LONG_PRODUCT,)):
+        check(ui, "catalog-long-product-price", any("123" in x and "456,78" in x for x in labels(ui)),
+              "Large formatted price remains available")
+
 def audit_case(ui, mode):
     ui.theme = mode
     ui.shell("cmd", "uimode", "night", "yes" if mode == "dark" else "no")
@@ -44,16 +105,17 @@ def audit_case(ui, mode):
     if ui.route("add", ("Добавить", "Добавить товар"),
                 ("Создать свой товар", "Что нужно купить?", "Введите название или штрихкод")):
         if ui.route("custom-product", ("Создать свой товар",), ("Название товара", "Свой товар")):
-            entered = ui.fill_field(0, "AuditProduct")
+            entered = ui.fill_field(0, LONG_PRODUCT.replace(" ", "%s"))
             time.sleep(.5)
             visible = entered and ime_visible(ui)
             check(ui, "custom-product-ime-open", visible, "First input opens the keyboard")
             if visible:
-                ui.capture("custom-product-with-ime", ("Название товара", "Свой товар", "AuditProduct"))
+                ui.capture("custom-product-with-ime", ("Название товара", "Свой товар", LONG_PRODUCT))
                 ui.back()
                 time.sleep(.5)
                 check(ui, "custom-product-ime-back", not ime_visible(ui), "Back closes keyboard")
-                ui.capture("custom-product-after-ime", ("Название товара", "Свой товар", "AuditProduct"))
+                ui.capture("custom-product-after-ime", ("Название товара", "Свой товар", LONG_PRODUCT))
+                audit_populated_card(ui)
     for name, label, expected in (
         ("catalog", "Товары", ("Магазины", "Действия каталога", "Нет товаров")),
         ("archive", "Архив", ("Архив списков", "Архив пуст")),
