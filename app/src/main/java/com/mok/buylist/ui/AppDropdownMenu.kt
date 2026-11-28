@@ -56,6 +56,9 @@ internal fun AppDropdownMenuItem(
             textColor = p.text,
             leadingIconColor = p.text,
             trailingIconColor = p.textSecondary,
+            disabledTextColor = p.disabledInk,
+            disabledLeadingIconColor = p.disabledInk,
+            disabledTrailingIconColor = p.disabledInk,
         ),
     )
 }
