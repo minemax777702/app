@@ -24,6 +24,10 @@
     "archive_flows": {
       "id": "2:38",
       "target_name": "91 · Archive · исходные сценарии"
+    },
+    "index": {
+      "id": "7:2575",
+      "target_name": "00 · Index & Sync"
     }
   },
   "screens": [
@@ -123,8 +127,8 @@
       "theme": "light",
       "page": "app",
       "section": "02 · Каталог и магазины",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:2802",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7279",
       "position": {
@@ -138,8 +142,8 @@
       "theme": "dark",
       "page": "app",
       "section": "02 · Каталог и магазины",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:2945",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7279",
       "position": {
@@ -153,8 +157,8 @@
       "theme": "light",
       "page": "app",
       "section": "02 · Каталог и магазины",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:2676",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7279",
       "position": {
@@ -168,8 +172,8 @@
       "theme": "dark",
       "page": "app",
       "section": "02 · Каталог и магазины",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:2739",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7279",
       "position": {
@@ -183,8 +187,8 @@
       "theme": "light",
       "page": "app",
       "section": "02 · Каталог и магазины",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:3088",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7279",
       "position": {
@@ -198,8 +202,8 @@
       "theme": "dark",
       "page": "app",
       "section": "02 · Каталог и магазины",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:3202",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7279",
       "position": {
@@ -273,8 +277,8 @@
       "theme": "light",
       "page": "app",
       "section": "03 · Архив",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:3316",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7292",
       "position": {
@@ -288,8 +292,8 @@
       "theme": "dark",
       "page": "app",
       "section": "03 · Архив",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "9:3437",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7292",
       "position": {
@@ -1078,6 +1082,11 @@
       }
     }
   ],
-  "structure_status": "sections_verified_index_unconfirmed",
-  "section_count": 11
+  "structure_status": "sections_verified_index_page_exists_content_pending",
+  "section_count": 11,
+  "icon_library": {
+    "section_id": "9:2515",
+    "source_commit": "54a54ec33016fe16fd5324843b4d0b286208658a",
+    "components": 36
+  }
 }
