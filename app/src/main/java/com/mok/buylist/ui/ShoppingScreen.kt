@@ -3,10 +3,9 @@ package com.mok.buylist.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -259,14 +258,11 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 onFinish = viewModel::finishTrip,
 
             )
-            // Пустое состояние и список сменяют друг друга плавно; пока список грузится, null — ничего не рисуем.
-            Crossfade(
-                targetState = visibleRows?.isEmpty(),
-                modifier = Modifier.weight(1f),
-                animationSpec = Motion.smooth(),
-                label = "list-or-empty",
-            ) { empty ->
+            // A single viewport owns the list and its scroll state. Do not crossfade
+            // two layouts reading the same mutable rows when the last item disappears.
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 val list = visibleRows
+                val empty = list?.isEmpty()
                 when {
                     empty == null || list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { androidx.compose.material3.CircularProgressIndicator(color = p.textSecondary) }
                     empty && allPurchased -> Column(
@@ -754,7 +750,8 @@ private fun Header(
         if (progress.total > 0) (progress.bought.toFloat() / progress.total).coerceIn(0f, 1f) else 0f,
         animationSpec = Motion.smooth(Motion.Slow), label = "fresh-cut-progress",
     )
-    Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
+    Column(Modifier.fillMaxWidth().statusBarsPadding().animateContentSize(Motion.smooth(Motion.Quick))
+        .padding(start = 20.dp, end = 20.dp, top = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (!groupName.isNullOrBlank()) Text(groupName, color=p.textSecondary, fontSize=12.sp,
@@ -781,12 +778,18 @@ private fun Header(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Куплено ${progress.bought} из ${progress.total}", Modifier.weight(1f),
                         color = p.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("${(fraction * 100).roundToInt()}%", color = p.textSecondary, fontSize = 12.sp)
+                    Text("${if (progress.total > 0) (100f * progress.bought / progress.total).roundToInt().coerceIn(0, 100) else 0}%", color = p.textSecondary, fontSize = 12.sp)
                 }
                 Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.field)
-                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo(fraction, 0f..1f) }) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth(fraction).clip(RoundedCornerShape(2.dp)).background(p.headerFill))
-                }
+                    .drawBehind {
+                        val width = size.width * fraction
+                        if (width > 0f) drawRoundRect(p.headerFill,
+                            size = androidx.compose.ui.geometry.Size(width, size.height),
+                            cornerRadius = CornerRadius(2.dp.toPx()))
+                    }
+                    .semantics { progressBarRangeInfo = ProgressBarRangeInfo(
+                        if (progress.total > 0) (progress.bought.toFloat() / progress.total).coerceIn(0f, 1f) else 0f,
+                        0f..1f) })
                 androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     SummaryAmount(R.drawable.ic_list_check, "Всего", totals.total, p.text)
