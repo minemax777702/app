@@ -166,10 +166,11 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 if (!fullSort && !onlineOnly && state.local.isNotEmpty() && !state.started && !searching && !state.paused && address.isNotBlank()) {
                     item { FreshCutSecondaryButton("Найти в Ленте", { controller.searchOnline() }) }
                 }
-                if (fullSort && !searching && !state.complete && !state.failed && (state.stalled || state.paused)) item {
-                    Text(if (state.stalled) "Лента возвращает повторяющиеся страницы. Результат неполный."
-                        else "Поиск приостановлен. Результат неполный.",
-                        color = p.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
+                if (!searching && !state.complete && !state.failed && (state.stalled || state.paused)) item(key = "search-paused") {
+                    FreshCutStatusCard("Поиск приостановлен",
+                        if (state.stalled) "Лента возвращает повторяющиеся страницы. Результат неполный."
+                        else "Результат неполный. Можно продолжить поиск.",
+                        "Продолжить поиск", controller::searchOnline)
                 }
                 if (searching && !fullSort) item(key = "search-loading") {
                     val loadingSize = Modifier.heightIn(min = 56.dp)
@@ -184,10 +185,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 if (searching && !fullSort && ready) item(key = "search-stop") {
                     FreshCutSecondaryButton("Остановить поиск", controller::stop, enabled = state.pending || state.loading)
                 }
-                if (state.paused && !fullSort && !searching) item(key = "search-paused") {
-                    Text("Поиск приостановлен. Результат неполный.", color = p.textSecondary, fontSize = 12.sp)
-                }
-                if (state.hasMore && !state.failed && !searching) {
+                if (state.hasMore && !state.failed && !searching && !state.paused && !state.stalled) {
                     item { FreshCutSecondaryButton(
                         if (state.paused || fullSort) "Продолжить поиск" else "Показать ещё",
                         { controller.searchOnline() },
