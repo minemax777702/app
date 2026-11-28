@@ -350,3 +350,27 @@ internal fun FilterSelect(label: String, value: String, options: List<String>, o
         }
     }
 }
+
+
+/** Recoverable problem: keep existing content visible and offer one explicit next action. */
+@Composable
+internal fun FreshCutStatusCard(
+    title: String,
+    description: String,
+    actionLabel: String,
+    onAction: () -> Unit,
+    warning: Boolean = false,
+    enabled: Boolean = true,
+) {
+    val p = LocalPalette.current
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius))
+            .background(p.card).border(1.dp, p.line, RoundedCornerShape(UiMetrics.cardRadius))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(UiMetrics.gap),
+    ) {
+        Text(title, color = if (warning) p.error else p.text, style = UiTextStyles.sectionTitle)
+        Text(description, color = p.textSecondary, fontSize = 14.sp, lineHeight = 20.sp)
+        FreshCutSecondaryButton(actionLabel, onAction, enabled = enabled)
+    }
+}
