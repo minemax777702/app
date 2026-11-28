@@ -352,7 +352,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = null,
     )
 }
 
