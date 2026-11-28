@@ -285,6 +285,26 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: adb install -g app/build/outputs/apk/uiCapture/app-uiCapture.apk && CAPTURE_FIXTURE=1 python3 scripts/capture-ui.py
+      - name: Generate verified FIG from full capture
+        id: fig
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f design/source.fig ]; then
+            echo "::warning::Upload the original FIG as design/source.fig to enable automatic FIG export."
+            exit 0
+          fi
+          python3 scripts/update-fig.py --source design/source.fig --handoff ui-handoff --output design-output/Shopping-list-latest.fig
+          echo "generated=true" >> "$GITHUB_OUTPUT"
+      - name: Upload verified FIG
+        if: steps.fig.outputs.generated == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: shopping-list-fig
+          path: design-output/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
       - name: Collect changes and compare last capture
         if: always()
         env:
