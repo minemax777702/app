@@ -271,7 +271,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically),
                     ) {
-                        Box(Modifier.size(64.dp).background(p.field, RoundedCornerShape(22.dp)),
+                        Box(Modifier.size(64.dp).background(p.field, RoundedCornerShape(UiMetrics.heroIconRadius)),
                             contentAlignment = Alignment.Center) {
                             Icon(painterResource(R.drawable.ic_check), contentDescription = null,
                                 tint = p.text, modifier = Modifier.size(24.dp))
@@ -692,9 +692,9 @@ private fun ShoppingQuickActions(
     ) {
         if (allPurchased) {
             Row(
-                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(16.dp))
+                Modifier.weight(1f).heightIn(min = 52.dp).clip(RoundedCornerShape(UiMetrics.controlRadius))
                     .background(if (finishEnabled) p.card else p.field)
-                    .border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
                     .clickable(enabled = finishEnabled, role = Role.Button, onClick = onFinish)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -708,8 +708,8 @@ private fun ShoppingQuickActions(
         } else Spacer(Modifier.weight(1f))
 
         Box(
-            Modifier.size(54.dp).clip(RoundedCornerShape(16.dp))
-                .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+            Modifier.size(54.dp).clip(RoundedCornerShape(UiMetrics.controlRadius))
+                .background(p.card).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
                 .clickable(role = Role.Button, onClickLabel = "Отметить покупку по штрихкоду", onClick = onScan),
             contentAlignment = Alignment.Center,
         ) {
@@ -718,7 +718,7 @@ private fun ShoppingQuickActions(
         }
         Row(
             Modifier.height(54.dp).then(if (allPurchased) Modifier.width(54.dp) else Modifier)
-                .clip(RoundedCornerShape(16.dp)).background(p.actionFill)
+                .clip(RoundedCornerShape(UiMetrics.controlRadius)).background(p.actionFill)
                 .clickable(role = Role.Button, onClickLabel = "Добавить товар", onClick = onAdd)
                 .padding(horizontal = if (allPurchased) 0.dp else 16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -773,7 +773,7 @@ private fun Header(
         }
         if (progress.total > 0) {
             Spacer(Modifier.height(8.dp))
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius)).background(p.card).padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Куплено ${progress.bought} из ${progress.total}", Modifier.weight(1f),
@@ -1081,7 +1081,7 @@ private fun SwipeBackground(offset: Animatable<Float, AnimationVector1D>, modifi
     }
 }
 
-private val RowShape = RoundedCornerShape(16.dp)
+private val RowShape = RoundedCornerShape(UiMetrics.compactCardRadius)
 
 /**
  * Строка товара. Все её переходы («в списке» → «куплено»/«удалено») ведёт одно число [done] от 0 до 1:
@@ -1154,9 +1154,9 @@ private fun ItemRowContent(
             contentAlignment = Alignment.Center,
         ) {
             Box(
-                Modifier.size(24.dp).clip(RoundedCornerShape(8.dp))
+                Modifier.size(24.dp).clip(RoundedCornerShape(UiMetrics.checkboxRadius))
                     .background(if (finished) p.actionFill else p.card)
-                    .border(1.dp, if (finished) p.actionFill else p.ring, RoundedCornerShape(8.dp)),
+                    .border(1.dp, if (finished) p.actionFill else p.ring, RoundedCornerShape(UiMetrics.checkboxRadius)),
                 contentAlignment = Alignment.Center,
             ) {
                 if (state == RowState.BOUGHT) Icon(painterResource(R.drawable.ic_check),
@@ -1204,7 +1204,7 @@ private fun ItemRowContent(
             }
         } else {
             Row(
-                Modifier.clip(RoundedCornerShape(12.dp)).background(p.field),
+                Modifier.clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.field),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (weight == null) {
@@ -1280,7 +1280,7 @@ private fun FreshCutTab(
     val p = LocalPalette.current
     val color = if (selected) p.text else p.textSecondary
     Column(
-        modifier.height(56.dp).clip(RoundedCornerShape(12.dp))
+        modifier.height(56.dp).clip(RoundedCornerShape(UiMetrics.nestedRadius))
             .clickable(role = Role.Tab, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
