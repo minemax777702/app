@@ -1,0 +1,33 @@
+name: CountryChecker lookup probe
+on:
+  push:
+    branches: [beta]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: github.ref == 'refs/heads/beta' && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[countrychecker]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Install isolated browser tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/cc-probe" --no-audit --no-fund --ignore-scripts playwright@1.65.1
+          "$RUNNER_TEMP/cc-probe/node_modules/.bin/playwright" install chromium
+      - name: Inspect public barcode lookup
+        run: |
+          NODE_PATH="$RUNNER_TEMP/cc-probe/node_modules" node scripts/probe-countrychecker.cjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: countrychecker-report
+          path: countrychecker-report/
+          if-no-files-found: warn
+          retention-days: 7

@@ -6,6 +6,8 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
@@ -48,8 +50,8 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
     val secondary = LocalSecondaryAction.current
     val background = if (secondary) p.field else if (destructive) p.error else p.actionFill
     val ink = if (secondary) p.text else if (destructive) p.onDanger else p.actionInk
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().height(if (secondary) 52.dp else 54.dp),
-        shape = RoundedCornerShape(16.dp), colors = ButtonDefaults.buttonColors(
+    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = if (secondary) UiMetrics.fieldHeight else UiMetrics.primaryHeight),
+        shape = RoundedCornerShape(UiMetrics.controlRadius), colors = ButtonDefaults.buttonColors(
             containerColor = background, contentColor = ink,
             disabledContainerColor = p.field, disabledContentColor = p.textSecondary.copy(alpha = 0.7f),
         ), content = content)
@@ -58,8 +60,8 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
 @Composable
 internal fun SheetDeleteButton(title: String, onClick: () -> Unit, enabled: Boolean = true, icon: Int = R.drawable.ic_trash) {
     val p = LocalPalette.current
-    OutlinedButton(onClick=onClick, enabled=enabled, modifier=Modifier.fillMaxWidth().heightIn(min=48.dp),
-        shape=RoundedCornerShape(16.dp), border=androidx.compose.foundation.BorderStroke(1.dp,p.error),
+    OutlinedButton(onClick=onClick, enabled=enabled, modifier=Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight),
+        shape=RoundedCornerShape(UiMetrics.controlRadius), border=androidx.compose.foundation.BorderStroke(1.dp,p.error),
         colors=ButtonDefaults.outlinedButtonColors(contentColor=p.error)) {
         Icon(painterResource(icon),null,Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
@@ -78,12 +80,12 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(hint, color = if (isError) p.error else p.textSecondary, fontSize = 12.sp,
             fontWeight = FontWeight.Medium)
-        Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp))
-            .background(p.card).border(1.dp, lineColor, RoundedCornerShape(16.dp))
+        Box(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
+            .background(p.card).border(1.dp, lineColor, RoundedCornerShape(UiMetrics.controlRadius))
             .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
-                modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else 48.dp)
-                    .onFocusChanged { focused = it.isFocused }, singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else UiMetrics.touchTarget)
+                    .onFocusChanged { focused = it.isFocused }.semantics { contentDescription = hint }, singleLine = true,
                 textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(p.text), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
                 visualTransformation = visualTransformation,
@@ -127,10 +129,10 @@ internal fun AppSheet(
     ) {
         BackHandler(enabled = required) { }
         Column(Modifier.fillMaxWidth().imePadding().navigationBarsPadding()
-            .heightIn(min = minBodyHeight).padding(horizontal = 20.dp)
+            .heightIn(min = minBodyHeight).padding(horizontal = UiMetrics.screenInset)
             .padding(top = if (required) 24.dp else 0.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.SpaceBetween) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically,
+            Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.touchTarget), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.weight(1f)) {
                     CompositionLocalProvider(LocalSheetClose provides null) {
@@ -168,7 +170,7 @@ internal fun AppModalSheet(
         sheetState = sheetState,
         containerColor = containerColor,
         contentColor = contentColor,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        shape = RoundedCornerShape(topStart = UiMetrics.sheetRadius, topEnd = UiMetrics.sheetRadius),
         dragHandle = dragHandle,
         sheetGesturesEnabled = sheetGesturesEnabled,
         scrimColor = Color.Black.copy(alpha = 0.40f),
@@ -186,8 +188,8 @@ internal fun AppModalSheet(
 @Composable
 internal fun SheetCloseButton(onClose: () -> Unit) {
     val p = LocalPalette.current
-    Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
-        .clickable(onClickLabel = "Закрыть", onClick = onClose), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.controlRadius)).background(p.field)
+        .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Закрыть", onClick = onClose), contentAlignment = Alignment.Center) {
         Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть",
             tint = p.text, modifier = Modifier.size(24.dp))
     }

@@ -63,34 +63,21 @@ fun ThemeSheet(
                 .fillMaxWidth()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
+                .padding(start = UiMetrics.screenInset, end = UiMetrics.screenInset, bottom = UiMetrics.screenInset),
         ) {
             SheetHeader("Оформление")
             androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
             ThemeSegments(appMode, onAppMode)
             // Раздельная настройка виджета сохранена как дополнительная секция.
-            TextButton(onClick = { widgetExpanded = !widgetExpanded }) {
-                Text(if (widgetExpanded) "Скрыть настройки виджета" else "Тема виджета", color = p.text)
-            }
+            androidx.compose.foundation.layout.Spacer(Modifier.height(UiMetrics.sectionGap))
+            FreshCutSecondaryButton(if (widgetExpanded) "Скрыть настройки виджета" else "Тема виджета", { widgetExpanded = !widgetExpanded })
             if (widgetExpanded) {
-                SectionLabel(R.string.theme_widget)
+                androidx.compose.foundation.layout.Spacer(Modifier.height(UiMetrics.sectionGap))
+                FreshCutSectionTitle(stringResource(R.string.theme_widget))
                 ThemeSegments(widgetMode, onWidgetMode)
             }
         }
     }
-}
-
-@Composable
-private fun SectionLabel(@StringRes title: Int, modifier: Modifier = Modifier) {
-    Text(
-        stringResource(title).uppercase(),
-        modifier.padding(start = 4.dp, bottom = 10.dp, top = 6.dp),
-        color = LocalPalette.current.textSecondary,
-        fontSize = 14.sp,
-        lineHeight = 20.sp,
-        fontWeight = FontWeight.ExtraBold,
-        letterSpacing = 0.3.sp,
-    )
 }
 
 @Composable

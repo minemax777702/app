@@ -27,6 +27,21 @@ import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 import com.mok.buylist.ui.theme.LocalPalette
 
+/** Общие размеры элементов интерфейса, не зависящие от темы. */
+internal object UiMetrics {
+    val screenInset = 20.dp
+    val cardRadius = 20.dp
+    val controlRadius = 16.dp
+    val iconRadius = 14.dp
+    val sheetRadius = 28.dp
+    val touchTarget = 48.dp
+    val fieldHeight = 52.dp
+    val primaryHeight = 54.dp
+    val rowHeight = 68.dp
+    val gap = 8.dp
+    val sectionGap = 12.dp
+}
+
 internal enum class FreshCutDestination { LIST, CATALOG, ARCHIVE, STATS, PROFILE }
 
 @Composable
@@ -43,13 +58,13 @@ internal fun FreshCutNavigation(
         Triple(FreshCutDestination.STATS, R.drawable.ic_chart, "Статистика"),
         Triple(FreshCutDestination.PROFILE, R.drawable.ic_user_round, "Профиль"),
     )
-    Row(modifier.fillMaxWidth().height(60.dp).clip(RoundedCornerShape(20.dp))
-        .background(p.card).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(horizontal = 6.dp),
+    Row(modifier.fillMaxWidth().heightIn(min = 64.dp).clip(RoundedCornerShape(UiMetrics.cardRadius))
+        .background(p.card).border(1.dp, p.line, RoundedCornerShape(UiMetrics.cardRadius)).padding(horizontal = 6.dp),
         verticalAlignment = Alignment.CenterVertically) {
         destinations.forEach { (destination, icon, title) ->
             val active = destination == current
             val ink = if (active) p.text else p.textSecondary
-            Column(Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(12.dp))
+            Column(Modifier.weight(1f).heightIn(min = UiMetrics.primaryHeight).clip(RoundedCornerShape(12.dp))
                 .clickable(role = Role.Tab) { if (!active) onSelect(destination) }
                 .semantics { selected = active },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -58,7 +73,7 @@ internal fun FreshCutNavigation(
                     .background(if (active) p.text else p.card))
                 Spacer(Modifier.height(4.dp))
                 Icon(painterResource(icon), null, Modifier.size(24.dp), tint = ink)
-                Text(title, color = ink, fontSize = 10.sp, maxLines = 1,
+                Text(title, color = ink, fontSize = 11.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     overflow = TextOverflow.Ellipsis, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium)
             }
         }
@@ -73,7 +88,7 @@ internal fun FreshCutRootHeader(
     trailing: @Composable () -> Unit = {},
 ) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 10.dp),
+    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = UiMetrics.screenInset, end = UiMetrics.screenInset, top = 6.dp, bottom = 12.dp),
         verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, color = p.text, fontSize = 27.sp, lineHeight = 33.sp, fontWeight = FontWeight.SemiBold,
@@ -97,7 +112,7 @@ internal fun FreshCutSegments(labels: List<String>, selectedIndex: Int, onSelect
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         labels.forEachIndexed { index, label ->
             val active = index == selectedIndex
-            Box(Modifier.height(36.dp).widthIn(min = 96.dp).clip(RoundedCornerShape(18.dp))
+            Box(Modifier.heightIn(min = UiMetrics.touchTarget).widthIn(min = 96.dp).clip(RoundedCornerShape(UiMetrics.controlRadius))
                 .background(if (active) p.actionFill else p.field)
                 .clickable(role = Role.Tab) { onSelect(index) }.semantics { selected = active }
                 .padding(horizontal = 20.dp),
@@ -119,18 +134,18 @@ internal fun FreshCutListRow(
     showChevron: Boolean = true,
 ) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 68.dp).clip(RoundedCornerShape(20.dp))
-        .background(p.card).then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+    Row(Modifier.fillMaxWidth() .heightIn(min = UiMetrics.rowHeight).clip(RoundedCornerShape(UiMetrics.cardRadius))
+        .background(p.card).border(1.dp, if (selected) p.text else p.line, RoundedCornerShape(UiMetrics.cardRadius)).then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
         .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(p.field), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field), contentAlignment = Alignment.Center) {
             if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        if (value != null) Text(value, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        if (value != null) Text(value, Modifier.widthIn(max = 112.dp), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.End)
         if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
         else if (showChevron && value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
     }
@@ -139,10 +154,10 @@ internal fun FreshCutListRow(
 @Composable
 internal fun FreshCutSecondaryButton(title: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val p = LocalPalette.current
-    Box(modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(16.dp))
-        .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick), contentAlignment = Alignment.Center) {
-        Text(title, color = if (enabled) p.text else p.textSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+    Box(modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
+        .background(if (enabled) p.card else p.field).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+        Text(title, color = if (enabled) p.text else p.textSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
     }
 }
 
@@ -159,7 +174,7 @@ internal fun FreshCutDetailLine(label: String, value: String) {
 @Composable
 internal fun FreshCutToolbarAction(icon: Int, label: String, onClick: () -> Unit, primary: Boolean = false, enabled: Boolean = true) {
     val p = LocalPalette.current
-    Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp))
+    Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius))
         .background(if (primary && enabled) p.actionFill else p.field)
         .clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick),
         contentAlignment = Alignment.Center) {
@@ -176,12 +191,12 @@ internal fun FreshCutTabs(labels: List<String>, current: Int, onSelect: (Int) ->
         horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         labels.forEachIndexed { index, label ->
             val active = index == current
-            Box(Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(11.dp))
+            Box(Modifier.weight(1f).heightIn(min = UiMetrics.touchTarget).clip(RoundedCornerShape(11.dp))
                 .background(if (active) p.card else p.field)
                 .clickable(role = Role.Tab) { onSelect(index) }.semantics { selected = active }
                 .padding(horizontal = 2.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
                 Text(label, color = if (active) p.text else p.textSecondary,
-                    fontSize = 12.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+                    fontSize = 13.sp, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
                     maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
@@ -196,8 +211,8 @@ internal fun FilterSelect(label: String, value: String, options: List<String>, o
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = p.textSecondary, fontSize = 12.sp)
         Box(Modifier.fillMaxWidth()) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(14.dp))
-                .background(p.card).border(1.dp,p.line,RoundedCornerShape(14.dp))
+            Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
+                .background(p.card).border(1.dp,p.line,RoundedCornerShape(UiMetrics.controlRadius))
                 .clickable { expanded = true }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(value, Modifier.weight(1f), color = p.text, fontSize = 14.sp)
                 Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать $label", Modifier.size(20.dp), tint = p.textSecondary)
