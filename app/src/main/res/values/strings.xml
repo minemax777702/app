@@ -175,4 +175,14 @@
     <string name="send_older">Более ранняя копия</string>
     <string name="send_backup_entry">%1$s · товаров: %2$d · походов: %3$d</string>
     <string name="send_old_warning">Старые данные объединятся с данными получателя; новые изменения не будут отменены.</string>
+    <string name="empty_list_description">Нажмите «Добавить», чтобы начать.</string>
+    <string name="empty_catalog_title">Нет товаров</string>
+    <string name="empty_catalog_description">Добавьте товар через меню или кнопку.</string>
+    <string name="empty_search_title">Нет результатов</string>
+    <string name="empty_search_description">Измените название или штрихкод.</string>
+    <string name="empty_archive_description">Здесь будут завершённые списки.</string>
+    <string name="empty_statistics_title">Нет данных</string>
+    <string name="empty_statistics_description">Покупки появятся в статистике.</string>
+    <string name="empty_notifications_title">Нет уведомлений</string>
+    <string name="empty_notifications_description">Здесь будут обновления и действия.</string>
 </resources>

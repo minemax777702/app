@@ -1271,7 +1271,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         icon = R.drawable.ic_list_check,
         title = stringResource(R.string.empty_title),
         modifier = modifier,
-        description = "Все покупки будут здесь.",
+        description = stringResource(R.string.empty_list_description),
     )
 }
 

@@ -3992,6 +3992,33 @@
           "navigation"
         ],
         "pixso_instances_checked": 10
+      },
+      "copy": {
+        "shopping": {
+          "title": "Список пуст",
+          "description": "Нажмите «Добавить», чтобы начать."
+        },
+        "catalog": {
+          "title": "Нет товаров",
+          "description": "Добавьте товар через меню или кнопку."
+        },
+        "search": {
+          "title": "Нет результатов",
+          "description": "Измените название или штрихкод.",
+          "representation": "catalog instance text override"
+        },
+        "archive": {
+          "title": "Архив пуст",
+          "description": "Здесь будут завершённые списки."
+        },
+        "statistics": {
+          "title": "Нет данных",
+          "description": "Покупки появятся в статистике."
+        },
+        "notifications": {
+          "title": "Нет уведомлений",
+          "description": "Здесь будут обновления и действия."
+        }
       }
     }
   },

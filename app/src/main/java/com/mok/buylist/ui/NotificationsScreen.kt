@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,7 +56,8 @@ internal fun NotificationsScreen(
         if (visible.isEmpty()) {
             FreshCutEmptyState(
                 icon = R.drawable.ic_bell,
-                title = "Пока нет уведомлений",
+                title = stringResource(R.string.empty_notifications_title),
+                description = stringResource(R.string.empty_notifications_description),
                 modifier = Modifier.weight(1f),
             )
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),

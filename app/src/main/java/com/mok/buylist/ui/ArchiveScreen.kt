@@ -476,6 +476,6 @@ private fun EmptyArchive(modifier: Modifier = Modifier) {
         icon = R.drawable.ic_archive,
         title = stringResource(R.string.archive_empty_title),
         modifier = modifier,
-        description = "Завершённые списки появятся здесь.",
+        description = stringResource(R.string.empty_archive_description),
     )
 }

@@ -360,7 +360,8 @@ private fun PeriodChip(text: String, selected: Boolean, onClick: () -> Unit) {
 private fun EmptyStats(modifier: Modifier = Modifier) {
     FreshCutEmptyState(
         icon = R.drawable.ic_chart,
-        title = stringResource(R.string.stats_empty_title),
+        title = stringResource(R.string.empty_statistics_title),
+        description = stringResource(R.string.empty_statistics_description),
         modifier = modifier,
     )
 }

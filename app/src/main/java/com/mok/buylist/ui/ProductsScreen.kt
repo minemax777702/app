@@ -168,8 +168,8 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
         if (rows.isEmpty() && ownRows.isEmpty()) {
             FreshCutEmptyState(
                 icon = R.drawable.ic_package,
-                title = if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено",
-                description = if (query.isBlank()) "Добавьте товар, чтобы начать." else "Попробуйте другое название или штрихкод.",
+                title = stringResource(if (query.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
+                description = stringResource(if (query.isBlank()) R.string.empty_catalog_description else R.string.empty_search_description),
                 modifier = Modifier.weight(1f),
             )
         } else LazyColumn(Modifier.weight(1f), overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
