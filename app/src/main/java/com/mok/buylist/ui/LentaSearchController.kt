@@ -13,6 +13,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 internal data class LentaSearchState(
     val local: List<LentaProduct> = emptyList(),
@@ -24,6 +25,10 @@ internal data class LentaSearchState(
     val complete: Boolean = false,
     val stalled: Boolean = false,
     val pagesLoaded: Int = 0,
+    val pending: Boolean = false,
+    val paused: Boolean = false,
+    val requestQuery: String = "",
+    val requestAddress: String = "",
 )
 
 internal class LentaSearchController(
@@ -72,8 +77,9 @@ internal class LentaSearchController(
         nextPage = 1
         storeId = 0
         seenIds.clear()
-        state.value = LentaSearchState(local = local)
+        state.value = LentaSearchState(local = local, requestQuery = trimmed, requestAddress = address)
         if (key.length >= 2 && address.isNotBlank() && (fullSearch || onlineOnly || local.isEmpty())) {
+            state.value = state.value.copy(pending = true)
             job = scope.launch { delay(500); fetch() }
         }
     }
@@ -87,18 +93,28 @@ internal class LentaSearchController(
     fun searchOnline() {
         if (state.value.loading || state.value.complete || query.length < 2 || address.isBlank()) return
         job?.cancel()
+        state.value = state.value.copy(pending = false, loading = true, paused = false)
         job = scope.launch { fetch() }
     }
 
+    fun stop() {
+        if (!state.value.loading && !state.value.pending) return
+        job?.cancel()
+        state.value = state.value.copy(loading = false, pending = false, paused = true, hasMore = true)
+    }
+
     private suspend fun fetch() {
-        state.value = state.value.copy(loading = true, failed = false, started = true, stalled = false, hasMore = true)
+        state.value = state.value.copy(loading = true, pending = false, paused = false, failed = false, started = true, stalled = false, hasMore = true)
         var skipped = 0
         var repeatedPages = 0
+        var pagesThisBatch = 0
         try {
             while (true) {
                 coroutineContext.ensureActive()
                 val page = nextPage
-                val response = search(query, address, page, storeId)
+                val response = withTimeoutOrNull(45_000L) { search(query, address, page, storeId) }
+                    ?: error("Время ожидания ответа истекло")
+                pagesThisBatch++
                 coroutineContext.ensureActive()
                 if (response.isEmpty()) {
                     state.value = state.value.copy(loading = false, hasMore = false, complete = true, failed = false)
@@ -133,6 +149,11 @@ internal class LentaSearchController(
                 }
                 if (!fullSearch && (added.isNotEmpty() || skipped >= 5)) {
                     state.value = state.value.copy(loading = false, hasMore = true)
+                    return
+                }
+                // A batch is resumable, not a limit on the total number of pages.
+                if (fullSearch && pagesThisBatch >= 30) {
+                    state.value = state.value.copy(loading = false, paused = true, hasMore = true)
                     return
                 }
                 if (fullSearch) delay(100)
