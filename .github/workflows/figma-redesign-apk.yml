@@ -285,18 +285,17 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: adb install -g app/build/outputs/apk/uiCapture/app-uiCapture.apk && CAPTURE_FIXTURE=1 python3 scripts/capture-ui.py
-      - name: Generate verified FIG from full capture
+      - name: Generate editable FIG layers from full capture
         id: fig
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -f design/source.fig ]; then
-            echo "::warning::Upload the original FIG as design/source.fig to enable automatic FIG export."
-            exit 0
-          fi
-          python3 scripts/update-fig.py --source design/source.fig --handoff ui-handoff --output design-output/Shopping-list-latest.fig
+          test -s design/source.fig
+          python3 -m venv "$RUNNER_TEMP/fig-export"
+          "$RUNNER_TEMP/fig-export/bin/pip" install --disable-pip-version-check numpy==2.2.6 opencv-python-headless==4.12.0.88
+          "$RUNNER_TEMP/fig-export/bin/python" scripts/update-editable-fig.py --source design/source.fig --handoff ui-handoff --output design-output/Shopping-list-latest.fig
           echo "generated=true" >> "$GITHUB_OUTPUT"
-      - name: Upload verified FIG
+      - name: Upload editable FIG and reconstruction report
         if: steps.fig.outputs.generated == 'true'
         uses: actions/upload-artifact@v6
         with:
