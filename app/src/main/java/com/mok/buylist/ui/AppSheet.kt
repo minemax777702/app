@@ -197,7 +197,7 @@ internal fun AppModalSheet(
 @Composable
 internal fun SheetCloseButton(onClose: () -> Unit) {
     val p = LocalPalette.current
-    Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.controlRadius)).background(p.field)
+    Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field)
         .clickable(role = androidx.compose.ui.semantics.Role.Button, onClickLabel = "Закрыть", onClick = onClose), contentAlignment = Alignment.Center) {
         Icon(painterResource(R.drawable.ic_close), contentDescription = "Закрыть",
             tint = p.text, modifier = Modifier.size(24.dp))
