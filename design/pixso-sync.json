@@ -3955,7 +3955,7 @@
       "geometry": {
         "tile": 96,
         "radius": 32,
-        "icon": 24,
+        "icon": 36,
         "gap": 20,
         "text_gap": 8,
         "title_size": 23,
@@ -3977,7 +3977,7 @@
         "custom-product"
       ],
       "status": "draft",
-      "note": "Compose and Pixso centered within the available content area; Android capture comparison pending.",
+      "note": "36 dp icon within 96 dp tile, common full-height or inline wrap-content layout. 11 working instances and 8 reference examples; Android capture pending.",
       "alignment": {
         "horizontal": "center",
         "vertical": "center_available_content",
@@ -4019,7 +4019,48 @@
           "title": "Нет уведомлений",
           "description": "Здесь будут обновления и действия."
         }
-      }
+      },
+      "scenario_board": {
+        "id": "28:2557",
+        "page_id": "0:1",
+        "instances": {
+          "search": "28:2559",
+          "stores": "28:2580",
+          "store_products": "28:2602",
+          "purchase_history": "28:2625",
+          "period": "28:2646",
+          "members": "28:2669",
+          "group_lists": "28:2690",
+          "updates": "28:2703"
+        }
+      },
+      "inline_states": {
+        "group_add_member": "28:2723",
+        "layout": "wrap content"
+      },
+      "compose_usage": [
+        "ShoppingScreen",
+        "ProductsScreen",
+        "ArchiveScreen",
+        "StatsScreen",
+        "NotificationsScreen",
+        "LentaUi",
+        "StoresScreen",
+        "ProductHistoryScreen",
+        "SupabasePanel",
+        "ExpenseStatsPanel",
+        "AppUpdateSheet"
+      ]
+    },
+    "secondary_button": {
+      "id": "28:2745",
+      "compose": "FreshCutSecondaryButton",
+      "count": 1
+    },
+    "primary_toolbar_action": {
+      "id": "28:2750",
+      "compose": "FreshCutToolbarAction",
+      "count": 1
     }
   },
   "optimization": {
