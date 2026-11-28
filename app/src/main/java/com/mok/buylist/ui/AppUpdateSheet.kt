@@ -258,7 +258,7 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                         AppUpdater.selectChannel(context, channel)
                     }
                 })
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(p.card).padding(12.dp),
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius)).background(p.card).padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -383,7 +383,7 @@ private fun UpdateProgressBar(fraction: Float?) {
 private fun UpdateInlineNotice(message: String, warning: Boolean) {
     val p = LocalPalette.current
     val tint = if (warning) p.error else p.textSecondary
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(UiMetrics.nestedRadius)
     Row(Modifier.fillMaxWidth().clip(shape).background(tint.copy(alpha = 0.08f))
         .border(1.dp, tint.copy(alpha = 0.16f), shape).padding(10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -397,7 +397,7 @@ private fun UpdateInlineNotice(message: String, warning: Boolean) {
 private fun ReleaseChangelog(raw: String) {
     val p = LocalPalette.current
     val lines = remember(raw) { com.mok.buylist.update.releaseChangelogLines(raw) }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(p.card).padding(12.dp),
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.compactCardRadius)).background(p.card).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (lines.isEmpty()) Text("Описание изменений отсутствует.", color = p.textSecondary, fontSize = 13.sp)
         else lines.forEach { line ->
