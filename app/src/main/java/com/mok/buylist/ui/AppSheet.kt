@@ -118,7 +118,7 @@ internal fun AppSheet(
     containerColor: Color,
     title: @Composable () -> Unit,
     text: @Composable () -> Unit,
-    confirmButton: @Composable () -> Unit,
+    confirmButton: (@Composable () -> Unit)? = null,
     dismissButton: (@Composable () -> Unit)? = null,
     required: Boolean = false,
     showSecondaryAction: Boolean = false,
@@ -152,9 +152,11 @@ internal fun AppSheet(
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(top = 16.dp)) {
                 text()
             }
-            Column(Modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                confirmButton()
-                if (showSecondaryAction) CompositionLocalProvider(LocalSecondaryAction provides true) { dismissButton?.invoke() }
+            if (confirmButton != null || (showSecondaryAction && dismissButton != null)) {
+                Column(Modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+                    confirmButton?.invoke()
+                    if (showSecondaryAction) CompositionLocalProvider(LocalSecondaryAction provides true) { dismissButton?.invoke() }
+                }
             }
         }
     }
