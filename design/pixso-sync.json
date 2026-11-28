@@ -1756,7 +1756,20 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 16,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ from Android capture",
+          "Minor vector stroke and text rasterization differences"
+        ]
+      }
     },
     {
       "key": "dark/cloud-groups",
@@ -1772,7 +1785,20 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 16,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ from Android capture",
+          "Minor vector stroke and text rasterization differences"
+        ]
+      }
     },
     {
       "key": "light/group-detail",
@@ -1788,7 +1814,21 @@
         "x": 967,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 27,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ",
+          "Minor icon sizes, corner radius and input text metrics not fully verified"
+        ],
+        "unspecified_input_metrics_preserved": true
+      }
     },
     {
       "key": "dark/group-detail",
@@ -1804,7 +1844,21 @@
         "x": 1417,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 27,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ",
+          "Minor icon sizes, corner radius and input text metrics not fully verified"
+        ],
+        "unspecified_input_metrics_preserved": true
+      }
     },
     {
       "key": "light/group-add-member",
@@ -1820,7 +1874,20 @@
         "x": 1902,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 19,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ",
+          "Minor icon geometry and text rasterization differences"
+        ]
+      }
     },
     {
       "key": "dark/group-add-member",
@@ -1836,7 +1903,20 @@
         "x": 2352,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 19,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ",
+          "Minor icon geometry and text rasterization differences"
+        ]
+      }
     },
     {
       "key": "light/administration",
@@ -1852,7 +1932,23 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 15,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System bar glyph shapes and tint differ from capture",
+          "Minor typography and icon stroke/rasterization differences"
+        ],
+        "card_height_corrected": 72,
+        "chevrons_corrected": 2,
+        "system_status_bar_updated": true
+      }
     },
     {
       "key": "dark/administration",
@@ -1868,7 +1964,23 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 15,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System bar glyph shapes and tint differ from capture",
+          "Minor typography and icon stroke/rasterization differences"
+        ],
+        "card_height_corrected": 72,
+        "chevrons_corrected": 2,
+        "system_status_bar_updated": true
+      }
     },
     {
       "key": "light/admin-user",
@@ -1884,7 +1996,23 @@
         "x": 967,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 26,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ",
+          "Switch and input text rendering require detailed parity check"
+        ],
+        "card_height_corrected": 72,
+        "chevrons_corrected": 2,
+        "unspecified_input_metrics_preserved": true
+      }
     },
     {
       "key": "dark/admin-user",
@@ -1900,7 +2028,23 @@
         "x": 1417,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 26,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System status and gesture indicator tint differ",
+          "Switch and input text rendering require detailed parity check"
+        ],
+        "card_height_corrected": 72,
+        "chevrons_corrected": 2,
+        "unspecified_input_metrics_preserved": true
+      }
     },
     {
       "key": "light/admin-groups",
@@ -1916,7 +2060,22 @@
         "x": 1902,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System bar glyph shapes and tint differ from capture",
+          "Minor icon geometry and text rasterization differences"
+        ],
+        "card_height_corrected": 72,
+        "system_status_bar_updated": true
+      }
     },
     {
       "key": "dark/admin-groups",
@@ -1932,7 +2091,22 @@
         "x": 2352,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "System bar glyph shapes and tint differ from capture",
+          "Minor icon geometry and text rasterization differences"
+        ],
+        "card_height_corrected": 72,
+        "system_status_bar_updated": true
+      }
     }
   ],
   "structure_status": "all_70_frames_present_index_content_created",
@@ -1961,9 +2135,9 @@
   },
   "layout_audit": {
     "source": "beta-ui-157",
-    "reviewed_frames": 58,
-    "matched_compose_texts": 1020,
-    "remaining_frames": 12,
+    "reviewed_frames": 70,
+    "matched_compose_texts": 1254,
+    "remaining_frames": 0,
     "inventory_text_layers_excluding_os": 1258,
     "auto_line_height_layers": 950,
     "zero_pixel_letter_spacing_layers": 622,
@@ -1973,28 +2147,26 @@
     "latest_batch": {
       "date": "2026-11-28",
       "screens": [
-        "account",
-        "account-registration",
-        "login-form",
-        "add",
-        "custom-product",
-        "notifications",
-        "theme",
-        "backup",
-        "updates",
-        "security"
+        "cloud-groups",
+        "group-detail",
+        "group-add-member",
+        "administration",
+        "admin-user",
+        "admin-groups"
       ],
-      "frames": 20,
-      "matched_compose_texts": 360,
-      "pixso_screenshots_compared": 20,
-      "pixso_screenshots_rechecked": 9,
-      "android_icon_instances_updated": 60,
-      "bell_instances_rescaled": 2,
+      "frames": 12,
+      "matched_compose_texts": 234,
+      "pixso_screenshots_compared": 12,
+      "pixso_screenshots_rechecked": 6,
+      "card_heights_corrected": 18,
+      "chevrons_corrected": 8,
+      "system_status_bars_updated": 4,
       "verified_frames": 0,
       "batch_size": 20,
       "operation_size": 2
     },
     "text_wrap_fixes_confirmed": 14,
-    "inventory_metrics_source": "pre-batch inventory; not recalculated"
+    "inventory_metrics_source": "pre-batch inventory; not recalculated",
+    "initial_review_complete": true
   }
 }
