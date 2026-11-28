@@ -66,7 +66,7 @@ import kotlinx.coroutines.launch
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressSettings: () -> Unit, viewModel: ShoppingViewModel,
+fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, viewModel: ShoppingViewModel,
     onProductClick: (String) -> Unit) {
     val p = LocalPalette.current
     val catalog = LocalContext.current.lentaCatalog
@@ -132,15 +132,17 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     Column(Modifier.fillMaxSize().background(p.background)) {
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            ProductSearch(query, { query = it }, Modifier.weight(1f), trailing = {
+            ProductSearch(query, {
+                if (query.trim() != it.trim()) scope.launch { catalogListState.scrollToItem(0) }
+                query = it
+            }, Modifier.weight(1f), trailing = {
                 Box {
                     IconButton(onClick = { catalogMenu = true }) {
                         Icon(painterResource(R.drawable.ic_more), "Действия каталога", tint = p.text, modifier = Modifier.size(24.dp))
                     }
                     AppDropdownMenu(expanded = catalogMenu, onDismissRequest = { catalogMenu = false }) {
                         AppDropdownMenuItem(text = { Text("Сканировать штрихкод") }, onClick = { catalogMenu = false; scanning = true })
-                        AppDropdownMenuItem(text = { Text("Найти в Ленте") }, onClick = { catalogMenu = false; onlineQuery = query; adding = true })
-                        AppDropdownMenuItem(text = { Text("Создать свой товар") }, onClick = {
+                        if (rows.isNotEmpty() || ownRows.isNotEmpty()) AppDropdownMenuItem(text = { Text("Создать свой товар") }, onClick = {
                             catalogMenu = false
                             customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
                             customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
@@ -246,12 +248,21 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
             }
         }
-        if (catalogReady && rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
-            SheetActionButton(onClick = {
-                customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
-                customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
-                createCustom = true
-            }) { Text("Создать свой товар") }
+        if (catalogReady) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+            val emptyCatalog = rows.isEmpty() && ownRows.isEmpty()
+            if (emptyCatalog) {
+                FreshCutSecondaryButton("Найти в Ленте", {
+                    onlineQuery = query; scannedOnlineCode = null; adding = true
+                })
+                SheetActionButton(onClick = {
+                    customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
+                    customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
+                    createCustom = true
+                }) { Text("Создать свой товар") }
+            } else SheetActionButton(onClick = {
+                onlineQuery = query; scannedOnlineCode = null; adding = true
+            }) { Text("Найти в Ленте") }
         }
     }
     if (createCustom) {
