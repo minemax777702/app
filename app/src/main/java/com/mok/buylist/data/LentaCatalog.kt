@@ -157,7 +157,7 @@ class LentaCatalog internal constructor(context: Context, private val db: AppDat
         val args = JSONObject().put("query", query).put("page", page).put("channel", "locc")
         if (storeId > 0) args.put("storeId", storeId) else args.put("address", address)
         val data = call("storefront_products_search", args)
-        val items = data.optJSONArray("items") ?: return@withContext emptyList()
+        val items = data.getJSONArray("items")
         val responseStoreId = data.optLong("storeId")
         check(storeId == 0L || storeId == responseStoreId) { "Магазин в ответе изменился" }
         (0 until items.length()).map { LentaProduct.parse(items.getJSONObject(it), address, responseStoreId, live = true, channel = "locc") }
