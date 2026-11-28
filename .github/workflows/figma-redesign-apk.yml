@@ -6,14 +6,23 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
+      - 'design/**'
+      - 'scripts/pixso-*'
+      - 'scripts/test-pixso-sync.py'
+      - '.github/workflows/pixso-sync.yml'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish signed APK (false = capture UI only on beta)'
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 jobs:
   build:
-    if: (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/main') && (github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]'))
+    if: (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/main') && ((github.event_name == 'workflow_dispatch' && inputs.publish) || contains(github.event.head_commit.message, '[release]'))
     concurrency:
       group: fresh-cut-apk-${{ github.ref }}
       cancel-in-progress: true
@@ -197,7 +206,7 @@ jobs:
       contents: read
       actions: read
     needs: build
-    if: ${{ always() && github.ref == 'refs/heads/beta' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && contains(github.event.head_commit.message, '[ui]'))) }}
+    if: ${{ always() && github.ref == 'refs/heads/beta' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     concurrency:
@@ -294,25 +303,6 @@ jobs:
           name: pixso-sync-input
           path: pixso-sync-input/
           if-no-files-found: error
-          retention-days: 30
-      - name: Generate editable FIG layers from full capture
-        id: fig
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -s design/source.fig
-          python3 -m venv "$RUNNER_TEMP/fig-export"
-          "$RUNNER_TEMP/fig-export/bin/pip" install --disable-pip-version-check numpy==2.2.6 opencv-python-headless==4.12.0.88
-          "$RUNNER_TEMP/fig-export/bin/python" scripts/update-editable-fig.py --source design/source.fig --handoff ui-handoff --output design-output/Shopping-list-latest.fig
-          echo "generated=true" >> "$GITHUB_OUTPUT"
-      - name: Upload editable FIG and reconstruction report
-        if: steps.fig.outputs.generated == 'true'
-        uses: actions/upload-artifact@v6
-        with:
-          name: shopping-list-fig
-          path: design-output/
-          if-no-files-found: error
-          compression-level: 0
           retention-days: 30
       - name: Collect changes and compare last capture
         if: always()
