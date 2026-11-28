@@ -61,4 +61,19 @@ payload=base64.b64encode(zlib.compress(b,9)).decode()
 sql(f"update public.list_states set revision=revision+1,payload={quote(payload)} where list_id in (select id from public.shopping_lists where owner_id='{admin}' or group_id in (select id from public.groups where owner_id='{admin}'))")
 assert sql("select count(*) from public.profiles")=="3"
 assert sql("select count(*) from public.groups")=="3"
-print("Isolated fixture seeded")
+# Prove the same anon key and confirmed credentials used by Android work
+# through Auth and the RLS-protected REST API before launching the emulator.
+anon=os.environ["CAPTURE_SUPABASE_KEY"]
+login=request("/auth/v1/token?grant_type=password",{"email":"admin@example.test","password":"CaptureOnly-2026!"},anon)
+assert login["user"]["id"]==admin and login.get("access_token"), "Fixture authentication failed"
+def read(path, token):
+    req=urllib.request.Request(URL+path, headers={"apikey":anon,"Authorization":"Bearer "+token})
+    with urllib.request.urlopen(req,timeout=20) as r: return json.load(r)
+token=login["access_token"]
+profiles=read("/rest/v1/profiles?select=id,role,active&id=eq."+admin,token)
+assert len(profiles)==1 and profiles[0]["role"]=="admin" and profiles[0]["active"], "Admin profile unavailable through RLS"
+groups=read("/rest/v1/groups?select=name",token)
+assert {g["name"] for g in groups}=={"Семья","Дача","Пустая группа"}, "Fixture groups unavailable through RLS"
+states=read("/rest/v1/list_states?select=list_id,payload",token)
+assert any(s["payload"]==payload for s in states), "Fixture shopping payload unavailable through RLS"
+print("Isolated fixture seeded; password authentication and RLS verified")

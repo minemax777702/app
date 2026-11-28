@@ -197,7 +197,7 @@ jobs:
       contents: read
       actions: read
     needs: build
-    if: needs.build.outputs.channel == 'beta'
+    if: ${{ always() && github.ref == 'refs/heads/beta' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && contains(github.event.head_commit.message, '[ui]'))) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     concurrency:
@@ -207,10 +207,6 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v7
-        with:
-          name: fresh-cut-release
-          path: release
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -261,6 +257,9 @@ jobs:
           for migration in groups_as_list_containers timestamp_ordered_metadata allow_member_leave_group transfer_group_owner_and_leave user_lenta_settings 20261127231642_optimize_group_owner_index 20261127231645_consolidate_group_member_update_policy; do
             psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$GITHUB_WORKSPACE/supabase/migrations/$migration.sql"
           done
+          test -n "$ANON_KEY"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          export CAPTURE_SUPABASE_KEY="$ANON_KEY"
           python3 "$GITHUB_WORKSPACE/scripts/seed-ui-supabase.py"
           echo "CAPTURE_SUPABASE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
       - name: Build isolated capture APK
@@ -275,7 +274,7 @@ jobs:
       - name: Capture real release UI
         uses: reactivecircus/android-emulator-runner@v2
         env:
-          CAPTURE_VERSION: ${{ needs.build.outputs.version }}
+          CAPTURE_VERSION: ${{ needs.build.outputs.version || format('beta-ui-{0}', github.run_number) }}
         with:
           api-level: 35
           target: google_apis

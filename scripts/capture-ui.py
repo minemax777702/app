@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Capture real release UI via ADB, without compiling a second APK."""
+"""Capture actual UI from the isolated Android fixture build via ADB."""
 import hashlib
 import json
 import os
@@ -97,7 +97,7 @@ def run_theme(mode):
     capture("shopping", ("Добавить", "Добавить товар", "Список"))
     child("notifications", ("Уведомления",), ("Уведомления", "Пока нет уведомлений"))
     if route("add", ("Добавить", "Добавить товар"), ("Создать свой товар", "Введите название или штрихкод", "Что нужно купить?")):
-        child("custom-product", ("Создать свой товар",), ("Название", "Создать товар", "Сохранить"))
+        child("custom-product", ("Создать свой товар",), ("Название товара", "Свой товар"))
         start()
     if route("catalog", ("Товары",), ("Сохранённых товаров пока нет", "Действия каталога", "Магазины")):
         route("stores", ("Магазины",), ("Магазины",))
@@ -134,28 +134,51 @@ def fill_field(index, value):
     return True
 
 def capture_authenticated():
+    # Start from the actual first-run login sheet, not the profile navigation.
+    shell("pm", "clear", PKG)
+    shell("pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
     start()
-    if not tap("Профиль") or not tap("Личный профиль"):
-        records.append(dict(theme=theme, screen="authenticated", status="not_reached"))
+    if not capture("login-form", ("Войти", "Электронная почта")):
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached", reason="Welcome login form unavailable"))
         return
-    tap("Вход")
     if not fill_field(0,"admin@example.test") or not fill_field(1,"CaptureOnly-2026!"):
         records.append(dict(theme=theme, screen="authenticated", status="not_reached", reason="Login fields unavailable"))
         return
-    back()
+    # Back only when the IME is shown; otherwise it dismisses the welcome sheet.
+    ime = shell("dumpsys", "input_method")
+    if re.search(r"mInputShown=true|mIsInputViewShown=true|isInputViewShown=true", ime):
+        back()
     if not tap("Войти"):
-        records.append(dict(theme=theme, screen="authenticated", status="not_reached"))
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached", reason="Login button unavailable"))
         return
-    for _ in range(8):
+    # Successful authentication closes onboarding and loads the cloud directory.
+    for _ in range(15):
         time.sleep(1)
         _, root = hierarchy()
         labels = [n.get("text") for n in root.iter("node")]
-        if "Алексей" in labels or "Группы" in labels:
+        if "Войти" not in labels and "Профиль" in labels:
             break
-    if not capture("authenticated", ("Алексей","Группы","Списки")):
+    else:
+        capture("login-failure")
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached", reason="Welcome did not close after login"))
+        return
+    for _ in range(8):
+        if tap("Профиль"):
+            break
+        time.sleep(1)
+    if not tap("Личный профиль", "Алексей"):
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached", reason="Cloud profile unavailable"))
+        return
+    for _ in range(15):
+        _, root = hierarchy()
+        labels = [n.get("text") for n in root.iter("node")]
+        if "Алексей" in labels and "Группы" in labels:
+            break
+        time.sleep(1)
+    if not capture("authenticated", ("Группы",)):
         return
     if route("cloud-groups", ("Группы",), ("Семья","Дача","Пустая группа")):
-        if route("group-detail", ("Семья",), ("Участники · 2","Мария","Списки")):
+        if route("group-detail", ("Семья",), ("Участники · 2","Мария")):
             child("group-add-member", ("Добавить участников",), ("Добавить участников","Поиск пользователя","Нет пользователей для добавления"))
             back()
     start()
@@ -168,6 +191,12 @@ def capture_authenticated():
     tap("Личный профиль","Алексей")
     child("security", ("Безопасность",), ("Вход без пароля","Сеансы"))
     start()
+    tap("Список")
+    for _ in range(10):
+        _, root = hierarchy()
+        if any(n.get("text") == "Молоко 1,4 л" for n in root.iter("node")):
+            break
+        time.sleep(1)
     capture("shopping-populated", ("Молоко 1,4 л","Хлеб ржаной","Яблоки"))
     if route("catalog-populated", ("Товары",), ("Молоко 1,4 л","Хлеб ржаной","Яблоки")):
         child("product-detail", ("Молоко 1,4 л",), ("Молоко 1,4 л",))
@@ -200,7 +229,11 @@ def main():
                 capture_authenticated()
         except (subprocess.SubprocessError, ET.ParseError, RuntimeError) as e:
             records.append(dict(theme=mode, screen="capture-error", status="error", reason=str(e)))
-    metadata = {"commit":os.getenv("GITHUB_SHA"),"version":os.getenv("CAPTURE_VERSION"),"device":shell("wm","size").strip(),"density":shell("wm","density").strip(),"api":shell("getprop","ro.build.version.sdk").strip(),"screens":records}
+    required = {"authenticated", "cloud-groups", "group-detail", "administration", "shopping-populated", "catalog-populated", "product-detail", "archive-populated", "statistics-populated"}
+    captured = {(r["theme"], r["screen"]) for r in records if r["status"] == "captured"}
+    auth_complete = all((mode, "authenticated") in captured for mode in ("light", "dark"))
+    coverage_complete = auth_complete and all((mode, screen) in captured for mode in ("light", "dark") for screen in required) and all(r["status"] == "captured" for r in records)
+    metadata = {"auth_complete": auth_complete, "coverage_complete": coverage_complete, "commit":os.getenv("GITHUB_SHA"),"version":os.getenv("CAPTURE_VERSION"),"device":shell("wm","size").strip(),"density":shell("wm","density").strip(),"api":shell("getprop","ro.build.version.sdk").strip(),"screens":records}
     (OUT/"manifest.json").write_text(json.dumps(metadata,ensure_ascii=False,indent=2),encoding="utf-8")
     lines=["# UI handoff — real APK", "", f"Commit: {metadata['commit']}", f"Version: {metadata['version']}", f"Device: {metadata['device']}; {metadata['density']}; API {metadata['api']}", "", "Capture uses a disposable emulator and isolated synthetic fixtures when enabled. XML bounds are physical pixels, not editable Figma layers.", "", "## Screens"]
     for r in records:
@@ -212,6 +245,10 @@ def main():
     (OUT/"README.md").write_text("\n".join(lines),encoding="utf-8")
     if not any(r["status"]=="captured" for r in records):
         raise SystemExit("No real app screenshots captured")
+    if FIXTURE and not auth_complete:
+        raise SystemExit("Fixture UI authentication failed; see manifest and screenshots")
+    if FIXTURE and not coverage_complete:
+        raise SystemExit("Incomplete fixture UI coverage; see manifest and screenshots")
 
 if __name__ == "__main__":
     main()
