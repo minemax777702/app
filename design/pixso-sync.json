@@ -44,6 +44,14 @@
       "position": {
         "x": 32,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 9,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -59,6 +67,14 @@
       "position": {
         "x": 482,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 9,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -74,6 +90,14 @@
       "position": {
         "x": 967,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 32,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -89,6 +113,14 @@
       "position": {
         "x": 1417,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 32,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -104,6 +136,14 @@
       "position": {
         "x": 32,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 13,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -119,6 +159,14 @@
       "position": {
         "x": 482,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 13,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -510,6 +558,14 @@
       "position": {
         "x": 32,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 19,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -525,6 +581,14 @@
       "position": {
         "x": 482,
         "y": 132
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 19,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_parity_verified": false
       }
     },
     {
@@ -1139,7 +1203,7 @@
   "icon_library": {
     "section_id": "9:2515",
     "source_commit": "54a54ec33016fe16fd5324843b4d0b286208658a",
-    "components": 68
+    "components": 84
   },
   "latest_capture": {
     "version": "beta-ui-157",
@@ -1156,6 +1220,18 @@
       "width": 411.42857142857144,
       "height": 914.2857142857143
     },
+    "visual_parity_verified": false
+  },
+  "layout_audit": {
+    "source": "beta-ui-157",
+    "reviewed_frames": 8,
+    "matched_compose_texts": 146,
+    "remaining_frames": 62,
+    "inventory_text_layers_excluding_os": 1258,
+    "auto_line_height_layers": 950,
+    "zero_pixel_letter_spacing_layers": 622,
+    "non_manrope_layers": 0,
+    "affected_frames": 62,
     "visual_parity_verified": false
   }
 }
