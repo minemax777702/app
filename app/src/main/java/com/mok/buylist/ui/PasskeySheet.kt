@@ -16,6 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -94,9 +98,15 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
                 }
             }
             if(error!=null) {
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)){
-                    Text(error.orEmpty(),Modifier.weight(1f),color=p.textSecondary,fontSize=13.sp)
-                    FreshCutToolbarAction(R.drawable.ic_sync,"Повторить",{scope.launch{refresh()}},enabled=!busy)
+                Column(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius))
+                        .background(p.card).padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(stringResource(R.string.passkey_error_title), color = p.error, fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+                    Text(error.orEmpty(), color = p.text, fontSize = 14.sp)
+                    FreshCutSecondaryButton(stringResource(R.string.passkey_retry), { scope.launch { refresh() } }, enabled = !busy)
                 }
             } else {
                 PasskeyAction(stage,true,enabled=!busy) {

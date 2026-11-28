@@ -14,6 +14,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,9 +58,15 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
 
     if (section == 0) PanelCard {
         Text("Расходы за выбранный период", color = p.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Text(if (coverage.priced > 0) money(coverage.amount) else "—", color = p.text,
-            fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold)
         Text(tripCountLabel(closedTrips.size), color = p.textSecondary, fontSize = 12.sp)
+        if (coverage.priced == 0) {
+            Text(stringResource(R.string.stats_no_prices_title), color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.stats_no_prices_description), color = p.textSecondary, fontSize = 13.sp)
+        } else {
+        Text(money(coverage.amount), color = p.text, fontSize = 36.sp, lineHeight = 44.sp, fontWeight = FontWeight.SemiBold)
+        if (coverage.unpriced > 0) Text(
+            stringResource(R.string.stats_partial_prices, coverage.priced, coverage.purchases),
+            color = p.textSecondary, fontSize = 13.sp)
         val first = start ?: selected.minOfOrNull { expenseDate(it, zone) } ?: today
         val length = (java.time.temporal.ChronoUnit.DAYS.between(first, today) + 1).coerceAtLeast(1L)
         val bucketCount = minOf(7L, length).toInt()
@@ -71,17 +78,25 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
         }
         val peak = buckets.mapNotNull { it.third }.maxOrNull()?.coerceAtLeast(1L) ?: 1L
         var activeBucket by remember(buckets) { mutableIntStateOf(-1) }
-        Row(Modifier.fillMaxWidth().height(104.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
-            buckets.forEachIndexed { index, bucket ->
-                Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val gap = 4.dp
+            val bucketWidth = maxOf(UiMetrics.touchTarget, (maxWidth - gap * (buckets.size - 1)) / buckets.size)
+            Row(Modifier.fillMaxWidth().height(104.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
+                buckets.forEachIndexed { index, bucket ->
                     val total = bucket.third
-                    if (total != null) Box(Modifier.fillMaxWidth(0.70f)
-                        .fillMaxHeight((total.toDouble() / peak).toFloat().coerceIn(0.03f, 1f))
-                        .clip(RoundedCornerShape(7.dp)).background(if (index == activeBucket) p.text else p.actionFill)
-                        .clickable { activeBucket = if (index == activeBucket) -1 else index }
-                        .semantics { contentDescription = "${bucket.first} – ${bucket.second}: ${money(total)}" })
-                    else Box(Modifier.fillMaxWidth(0.70f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.line))
+                    val action = if (total != null) Modifier
+                        .clickable(role = androidx.compose.ui.semantics.Role.Button) { activeBucket = if (index == activeBucket) -1 else index }
+                        .semantics {
+                            contentDescription = "${bucket.first} – ${bucket.second}: ${money(total)}"
+                            this.selected = index == activeBucket
+                        } else Modifier
+                    Box(Modifier.width(bucketWidth).fillMaxHeight().then(action), contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
+                        if (total != null) Box(Modifier.fillMaxWidth(0.70f)
+                            .fillMaxHeight((total.toDouble() / peak).toFloat().coerceIn(0.03f, 1f))
+                            .clip(RoundedCornerShape(7.dp)).background(if (index == activeBucket) p.text else p.actionFill))
+                        else Box(Modifier.fillMaxWidth(0.70f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(p.line))
+                    }
                 }
             }
         }
@@ -91,6 +106,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
             Text(today.format(label), color = p.textSecondary, fontSize = 10.sp)
         }
         buckets.getOrNull(activeBucket)?.third?.let { Text(money(it), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) }
+        }
     }
     if (section == 0 && coverage.purchases > 0) {
         FreshCutSectionTitle("Что купили", Modifier.padding(top = 8.dp))
@@ -218,15 +234,21 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                 Text("$label · ${money(totals[selectedBucket]!!)}",
                     color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
-            Row(Modifier.fillMaxWidth().height(150.dp), horizontalArrangement = Arrangement.spacedBy(4.dp),
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val gap = 4.dp
+            val bucketWidth = maxOf(UiMetrics.touchTarget, (maxWidth - gap * (buckets.size - 1)) / buckets.size)
+            Row(Modifier.fillMaxWidth().height(150.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(gap),
                 verticalAlignment = androidx.compose.ui.Alignment.Bottom) {
                 buckets.forEachIndexed { index, bucket ->
                     val total = totals[index]
                     val label = bucket.first().format(DateTimeFormatter.ofPattern("dd.MM"))
                     val selection = if (total != null) Modifier
                         .clickable(role = androidx.compose.ui.semantics.Role.Button) { selectedBucket = index }
-                        .semantics { contentDescription = "$label: ${money(total)}" } else Modifier
-                    Column(Modifier.weight(1f).fillMaxHeight().then(selection), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                        .semantics {
+                            contentDescription = "$label: ${money(total)}"
+                            this.selected = index == selectedBucket
+                        } else Modifier
+                    Column(Modifier.width(bucketWidth).fillMaxHeight().then(selection), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Bottom) {
                         Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = androidx.compose.ui.Alignment.BottomCenter) {
                             if (total != null) Box(Modifier.fillMaxWidth(0.65f)
@@ -236,6 +258,7 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
                         Text(label, color = p.textSecondary, fontSize = 10.sp, maxLines = 1)
                     }
                 }
+            }
             }
         }
     }

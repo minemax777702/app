@@ -695,9 +695,10 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 HistoryCard {
                     Text("${pricePeriod.title} · ${storeLabel(priceStoreFilter)} · ${if (effectiveUnit == "kg") "за кг" else "за шт."}",
                         color = p.textSecondary, fontSize = 12.sp)
-                    if (points.isEmpty()) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
-                        description = stringResource(R.string.empty_period_description), fillAvailable = false)
-                    else PriceChart(points, zone)
+                    if (points.isEmpty()) {
+                        Text(stringResource(R.string.stats_no_prices_title), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.empty_period_description), color = p.textSecondary, fontSize = 13.sp)
+                    } else PriceChart(points, zone)
                 }
             }
             if (historyOpen) {

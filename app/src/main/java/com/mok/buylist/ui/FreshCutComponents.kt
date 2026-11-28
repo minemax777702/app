@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.horizontalScroll
@@ -129,7 +130,9 @@ internal fun FreshCutNavigation(
                     .background(if (active) p.text else p.card))
                 Spacer(Modifier.height(4.dp))
                 Icon(painterResource(icon), null, Modifier.size(24.dp), tint = ink)
-                Text(title, color = ink, fontSize = 11.sp, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                Text(title, color = ink, fontSize = 11.sp,
+                    maxLines = if (LocalDensity.current.fontScale > 1.3f) Int.MAX_VALUE else 2,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                     overflow = TextOverflow.Ellipsis, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium)
             }
         }
@@ -190,20 +193,27 @@ internal fun FreshCutListRow(
     showChevron: Boolean = true,
 ) {
     val p = LocalPalette.current
-    Row(Modifier.fillMaxWidth() .heightIn(min = UiMetrics.rowHeight).clip(RoundedCornerShape(UiMetrics.cardRadius))
-        .background(p.card).border(1.dp, if (selected) p.text else p.line, RoundedCornerShape(UiMetrics.cardRadius)).then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-        .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field), contentAlignment = Alignment.Center) {
-            if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Keep important prices readable on narrow devices and at large text scales.
+        val stackValue = value != null && (maxWidth < 340.dp || LocalDensity.current.fontScale >= 1.3f || value.length > 16)
+        Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.rowHeight).clip(RoundedCornerShape(UiMetrics.cardRadius))
+            .background(p.card).border(1.dp, if (selected) p.text else p.line, RoundedCornerShape(UiMetrics.cardRadius))
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Box(Modifier.size(UiMetrics.touchTarget).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field), contentAlignment = Alignment.Center) {
+                if (leading != null) leading() else Icon(painterResource(icon), null, Modifier.size(24.dp), tint = p.text)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 12.sp)
+                if (stackValue && value != null) Text(value, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            }
+            if (!stackValue && value != null) Text(value, Modifier.widthIn(max = 112.dp), color = p.text,
+                fontSize = 14.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.End)
+            if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
+            else if (showChevron && value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            if (subtitle.isNotBlank()) Text(subtitle, color = p.textSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        }
-        if (value != null) Text(value, Modifier.widthIn(max = 112.dp), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.End)
-        if (trailing != null) trailing() else if (selected) Icon(painterResource(R.drawable.ic_check), "Выбрано", Modifier.size(20.dp), tint = p.text)
-        else if (showChevron && value == null && onClick != null) Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp).rotate(-90f), tint = p.textSecondary)
     }
 }
 
@@ -268,7 +278,7 @@ internal fun FilterSelect(label: String, value: String, options: List<String>, o
         Text(label, color = p.textSecondary, fontSize = 12.sp)
         Box(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
-                .background(p.card).border(1.dp,p.line,RoundedCornerShape(UiMetrics.controlRadius))
+                .background(p.card).border(1.dp,p.textSecondary,RoundedCornerShape(UiMetrics.controlRadius))
                 .clickable { expanded = true }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(value, Modifier.weight(1f), color = p.text, fontSize = 14.sp)
                 Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать $label", Modifier.size(20.dp), tint = p.textSecondary)

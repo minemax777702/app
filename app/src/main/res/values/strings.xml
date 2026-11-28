@@ -203,4 +203,9 @@
     <string name="empty_updates_description">Здесь появится история обновлений.</string>
     <string name="empty_store_search_title">Товары не найдены</string>
     <string name="empty_store_search_description">Попробуйте другой запрос.</string>
+    <string name="stats_no_prices_title">Нет данных о ценах</string>
+    <string name="stats_no_prices_description">У покупок нет известных цен.</string>
+    <string name="stats_partial_prices">Сумма учитывает %1$d из %2$d покупок с ценой.</string>
+    <string name="passkey_error_title">Не удалось загрузить ключи</string>
+    <string name="passkey_retry">Повторить</string>
 </resources>

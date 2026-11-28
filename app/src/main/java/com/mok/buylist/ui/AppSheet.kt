@@ -7,6 +7,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.border
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -76,7 +77,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
-    val lineColor = if (isError) p.error else if (focused) p.text else p.line
+    val lineColor = when { isError -> p.error; focused -> p.text; readOnly -> p.line; else -> p.textSecondary }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(hint, color = if (isError) p.error else p.textSecondary, fontSize = 12.sp,
             fontWeight = FontWeight.Medium)
@@ -85,7 +86,10 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
             .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
                 modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else UiMetrics.touchTarget)
-                    .onFocusChanged { focused = it.isFocused }.semantics { contentDescription = hint }, singleLine = true,
+                    .onFocusChanged { focused = it.isFocused }.semantics {
+                        contentDescription = hint
+                        if (isError) error("Проверьте значение поля")
+                    }, singleLine = true,
                 textStyle = TextStyle(color = p.text, fontFamily = Manrope, fontSize = 15.sp, fontWeight = FontWeight.Medium),
                 cursorBrush = SolidColor(p.text), keyboardOptions = keyboardOptions, keyboardActions = keyboardActions,
                 visualTransformation = visualTransformation,
