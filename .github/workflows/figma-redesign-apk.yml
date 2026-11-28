@@ -13,9 +13,13 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: 'Publish signed APK (false = capture UI only on beta)'
+        description: 'Publish signed APK after checks (false = do not publish)'
         type: boolean
         default: true
+      candidate:
+        description: 'Build signed beta APK without publishing (set publish=false)'
+        type: boolean
+        default: false
       adaptive_audit:
         description: 'Also capture small screens, large fonts and keyboard (beta only)'
         type: boolean
@@ -26,7 +30,7 @@ permissions:
 
 jobs:
   build:
-    if: (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/main') && ((github.event_name == 'workflow_dispatch' && inputs.publish) || contains(github.event.head_commit.message, '[release]'))
+    if: (github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/main') && ((github.event_name == 'workflow_dispatch' && inputs.publish) || contains(github.event.head_commit.message, '[release]') || (github.ref == 'refs/heads/beta' && ((github.event_name == 'workflow_dispatch' && inputs.candidate) || contains(github.event.head_commit.message, '[beta-candidate]'))))
     concurrency:
       group: fresh-cut-apk-${{ github.ref }}
       cancel-in-progress: true
@@ -136,7 +140,7 @@ jobs:
 
   publish:
     needs: [build, ui-handoff]
-    if: ${{ always() && !cancelled() && needs.build.result == 'success' && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/beta' && needs.ui-handoff.result == 'success')) }}
+    if: ${{ always() && !cancelled() && needs.build.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || contains(github.event.head_commit.message, '[release]')) && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/beta' && needs.ui-handoff.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -310,12 +314,13 @@ jobs:
           if-no-files-found: warn
           compression-level: 1
           retention-days: 30
+      - name: Verify complete UI coverage for current commit
+        if: ${{ always() && hashFiles('ui-handoff/manifest.json') != '' }}
+        run: |
+          python3 scripts/ui-release-gate.py --registry design/pixso-sync.json --handoff ui-handoff --commit "$GITHUB_SHA"
       - name: Prepare Pixso incremental update plan
         run: |
           python3 scripts/plan-pixso-sync.py --registry design/pixso-sync.json --handoff ui-handoff --output pixso-sync-input
-      - name: Verify complete UI coverage for current commit
-        run: |
-          python3 scripts/ui-release-gate.py --registry design/pixso-sync.json --handoff ui-handoff --commit "$GITHUB_SHA"
       - name: Upload Pixso update inputs
         uses: actions/upload-artifact@v6
         with:
