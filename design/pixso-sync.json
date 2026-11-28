@@ -53,6 +53,21 @@
         "typography_adjusted": true,
         "geometry_adjusted": true,
         "visual_parity_verified": false
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -99,6 +114,21 @@
         "typography_adjusted": true,
         "geometry_adjusted": true,
         "visual_parity_verified": false
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -145,6 +175,21 @@
         "typography_adjusted": true,
         "geometry_adjusted": true,
         "visual_parity_verified": false
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -196,6 +241,21 @@
           "Minor icon tint/spacing and Android system gesture handle differences"
         ],
         "system_status_bar_updated": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -252,6 +312,21 @@
           "System status bar placeholder and chevron tint/position differences"
         ],
         "toolbar_and_chevron_corrected": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -317,6 +392,23 @@
         ],
         "unmatched_compose_texts": [
           "Месяц · Все магазины · за шт."
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "One-line title intentionally retained per user request; captured Android title wraps",
+          "Chart subtitle clipped in Android capture",
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -391,6 +483,21 @@
           "Android system status bar placeholder glyphs",
           "Android system gesture handle and minor rasterization differences"
         ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -454,6 +561,21 @@
         "remaining_differences": [
           "System status bar placeholder"
         ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -508,6 +630,21 @@
         "visual_parity_verified": false,
         "remaining_differences": [
           "System status bar placeholder; icon sizes/positions require further measurement"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -572,6 +709,21 @@
           "Android system gesture handle and minor rasterization differences"
         ],
         "chart_icon_rescaled": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -635,6 +787,21 @@
         "visual_parity_verified": false,
         "remaining_differences": [
           "System status bar placeholder; chart raster geometry requires further measurement"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -700,6 +867,21 @@
           "Android system gesture handle and minor rasterization differences"
         ],
         "chart_icon_rescaled": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -772,6 +954,21 @@
           "Android system gesture handle and minor rasterization differences"
         ],
         "chart_icon_rescaled": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -844,6 +1041,21 @@
           "Android system gesture handle and minor rasterization differences"
         ],
         "chart_icon_rescaled": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -915,6 +1127,21 @@
           "System gesture/status bar and dimmed-background differences"
         ],
         "chart_icon_rescaled": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -973,6 +1200,21 @@
         "typography_adjusted": true,
         "geometry_adjusted": true,
         "visual_parity_verified": false
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1024,6 +1266,21 @@
           "System status bar placeholder; remaining geometry and icon tint differences"
         ],
         "android_icon_instances_updated": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1080,6 +1337,22 @@
         "remaining_differences": [
           "Transient Android system update notification is visible in capture only; not recreated as app UI",
           "Underlying header icons differ in notification capture"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Transient OS update notification intentionally omitted; background toolbar aligned to shopping",
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -1139,6 +1412,21 @@
           "System status/gesture bar differs"
         ],
         "background_toolbar_icons_updated": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1196,6 +1484,21 @@
         "remaining_differences": [
           "System status bar uses placeholder glyphs"
         ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1251,6 +1554,21 @@
         "visual_parity_verified": false,
         "remaining_differences": [
           "System status bar uses placeholder glyphs"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -1309,6 +1627,22 @@
           "Transient Android update notification not recreated as application UI",
           "Background toolbar icons differ from actual capture"
         ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Transient OS update notification intentionally omitted; background toolbar aligned to shopping",
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1366,6 +1700,21 @@
         "remaining_differences": [
           "Minor system inset and icon tint differences"
         ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1421,6 +1770,21 @@
         "visual_parity_verified": false,
         "remaining_differences": [
           "Minor system inset and icon tint differences"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -1479,6 +1843,21 @@
           "System status bar uses placeholder glyphs"
         ],
         "bell_icon_rescaled": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1537,6 +1916,21 @@
           "Remaining row chevron tint/geometry and system gesture indicator differences"
         ],
         "android_icon_instances_updated": 10
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1595,6 +1989,21 @@
           "Trailing chevron vertical alignment and system gesture indicator differ"
         ],
         "android_icon_instances_updated": 10
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1653,6 +2062,21 @@
           "Minor toolbar geometry/tint and system gesture indicator differences"
         ],
         "android_icon_instances_updated": 10
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1709,6 +2133,21 @@
         "visual_parity_verified": false,
         "remaining_differences": [
           "System gesture indicator and minor icon geometry/tint differences"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -1769,6 +2208,21 @@
           "System status and gesture indicator tint differ from Android capture",
           "Minor vector stroke and text rasterization differences"
         ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1828,6 +2282,21 @@
           "Minor icon sizes, corner radius and input text metrics not fully verified"
         ],
         "unspecified_input_metrics_preserved": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -1886,6 +2355,21 @@
         "remaining_differences": [
           "System status and gesture indicator tint differ",
           "Minor icon geometry and text rasterization differences"
+        ]
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
         ]
       }
     },
@@ -1948,6 +2432,21 @@
         "card_height_corrected": 72,
         "chevrons_corrected": 2,
         "system_status_bar_updated": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -2012,6 +2511,21 @@
         "card_height_corrected": 72,
         "chevrons_corrected": 2,
         "unspecified_input_metrics_preserved": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -2075,6 +2589,21 @@
         ],
         "card_height_corrected": 72,
         "system_status_bar_updated": true
+      },
+      "final_review": {
+        "date": "2026-11-28",
+        "pass": 1,
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "system_status_bar_normalized": true,
+        "gesture_handle_normalized": true,
+        "navigation_components_and_text_checked": true,
+        "navigation_opacity_checked": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Minor differences in OS glyph geometry, text rasterization and individual element geometry remain; pixel-level parity not established"
+        ]
       }
     },
     {
@@ -2167,6 +2696,38 @@
     },
     "text_wrap_fixes_confirmed": 14,
     "inventory_metrics_source": "pre-batch inventory; not recalculated",
-    "initial_review_complete": true
+    "initial_review_complete": true,
+    "final_review": {
+      "completed_frames": 35,
+      "remaining_frames": 35,
+      "pass_size": 35,
+      "passes_total": 2,
+      "passes_completed": 1,
+      "completed_themes": [
+        "light"
+      ],
+      "pending_themes": [
+        "dark"
+      ],
+      "light_inventory": {
+        "frames": 35,
+        "app_text_layers": 629,
+        "auto_line_height": 2,
+        "zero_letter_spacing_layers": 11,
+        "non_manrope_layers": 0,
+        "nav_instances": 175,
+        "nav_bad_opacity": 0,
+        "frames_with_two_os_icon_groups": 35,
+        "frames_with_one_visible_gesture_handle": 35
+      },
+      "verified_frames": 0,
+      "latest_pass": {
+        "frames": 35,
+        "pixso_screenshots_compared": 35,
+        "nav_labels_checked": 175,
+        "nav_opacity_corrected": 88,
+        "system_icon_groups_added": 28
+      }
+    }
   }
 }
