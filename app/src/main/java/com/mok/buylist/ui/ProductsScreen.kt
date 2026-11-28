@@ -73,6 +73,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val scope = rememberCoroutineScope()
     val products by catalog.products.collectAsStateWithLifecycle()
     val address by catalog.address.collectAsStateWithLifecycle()
+    val catalogReady by catalog.ready.collectAsStateWithLifecycle()
     val customProducts by viewModel.customProducts.collectAsStateWithLifecycle()
     val stores by viewModel.stores.collectAsStateWithLifecycle()
     val storeLinks by viewModel.storeProducts.collectAsStateWithLifecycle()
@@ -165,7 +166,14 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 }
             }
         }
-        if (rows.isEmpty() && ownRows.isEmpty()) {
+        if (!catalogReady && rows.isEmpty() && ownRows.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+                    androidx.compose.material3.CircularProgressIndicator(color = p.textSecondary)
+                    Text("Загружаем каталог…", color = p.textSecondary, fontSize = 14.sp)
+                }
+            }
+        } else if (rows.isEmpty() && ownRows.isEmpty()) {
             FreshCutEmptyState(
                 icon = if (query.isBlank()) R.drawable.ic_package else R.drawable.ic_search,
                 title = stringResource(if (query.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
@@ -235,7 +243,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
             }
         }
-        if (rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+        if (catalogReady && rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
             SheetActionButton(onClick = {
                 customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
                 customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
