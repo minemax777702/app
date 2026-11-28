@@ -160,10 +160,10 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                 "cloud" -> SupabasePanel(fixedLogout = signedIn && me != null)
                 "admin" -> if (isAdmin) SupabasePanel(adminOnly = true)
                 else -> {
-                    if (signedIn) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(p.card)
+                    if (signedIn) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius)).background(p.card)
                         .clickable(role = Role.Button, onClick = { page = "cloud" }).padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(18.dp)).background(p.field),
+                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(UiMetrics.iconRadius)).background(p.field),
                             contentAlignment = Alignment.Center) {
                             Text((me?.name ?: profile?.name ?: "П").take(1).uppercase(), color = p.text, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
                         }
