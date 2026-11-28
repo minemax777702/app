@@ -621,14 +621,15 @@
       "theme": "light",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3509",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 1902,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/account",
@@ -636,14 +637,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3575",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 2352,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/account-registration",
@@ -651,14 +653,15 @@
       "theme": "light",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3641",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 32,
         "y": 1172
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/account-registration",
@@ -666,14 +669,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3702",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 482,
         "y": 1172
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/login-form",
@@ -771,14 +775,15 @@
       "theme": "light",
       "page": "flows",
       "section": "03 · Уведомления",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3377",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2538",
       "position": {
         "x": 32,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/notifications",
@@ -786,14 +791,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "03 · Уведомления",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3443",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2538",
       "position": {
         "x": 482,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/theme",
@@ -1011,14 +1017,15 @@
       "theme": "light",
       "page": "flows",
       "section": "06 · Администрирование",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3763",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2565",
       "position": {
         "x": 32,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/administration",
@@ -1026,14 +1033,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "06 · Администрирование",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3847",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2565",
       "position": {
         "x": 482,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/admin-user",
@@ -1071,14 +1079,15 @@
       "theme": "light",
       "page": "flows",
       "section": "06 · Администрирование",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:3931",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2565",
       "position": {
         "x": 1902,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/admin-groups",
@@ -1086,14 +1095,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "06 · Администрирование",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:4019",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2565",
       "position": {
         "x": 2352,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     }
   ],
   "structure_status": "sections_verified_index_page_exists_content_pending",
