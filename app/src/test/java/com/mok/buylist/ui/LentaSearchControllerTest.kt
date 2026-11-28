@@ -300,4 +300,68 @@ class LentaSearchControllerTest {
         assertEquals(listOf("старый", "новый"), requests)
         assertEquals(listOf(2L), controller.state.value.online.map { it.id })
     }
+
+    @Test fun debounceCanBeStoppedAndResumed() = runBlocking {
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            listOf(product(1, "Молоко"))
+        }, this)
+        controller.update("молоко", "address", emptyList(), false)
+        assertEquals(true, controller.state.value.pending)
+        controller.stop()
+        delay(550)
+        assertEquals(emptyList<Int>(), pages)
+        assertEquals(true, controller.state.value.paused)
+        assertFalse(controller.state.value.loading)
+        controller.searchOnline()
+        delay(50)
+        assertEquals(listOf(1), pages)
+        assertEquals(listOf(1L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun failureKeepsResultsAndRetriesSamePage() = runBlocking {
+        var fail = true
+        val pages = mutableListOf<Int>()
+        val controller = LentaSearchController({ _, _, page, _ ->
+            pages += page
+            when {
+                page == 1 -> listOf(product(1, "Молоко"))
+                page == 2 && fail -> throw java.io.IOException("offline")
+                page == 2 -> listOf(product(2, "Молоко"))
+                else -> emptyList()
+            }
+        }, this)
+        controller.update("молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        controller.searchOnline()
+        delay(50)
+        assertEquals(true, controller.state.value.failed)
+        assertFalse(controller.state.value.complete)
+        assertFalse(controller.state.value.loading)
+        assertEquals(listOf(1L), controller.state.value.online.map { it.id })
+        fail = false
+        controller.searchOnline()
+        delay(50)
+        assertFalse(controller.state.value.failed)
+        assertEquals(listOf(1, 2, 2), pages)
+        assertEquals(listOf(1L, 2L), controller.state.value.online.map { it.id })
+    }
+
+    @Test fun stopDuringRequestDoesNotPublishLateResult() = runBlocking {
+        val controller = LentaSearchController({ _, _, _, _ ->
+            delay(300)
+            listOf(product(1, "Молоко"))
+        }, this)
+        controller.update("молоко", "address", emptyList(), false)
+        controller.searchOnline()
+        delay(50)
+        controller.stop()
+        delay(350)
+        assertFalse(controller.state.value.loading)
+        assertFalse(controller.state.value.complete)
+        assertEquals(true, controller.state.value.paused)
+        assertEquals(emptyList<LentaProduct>(), controller.state.value.online)
+    }
 }
