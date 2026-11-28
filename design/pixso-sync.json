@@ -4560,6 +4560,42 @@
       "UX-05",
       "UX-06"
     ],
-    "pending": 20
+    "pending": 20,
+    "followup": {
+      "date": "2026-11-28",
+      "checkpoint": "design/checkpoints/2026-11-28-ROLLBACK.md",
+      "code_commits": [
+        "aad53922e32618383a460f3e67116907289deb74",
+        "d12ee6754a972b4d0936ffb948d9959156f4da7b"
+      ],
+      "implemented_in_code": [
+        "UX-10",
+        "UX-12",
+        "UX-13",
+        "UX-17",
+        "UX-19",
+        "UX-20",
+        "UX-23",
+        "UX-26"
+      ],
+      "partially_addressed_in_code": [
+        "UX-11",
+        "UX-14",
+        "UX-15",
+        "UX-16",
+        "UX-18",
+        "UX-22"
+      ],
+      "pixso_changes": "deferred until named history version is confirmed; live design intentionally unchanged",
+      "verification": "pending Android capture and accessibility tests",
+      "unaddressed": [
+        "UX-08",
+        "UX-09",
+        "UX-21",
+        "UX-24",
+        "UX-25"
+      ],
+      "capture_recovery": "UX-07 implemented; awaiting CI"
+    }
   }
 }

@@ -177,7 +177,7 @@
     <string name="send_old_warning">Старые данные объединятся с данными получателя; новые изменения не будут отменены.</string>
     <string name="empty_list_description">Нажмите «Добавить», чтобы начать.</string>
     <string name="empty_catalog_title">Нет товаров</string>
-    <string name="empty_catalog_description">Добавьте товар через меню или кнопку.</string>
+    <string name="empty_catalog_description">Нажмите «Создать свой товар».</string>
     <string name="empty_search_title">Нет результатов</string>
     <string name="empty_search_description">Измените название или штрихкод.</string>
     <string name="empty_archive_description">Здесь будут завершённые списки.</string>
@@ -205,7 +205,8 @@
     <string name="empty_store_search_description">Попробуйте другой запрос.</string>
     <string name="stats_no_prices_title">Нет данных о ценах</string>
     <string name="stats_no_prices_description">У покупок нет известных цен.</string>
-    <string name="stats_partial_prices">Сумма учитывает %1$d из %2$d покупок с ценой.</string>
+    <string name="stats_partial_prices">Цены известны у %1$d из %2$d покупок.</string>
     <string name="passkey_error_title">Не удалось загрузить ключи</string>
     <string name="passkey_retry">Повторить</string>
+    <string name="store_product_linked">Уже в магазине</string>
 </resources>

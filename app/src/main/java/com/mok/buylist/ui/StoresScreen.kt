@@ -273,16 +273,28 @@ internal fun StoresScreen(
                             }
                         } else LazyColumn(
                             Modifier.fillMaxWidth().heightIn(max = 270.dp),
+                            verticalArrangement = Arrangement.spacedBy(UiMetrics.gap),
                         ) {
                             items(options.take(choiceShown), key = { it.first }) { (key, name) ->
-                                Row(Modifier.fillMaxWidth().clickable {
-                                    chosenProductKey = key
-                                    linkPrice = ""
-                                }.padding(12.dp)) {
-                                    Text(name, color = p.text, modifier = Modifier.weight(1f))
-                                    Icon(painterResource(R.drawable.ic_plus), null,
-                                        tint = p.text, modifier = Modifier.size(20.dp))
-                                }
+                                val existing = storeLinks.firstOrNull { !it.deleted && it.storeId == store.id && it.productKey == key }
+                                    ?: storeLinks.firstOrNull { !it.deleted && it.storeId == store.id &&
+                                        (identities[it.productKey] ?: it.productKey) == (identities[key] ?: key) }
+                                FreshCutListRow(
+                                    icon = R.drawable.ic_package,
+                                    title = name,
+                                    subtitle = if (existing != null) stringResource(R.string.store_product_linked) else "",
+                                    value = existing?.priceKopecks?.let(::formatUiMoney),
+                                    onClick = {
+                                        chosenProductKey = key
+                                        linkPrice = existing?.priceKopecks?.let { BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString() }.orEmpty()
+                                        linkError = null
+                                    },
+                                    showChevron = false,
+                                    trailing = {
+                                        Icon(painterResource(if (existing != null) R.drawable.ic_check else R.drawable.ic_plus),
+                                            contentDescription = null, tint = p.text, modifier = Modifier.size(20.dp))
+                                    },
+                                )
                             }
                             if (options.size > choiceShown) item {
                                 FreshCutSecondaryButton("Показать ещё", { choiceShown += 30 })
