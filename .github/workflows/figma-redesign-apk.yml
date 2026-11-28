@@ -215,6 +215,32 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
+      - name: Install required Android SDK packages
+        shell: bash
+        run: |
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          sdkmanager="$(command -v sdkmanager || true)"
+          if [ -z "$sdkmanager" ]; then
+            sdkmanager="$(find "$sdk_root/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          fi
+          test -x "$sdkmanager"
+          if [ ! -x "$sdk_root/cmdline-tools/latest/bin/sdkmanager" ]; then
+            "$sdkmanager" --sdk_root="$sdk_root" --install "cmdline-tools;latest"
+          fi
+          sdkmanager="$sdk_root/cmdline-tools/latest/bin/sdkmanager"
+          packages=()
+          [ -x "$sdk_root/platform-tools/adb" ] || packages+=("platform-tools")
+          [ -f "$sdk_root/platforms/android-37.0/android.jar" ] || packages+=("platforms;android-37.0")
+          [ -x "$sdk_root/build-tools/37.0.0/apksigner" ] || packages+=("build-tools;37.0.0")
+          if [ "${#packages[@]}" -gt 0 ]; then
+            "$sdkmanager" --sdk_root="$sdk_root" --install "${packages[@]}"
+          fi
+          test -f "$sdk_root/platforms/android-37.0/android.jar"
+          echo "ANDROID_HOME=$sdk_root" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
+          echo "$sdk_root/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+          echo "$sdk_root/platform-tools" >> "$GITHUB_PATH"
       - uses: gradle/actions/setup-gradle@v5
       - uses: supabase/setup-cli@v1
         with:
@@ -239,7 +265,6 @@ jobs:
           echo "CAPTURE_SUPABASE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
       - name: Build isolated capture APK
         run: |
-          sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
           chmod +x gradlew
           ./gradlew :app:assembleUiCapture --build-cache
       - name: Enable KVM
