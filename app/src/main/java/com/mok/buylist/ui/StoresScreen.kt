@@ -318,8 +318,8 @@ internal fun StoresScreen(
                     linkError?.let { Text(it, color = p.error) }
                 }
             },
-            confirmButton = {
-                if (chosen != null) SheetActionButton(
+            confirmButton = if (chosen != null) { {
+                SheetActionButton(
                     enabled = !saving && (linkPrice.isBlank() || amount != null),
                     onClick = {
                         saving = true
@@ -330,7 +330,7 @@ internal fun StoresScreen(
                         }
                     },
                 ) { Text("Сохранить") }
-            },
+            } } else null,
         )
     }
     if (creatingStoreProduct && store != null) {
