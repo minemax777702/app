@@ -5,6 +5,8 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 import com.mok.buylist.R
 
 /**
@@ -42,4 +44,24 @@ val ShoppingTypography: Typography = Typography().let { base ->
         labelMedium = base.labelMedium.copy(fontFamily = Manrope),
         labelSmall = base.labelSmall.copy(fontFamily = Manrope),
     )
+}
+
+
+/** Shared text roles for the Fresh Cut controls; all sizes scale with system font settings. */
+internal object UiTextStyles {
+    val action = TextStyle(fontFamily = Manrope, fontSize = 16.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+    val fieldLabel = TextStyle(fontFamily = Manrope, fontSize = 12.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp)
+    val fieldValue = TextStyle(fontFamily = Manrope, fontSize = 15.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp)
+    val fieldPlaceholder = fieldValue.copy(fontWeight = FontWeight.Normal)
+    val sectionTitle = TextStyle(fontFamily = Manrope, fontSize = 17.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+    val rowTitle = TextStyle(fontFamily = Manrope, fontSize = 15.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
+    val rowSubtitle = TextStyle(fontFamily = Manrope, fontSize = 12.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.Normal, letterSpacing = 0.5.sp)
+    val rowValue = TextStyle(fontFamily = Manrope, fontSize = 14.sp, lineHeight = 24.sp,
+        fontWeight = FontWeight.SemiBold, letterSpacing = 0.5.sp)
 }
