@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -151,12 +152,12 @@ fun StatsScreen(
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(period.title + " · " + (buyers.firstOrNull { it.id == userId }?.name ?: "Все покупатели"), Modifier.weight(1f), color = p.textSecondary, fontSize = 13.sp)
-            androidx.compose.material3.TextButton(onClick = { filterOpen = true }) { Text("Фильтры", color = p.text) }
+            androidx.compose.material3.TextButton(onClick = { filterOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("Фильтры", color = p.text) }
         }
         FreshCutTabs(listOf("Обзор", "Магазины", "Товары", "Динамика"), section, { section = it },
             Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
         if (shownArchive.isEmpty() && historyPurchases.isEmpty()) {
-            val hasHistory = archive.isNotEmpty() || purchases.any { userId == null || it.buyer == userId }
+            val hasHistory = archive.isNotEmpty() || purchases.isNotEmpty()
             EmptyStats(Modifier.weight(1f), hasHistory)
         } else {
             androidx.compose.runtime.key(section) {

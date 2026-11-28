@@ -338,7 +338,10 @@ def capture_authenticated():
     if route("archive-populated", ("Архив",), ("Личный список · 3 похода",)):
         route("archive-expanded", ("Развернуть",), ("Молоко 1,4 л", "Хлеб ржаной"))
     start()
-    route("statistics-populated", ("Статистика",), ("Фильтры","Обзор"))
+    if route("statistics-populated", ("Статистика",), ("Что купили","Расходы за выбранный период")):
+        route("stats-stores-populated", ("Магазины",), ("По магазинам",))
+        route("stats-products-populated", ("Товары",), ("Чаще всего покупаю",))
+        route("stats-trend-populated", ("Динамика",), ("Динамика расходов",))
 
 def main():
     # The emulator is disposable. No production credentials or account mutations.
@@ -369,7 +372,8 @@ def main():
     if FIXTURE:
         required.update({"store-detail", "store-detail-empty", "store-product-picker", "store-product-picker-empty",
                          "store-product-picker-no-results", "store-product-price", "store-custom-product",
-                         "store-edit", "store-remove-product"})
+                         "store-edit", "store-remove-product", "stats-stores-populated",
+                         "stats-products-populated", "stats-trend-populated"})
     captured = {(r["theme"], r["screen"]) for r in records if r["status"] == "captured"}
     auth_complete = all((mode, "authenticated") in captured for mode in ("light", "dark"))
     coverage_complete = auth_complete and all((mode, screen) in captured for mode in ("light", "dark") for screen in required) and all(r["status"] == "captured" for r in records)

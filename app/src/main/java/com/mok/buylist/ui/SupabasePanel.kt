@@ -212,28 +212,55 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
         var title by remember(original?.id){mutableStateOf(original?.name.orEmpty())}
         var query by remember(original?.id, addingMembers){mutableStateOf("")}
         var chosen by remember(original?.id, addingMembers){mutableStateOf(emptySet<String>())}
+        var discardName by remember(original?.id) { mutableStateOf(false) }
+        var pendingRemoval by remember(original?.id) { mutableStateOf<CloudPerson?>(null) }
+        var memberLimit by remember(original?.id, addingMembers, query) { mutableIntStateOf(5) }
         val manage = original == null || (row != null && directory.manages(row))
         val members = if(row == null) emptyList() else directory.people.filter { user ->
             user.id == row.owner || directory.members.any { it.group == row.id && it.user == user.id }
         }.sortedWith(compareByDescending<CloudPerson> { it.id == row.owner }.thenBy { it.name })
         val memberIds = members.mapTo(HashSet()) { it.id }
         val available = directory.people.filter { it.active && it.id !in memberIds }
-        val visible = available.filter { query.isNotBlank() && it.name.contains(query.trim(), ignoreCase = true) }
+        val visible = available.filter { it.name.contains(query.trim(), ignoreCase = true) }.sortedBy { it.name }
+        val nameChanged = manage && row != null && title.trim() != row.name
+        val actionsEnabled = !busy && !nameChanged
         AppSheet(onDismissRequest={
-            if(!busy) { if(addingMembers) addingMembers=false else groupSheet=false }
+            if(!busy) {
+                when {
+                    pendingRemoval != null -> pendingRemoval = null
+                    discardName -> discardName = false
+                    addingMembers -> addingMembers = false
+                    nameChanged || (original == null && title.isNotBlank()) -> discardName = true
+                    else -> groupSheet = false
+                }
+            }
         },containerColor=p.sheet,title={
-            SheetHeader(if(addingMembers) "Добавить участников" else if(original==null) "Новая группа" else "Группа")
+            SheetHeader(when {
+                pendingRemoval != null -> "Исключить участника?"
+                discardName -> "Отменить изменения?"
+                addingMembers -> "Добавить участников"
+                original == null -> "Новая группа"
+                else -> "Группа"
+            })
         },text={
             Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
-                if(addingMembers && row != null && manage) {
+                if (pendingRemoval != null) {
+                    Text(pendingRemoval?.name.orEmpty(), color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Участник потеряет доступ к общим спискам этой группы.", color = p.textSecondary, fontSize = 14.sp)
+                    FreshCutSecondaryButton("Отмена", { pendingRemoval = null }, enabled = !busy)
+                } else if (discardName) {
+                    Text("Название не будет сохранено.", color = p.textSecondary, fontSize = 14.sp)
+                    FreshCutSecondaryButton("Продолжить редактирование", { discardName = false }, enabled = !busy)
+                } else if(addingMembers && row != null && manage) {
                     if(available.isNotEmpty()) {
                         SheetTextField(query,{query=it.take(100)},"Поиск пользователя")
-                        visible.forEach { user ->
+                        visible.take(memberLimit).forEach { user ->
                             FreshCutListRow(R.drawable.ic_user_round,user.name,
                                 selected=user.id in chosen,showChevron=false,onClick={
                                     chosen=if(user.id in chosen) chosen-user.id else chosen+user.id
                                 })
                         }
+                        if (visible.size > memberLimit) FreshCutSecondaryButton("Показать ещё", { memberLimit += 10 }, enabled = !busy)
                         if(query.isNotBlank() && visible.isEmpty()) Text(
                             stringResource(R.string.empty_user_search_description), color=p.textSecondary,fontSize=13.sp)
                     } else if(!me.admin) Text(
@@ -245,13 +272,14 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 } else if(original != null && row == null) {
                     Text("Группа недоступна",color=p.textSecondary,fontSize=14.sp)
                 } else {
-                    if(manage) SheetTextField(title,{title=it.take(100)},"Название")
+                    if(manage) SheetTextField(title,{title=it.take(100)},"Название", readOnly = busy)
                     else Text(row?.name.orEmpty(),color=p.text,fontSize=20.sp,fontWeight=FontWeight.SemiBold)
+                    if (nameChanged) Text("Сохраните название перед другими действиями.", color = p.textSecondary, fontSize = 13.sp)
                     if(row!=null) {
                         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                             FreshCutSectionTitle("Участники · ${members.size}",Modifier.weight(1f))
                             if(manage) FreshCutToolbarAction(R.drawable.ic_user_plus,"Добавить участников",
-                                {addingMembers=true},primary=true,enabled=!busy)
+                                {addingMembers=true},primary=true,enabled=actionsEnabled)
                         }
                         Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
                             members.forEach { user ->
@@ -260,7 +288,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                     if(owner) "Владелец" else if(!user.active) "Доступ отключён" else "",
                                     showChevron=false,
                                     trailing=if(manage && !owner) {{ FreshCutToolbarAction(R.drawable.ic_close,
-                                        "Исключить из группы",{perform{cloud.member(row.id,user.id,false);notifyPending("Участник исключён · ${user.name} · ${row.name}")}},enabled=!busy) }} else null)
+                                        "Исключить из группы",{pendingRemoval=user},enabled=actionsEnabled) }} else null)
                             }
                         }
                         if(!adminOnly && directory.participates(row)) {
@@ -268,29 +296,44 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                 FreshCutSectionTitle("Списки",Modifier.weight(1f))
                                 FreshCutToolbarAction(R.drawable.ic_plus,"Создать список",{
                                     groupSheet=false;editingList=null;newListGroup=row.id;listSheet=true
-                                },enabled=!busy && directory.participates(row))
+                                },enabled=actionsEnabled && directory.participates(row))
                             }
                             directory.lists.filter{it.group==row.id}.forEach{item ->
                                 FreshCutListRow(R.drawable.ic_list_check,item.name,selected=workspace?.listId==item.id,showChevron=false,
-                                    onClick={if(directory.manages(item)){groupSheet=false;editingList=item;newListGroup=row.id;listSheet=true}})
+                                    onClick=if(actionsEnabled && directory.manages(item)) {{groupSheet=false;editingList=item;newListGroup=row.id;listSheet=true}} else null)
                             }
                         }
                         if(!adminOnly && directory.participates(row)) {
                             FreshCutListRow(R.drawable.ic_log_out,"Выйти из группы",showChevron=false,onClick={
-                                if(!busy){groupSheet=false;leavingGroup=row}
+                                if(actionsEnabled){groupSheet=false;leavingGroup=row}
                             })
                         }
                         if(manage) {
                             SheetDeleteButton("Удалить группу",{
                                 groupSheet=false;deletion="Удалить группу?" to suspend {cloud.removeGroup(row.id);notifyPending("Группа удалена · ${row.name}")}
-                            },enabled=!busy)
+                            },enabled=actionsEnabled)
                         }
                     }
                 }
-                if(pendingCount>0 && row!=null) Text("Изменения ожидают синхронизации",color=p.textSecondary,fontSize=12.sp)
+                if(pendingCount>0 && row!=null && pendingRemoval==null && !discardName) Text("Изменения ожидают синхронизации",color=p.textSecondary,fontSize=12.sp)
             }
         },confirmButton={
-            if(addingMembers && row!=null && manage && available.isNotEmpty()) {
+            val removal = pendingRemoval
+            if (removal != null) {
+                SheetActionButton(onClick = {
+                    if (row != null && manage && removal.id != row.owner && removal.id in memberIds) perform {
+                        cloud.member(row.id, removal.id, false)
+                        notifyPending("Участник исключён · ${removal.name} · ${row.name}")
+                        pendingRemoval = null
+                    }
+                }, destructive = true, enabled = !busy && row != null && manage && removal.id != row.owner && removal.id in memberIds) {
+                    Text("Исключить")
+                }
+            } else if (discardName) {
+                SheetActionButton(onClick = { discardName = false; groupSheet = false }, enabled = !busy, destructive = true) {
+                    Text("Не сохранять")
+                }
+            } else if(addingMembers && row!=null && manage && available.isNotEmpty()) {
                 SheetActionButton(onClick={perform{
                     val selected=chosen.intersect(available.mapTo(HashSet()){it.id})
                     selected.forEach { cloud.member(row.id,it,true) }
@@ -362,7 +405,7 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
             Text("Покупки на телефоне сохранятся",color=p.textSecondary,fontSize=14.sp)
         },confirmButton={SheetActionButton(onClick={deletion=null;perform(action)},destructive=true,enabled=!busy){Text("Удалить")}})
     }
-    if(adminOnly && me.admin && createUser) {
+    if(me.admin && createUser) {
         var newName by remember { mutableStateOf("") }
         var newEmail by remember { mutableStateOf("") }
         var newPassword by remember { mutableStateOf("") }

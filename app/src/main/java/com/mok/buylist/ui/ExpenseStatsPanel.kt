@@ -216,8 +216,10 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
             if (priced.isEmpty()) null else expenseSum(priced)
         }
         val peak = totals.filterNotNull().maxOrNull() ?: 0
-        if (totals.none { it != null }) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
-            description = stringResource(R.string.empty_period_description), fillAvailable = false)
+        if (totals.none { it != null }) {
+            Text(stringResource(R.string.stats_no_prices_title), color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.stats_no_prices_description), color = p.textSecondary, fontSize = 13.sp)
+        }
         if (totals.any { it != null }) {
             var selectedBucket by remember(buckets, allGrouped) {
                 mutableIntStateOf(totals.indexOfLast { it != null })
