@@ -186,7 +186,7 @@ private fun NoticeBanner(
         NoticeStyle.INFO -> R.drawable.ic_info
         NoticeStyle.WARNING -> R.drawable.ic_info
     }
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(UiMetrics.cardRadius)
     val configuration = LocalConfiguration.current
     // Do not create a full-width touch target: only the visible card receives input.
     val cardWidth = (configuration.screenWidthDp.dp - 40.dp).coerceIn(1.dp, 560.dp)
@@ -201,7 +201,7 @@ private fun NoticeBanner(
             .semantics { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
+            Box(Modifier.size(36.dp).clip(RoundedCornerShape(UiMetrics.nestedRadius))
                 .background(tint.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                 Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(20.dp), tint = tint)
             }
