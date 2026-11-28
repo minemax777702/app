@@ -193,6 +193,9 @@ jobs:
           done < "$RUNNER_TEMP/old-beta-tags"
 
   ui-handoff:
+    permissions:
+      contents: read
+      actions: read
     needs: build
     if: needs.build.outputs.channel == 'beta'
     runs-on: ubuntu-latest
@@ -235,8 +238,8 @@ jobs:
         run: |
           mkdir -p ui-handoff
           git log -1 --format=fuller > ui-handoff/commit.txt
-          if [ -n "$BEFORE" ] && git fetch --no-tags --depth=1 origin "$BEFORE"; then
-            git diff --name-status "$BEFORE" "$GITHUB_SHA" > ui-handoff/changed-files.txt
+          if [ -n "$BEFORE" ] && [[ ! "$BEFORE" =~ ^0+$ ]] && gh api "repos/$GITHUB_REPOSITORY/compare/$BEFORE...$GITHUB_SHA" --jq '.files[] | [.status,.filename] | @tsv' > ui-handoff/changed-files.txt; then
+            :
           else
             git show --format= --name-status HEAD > ui-handoff/changed-files.txt
           fi
