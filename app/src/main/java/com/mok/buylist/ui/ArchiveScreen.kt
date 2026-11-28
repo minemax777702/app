@@ -205,13 +205,13 @@ internal fun durationText(minutes: Int): String = when {
 
 /** Шапка вложенного экрана: «назад», заголовок и кнопки справа. */
 @Composable
-internal fun SubScreenHeader(title: String, onBack: () -> Unit, trailing: @Composable () -> Unit = {}) {
+internal fun SubScreenHeader(title: String, onBack: () -> Unit, titleFontSize: androidx.compose.ui.unit.TextUnit = 24.sp, trailing: @Composable () -> Unit = {}) {
     val p = LocalPalette.current
     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 6.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         HeaderButton(R.drawable.ic_back, "Назад", onBack)
         Spacer(Modifier.width(12.dp))
-        Text(title, Modifier.weight(1f), color = p.text, fontSize = 24.sp,
+        Text(title, Modifier.weight(1f), color = p.text, fontSize = titleFontSize,
             lineHeight = 30.sp, fontWeight = FontWeight.SemiBold)
         trailing()
     }
