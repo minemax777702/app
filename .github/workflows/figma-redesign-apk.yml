@@ -114,10 +114,7 @@ jobs:
           printf '%s' "$BUYLIST_KEYSTORE_BASE64" | base64 --decode > "$BUYLIST_STORE_FILE"
           unset BUYLIST_KEYSTORE_BASE64
           chmod +x ./gradlew
-          if [[ "$GITHUB_REF" == "refs/heads/main" ]]; then
-            ./gradlew :app:testDebugUnitTest --stacktrace --build-cache
-          fi
-          ./gradlew :app:assembleRelease --stacktrace --build-cache
+          ./gradlew :app:testDebugUnitTest :app:assembleRelease --stacktrace --build-cache
           "${ANDROID_HOME}/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
           test -s app/build/outputs/mapping/release/mapping.txt
           bytes="$(stat -c %s app/build/outputs/apk/release/app-release.apk)"
@@ -138,8 +135,8 @@ jobs:
           retention-days: 14
 
   publish:
-    needs: build
-    if: ${{ needs.build.result == 'success' }}
+    needs: [build, ui-handoff]
+    if: ${{ always() && !cancelled() && needs.build.result == 'success' && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/beta' && needs.ui-handoff.result == 'success')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -288,6 +285,7 @@ jobs:
         run: |
           python3 scripts/test-capture-ui.py
           python3 -m py_compile scripts/capture-adaptive-ui.py
+          python3 scripts/test-ui-release-gate.py
       - name: Capture real release UI
         uses: reactivecircus/android-emulator-runner@v2
         env:
@@ -315,6 +313,9 @@ jobs:
       - name: Prepare Pixso incremental update plan
         run: |
           python3 scripts/plan-pixso-sync.py --registry design/pixso-sync.json --handoff ui-handoff --output pixso-sync-input
+      - name: Verify complete UI coverage for current commit
+        run: |
+          python3 scripts/ui-release-gate.py --registry design/pixso-sync.json --handoff ui-handoff --commit "$GITHUB_SHA"
       - name: Upload Pixso update inputs
         uses: actions/upload-artifact@v6
         with:
