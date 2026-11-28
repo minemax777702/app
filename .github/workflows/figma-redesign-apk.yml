@@ -191,3 +191,64 @@ jobs:
             done
             gh release delete "$tag" --repo "$repo" --cleanup-tag --yes
           done < "$RUNNER_TEMP/old-beta-tags"
+
+  ui-handoff:
+    needs: build
+    if: needs.build.outputs.channel == 'beta'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: ui-handoff-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v7
+        with:
+          name: fresh-cut-release
+          path: release
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Capture real release UI
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CAPTURE_VERSION: ${{ needs.build.outputs.version }}
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          cores: 4
+          ram-size: 4096M
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: adb install -g release/app-release.apk && python3 scripts/capture-ui.py
+      - name: Collect changes and compare last capture
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          mkdir -p ui-handoff
+          git log -1 --format=fuller > ui-handoff/commit.txt
+          if [ -n "$BEFORE" ] && git fetch --no-tags --depth=1 origin "$BEFORE"; then
+            git diff --name-status "$BEFORE" "$GITHUB_SHA" > ui-handoff/changed-files.txt
+          else
+            git show --format= --name-status HEAD > ui-handoff/changed-files.txt
+          fi
+          if [ -f ui-handoff/manifest.json ]; then
+            python3 scripts/compare-ui.py
+          fi
+      - name: Upload UI handoff
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: fresh-cut-ui-handoff
+          path: ui-handoff/
+          if-no-files-found: error
+          compression-level: 1
+          retention-days: 30
