@@ -138,6 +138,8 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                 Text("Загружаем профиль…", color = p.textSecondary, fontSize = 14.sp)
             }
             FreshCutSecondaryButton(if (busy) "Подключение…" else "Повторить", { perform { cloud.refresh() } }, enabled = !busy)
+        } else if (status == "Доступ отключён") {
+            Text("Доступ к аккаунту отключён. Обратитесь к администратору.", color = p.error, fontSize = 14.sp)
         } else FreshCutStatusCard(
             status.orEmpty(), "Не удалось получить профиль. Проверьте подключение или повторите позже.",
             if (busy) "Подключение…" else "Повторить", { perform { cloud.refresh() } },
