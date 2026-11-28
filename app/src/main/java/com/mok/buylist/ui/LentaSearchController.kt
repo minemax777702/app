@@ -93,14 +93,14 @@ internal class LentaSearchController(
     fun searchOnline() {
         if (state.value.loading || state.value.complete || query.length < 2 || address.isBlank()) return
         job?.cancel()
-        state.value = state.value.copy(pending = false, loading = true, paused = false)
+        state.value = state.value.copy(pending = false, loading = true, paused = false, failed = false)
         job = scope.launch { fetch() }
     }
 
     fun stop() {
         if (!state.value.loading && !state.value.pending) return
         job?.cancel()
-        state.value = state.value.copy(loading = false, pending = false, paused = true, hasMore = true)
+        state.value = state.value.copy(loading = false, pending = false, paused = true, failed = false, hasMore = true)
     }
 
     private suspend fun fetch() {
