@@ -1253,7 +1253,7 @@ private fun FreshCutQuantityButton(symbol: String, label: String, enabled: Boole
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
-        Text(symbol, color = if (enabled) p.text else p.textSecondary.copy(alpha = 0.55f),
+        Text(symbol, color = if (enabled) p.text else p.disabledInk,
             fontSize = 20.sp, fontWeight = FontWeight.Medium)
     }
 }
