@@ -95,11 +95,11 @@ fun AddItemSheet(
     onAddCustom: (CustomProduct, (Boolean) -> Unit) -> Unit,
     onCreateCustom: (String, String, Long?, Boolean, (Boolean) -> Unit) -> Unit,
     onDismiss: () -> Unit,
-    onAddressSettings: () -> Unit,
 ) {
     val p = LocalPalette.current
     var text by rememberSaveable { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
+    var addressOpen by rememberSaveable { mutableStateOf(false) }
     var scannedCode by remember { mutableStateOf<String?>(null) }
     var createOpen by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
@@ -256,7 +256,7 @@ fun AddItemSheet(
                             createOpen = true
                         })
                     },
-                    onSettings = onAddressSettings,
+                    onSettings = { dismissKeyboard(); addressOpen = true },
                     onAdd = { product ->
                         dismissKeyboard()
                         scope.launch {
@@ -277,6 +277,7 @@ fun AddItemSheet(
 
         }
     }
+    if (addressOpen) LentaSettings { addressOpen = false }
     if (createOpen) {
         CustomProductCreationSheet(
             initialName = newName,
