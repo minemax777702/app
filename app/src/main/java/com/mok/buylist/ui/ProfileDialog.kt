@@ -32,8 +32,8 @@ fun ProfileDialog(initialName: String, required: Boolean, onSave: (String) -> Un
                     keyboardActions = KeyboardActions(onDone = { submit() }), placeholder = stringResource(R.string.profile_name_hint))
             }
         },
-        confirmButton = { SheetActionButton(onClick = { submit() }, enabled = valid) { Text(stringResource(if (required) R.string.profile_continue else R.string.profile_save), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } },
+        confirmButton = { SheetActionButton(onClick = { submit() }, enabled = valid) { Text(stringResource(if (required) R.string.profile_continue else R.string.profile_save)) } },
         showSecondaryAction = false,
-        dismissButton = if (required) null else ({ SheetActionButton(onClick = onDismiss) { Text(stringResource(R.string.cancel), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold) } }),
+        dismissButton = if (required) null else ({ SheetActionButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }),
     )
 }
