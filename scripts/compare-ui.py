@@ -31,9 +31,11 @@ try:
             gh("run", "download", str(run["id"]), "--repo", repo, "--name", "fresh-cut-ui-handoff", "--dir", tmp)
             path = pathlib.Path(tmp) / "manifest.json"
             if path.exists():
-                previous = json.loads(path.read_text(encoding="utf-8"))
-                baseline_run = run["id"]
-                break
+                candidate = json.loads(path.read_text(encoding="utf-8"))
+                if candidate.get("coverage_complete") is True:
+                    previous = candidate
+                    baseline_run = run["id"]
+                    break
 except (subprocess.SubprocessError, OSError, ValueError, KeyError) as e:
     print(f"Baseline unavailable: {e}")
 
@@ -45,10 +47,26 @@ for key, screen in sorted(new.items()):
     changes.append({"theme":key[0],"screen":key[1],"status":status,"screenshot":screen["screenshot"]})
 for key in sorted(old.keys() - new.keys()):
     changes.append({"theme":key[0],"screen":key[1],"status":"not_captured_in_current_run"})
-report = {"baseline_run":baseline_run,"baseline_commit":(previous or {}).get("commit"),"current_commit":current.get("commit"),"changes":changes}
+report = {"mode":"delta" if previous is not None and current.get("coverage_complete") is True else "full", "coverage_complete":current.get("coverage_complete",False), "baseline_run":baseline_run,"baseline_commit":(previous or {}).get("commit"),"current_commit":current.get("commit"),"changes":changes}
 (root/"changes.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
 lines = ["# Visual changes", "", f"Baseline: {report['baseline_commit'] or 'none; first available capture'}", "", "Comparison uses exact PNG hashes. Dynamic content may cause differences; missing captures are not proof of screen removal.", "", "| Theme | Screen | Status | Preview |", "|---|---|---|---|"]
 for s in changes:
-    link = f"[PNG]({s['screenshot']})" if "screenshot" in s else "—"
+    link = f"[PNG]({s['screenshot']})" if "screenshot" in s and (report["mode"] != "delta" or s["status"] != "unchanged") else "—"
     lines.append(f"| {s['theme']} | {s['screen']} | {s['status']} | {link} |")
 (root/"CHANGES.md").write_text("\n".join(lines),encoding="utf-8")
+
+# Keep the complete manifest (including unchanged hashes) for the next comparison.
+# Only prune image/XML payloads when both captures meet the coverage contract.
+if report["mode"] == "delta":
+    for key, screen in new.items():
+        if key in old and screen["sha256"] == old[key]["sha256"]:
+            for field in ("screenshot", "hierarchy"):
+                (root / screen[field]).unlink(missing_ok=True)
+            screen["payload"] = "unchanged"
+    (root/"manifest.json").write_text(json.dumps(current,ensure_ascii=False,indent=2),encoding="utf-8")
+    # Rebuild the README to avoid links to omitted images.
+    lines = ["# UI handoff — delta", "", "See CHANGES.md for changes and manifest.json for the complete inventory."]
+    for s in changes:
+        if s["status"] in ("new","changed"):
+            lines.append(f"\n## {s['theme']} / {s['screen']}\n![Screenshot]({s['screenshot']})")
+    (root/"README.md").write_text("\n".join(lines),encoding="utf-8")
