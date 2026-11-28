@@ -4,7 +4,8 @@ on:
   push:
     branches: [beta]
     paths:
-      - 'app/src/main/java/com/mok/buylist/ui/theme/Theme.kt'
+      - 'app/src/main/java/com/mok/buylist/ui/**'
+      - 'app/src/main/res/**'
       - 'scripts/pixso-*.py'
       - 'scripts/pixso-*.js'
       - 'scripts/test-pixso-sync.py'
