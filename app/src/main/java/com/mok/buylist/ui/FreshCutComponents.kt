@@ -294,7 +294,7 @@ internal fun FilterSelect(label: String, value: String, options: List<String>, o
         Text(label, color = p.textSecondary, style = UiTextStyles.fieldLabel)
         Box(Modifier.fillMaxWidth()) {
             Row(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
-                .background(p.card).border(1.dp,p.textSecondary,RoundedCornerShape(UiMetrics.controlRadius))
+                .background(p.card).border(1.dp,p.controlOutline,RoundedCornerShape(UiMetrics.controlRadius))
                 .clickable { expanded = true }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(value, Modifier.weight(1f), color = p.text, fontSize = 14.sp)
                 Icon(painterResource(R.drawable.ic_chevron_down), "Выбрать $label", Modifier.size(20.dp), tint = p.textSecondary)
