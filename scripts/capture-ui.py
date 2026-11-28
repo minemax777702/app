@@ -11,8 +11,9 @@ import xml.etree.ElementTree as ET
 
 OUT = pathlib.Path("ui-handoff")
 OUT.mkdir(exist_ok=True)
-PKG = "com.mok.buylist"
-ACT = PKG + "/.ui.MainActivity"
+FIXTURE = os.getenv("CAPTURE_FIXTURE") == "1"
+PKG = "com.mok.buylist.capture" if FIXTURE else "com.mok.buylist"
+ACT = PKG + "/com.mok.buylist.ui.MainActivity"
 records = []
 theme = "light"
 
@@ -121,6 +122,60 @@ def run_theme(mode):
         if route("account", ("Личный профиль",), ("Вход", "Регистрация", "Электронная почта")):
             route("account-registration", ("Регистрация",), ("Зарегистрироваться",))
 
+
+def fill_field(index, value):
+    _, root = hierarchy()
+    fields = [n for n in root.iter("node") if n.get("package") == PKG and n.get("class") == "android.widget.EditText"]
+    if len(fields) <= index:
+        return False
+    b = list(map(int, re.findall(r"\d+", fields[index].get("bounds", ""))))
+    shell("input", "tap", str((b[0]+b[2])//2), str((b[1]+b[3])//2))
+    shell("input", "text", value)
+    return True
+
+def capture_authenticated():
+    start()
+    if not tap("Профиль") or not tap("Личный профиль"):
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached"))
+        return
+    tap("Вход")
+    if not fill_field(0,"admin@example.test") or not fill_field(1,"CaptureOnly-2026!"):
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached", reason="Login fields unavailable"))
+        return
+    back()
+    if not tap("Войти"):
+        records.append(dict(theme=theme, screen="authenticated", status="not_reached"))
+        return
+    for _ in range(8):
+        time.sleep(1)
+        _, root = hierarchy()
+        labels = [n.get("text") for n in root.iter("node")]
+        if "Алексей" in labels or "Группы" in labels:
+            break
+    if not capture("authenticated", ("Алексей","Группы","Списки")):
+        return
+    if route("cloud-groups", ("Группы",), ("Семья","Дача","Пустая группа")):
+        if route("group-detail", ("Семья",), ("Участники · 2","Мария","Списки")):
+            child("group-add-member", ("Добавить участников",), ("Добавить участников","Поиск пользователя","Нет пользователей для добавления"))
+            back()
+    start()
+    tap("Профиль")
+    if route("administration", ("Администрирование",), ("Пользователи","Группы")):
+        child("admin-user", ("Мария",), ("Роль","Доступ к приложению","Группы"))
+        route("admin-groups", ("Группы",), ("Семья","Дача"))
+    start()
+    tap("Профиль")
+    tap("Личный профиль","Алексей")
+    child("security", ("Безопасность",), ("Вход без пароля","Сеансы"))
+    start()
+    capture("shopping-populated", ("Молоко 1,4 л","Хлеб ржаной","Яблоки"))
+    if route("catalog-populated", ("Товары",), ("Молоко 1,4 л","Хлеб ржаной","Яблоки")):
+        child("product-detail", ("Молоко 1,4 л",), ("Молоко 1,4 л",))
+    start()
+    route("archive-populated", ("Архив",), ("Молоко 1,4 л","Хлеб ржаной","Завершённый поход"))
+    start()
+    route("statistics-populated", ("Статистика",), ("Фильтры","Обзор"))
+
 def main():
     # The emulator is disposable. No production credentials or account mutations.
     shell("settings", "put", "global", "window_animation_scale", "0")
@@ -131,17 +186,23 @@ def main():
     for command in [("enter",), ("clock","hhmm","0941"), ("battery","level","100","plugged","false")]:
         shell("am", "broadcast", "-a", "com.android.systemui.demo", "-e", "command", command[0], *[v for k,vv in zip(command[1::2],command[2::2]) for v in ("-e",k,vv)])
     # Prevent cloud/catalog writes and avoid capturing personal data.
-    shell("svc", "wifi", "disable")
-    shell("svc", "data", "disable")
+    if not FIXTURE:
+        shell("svc", "wifi", "disable")
+        shell("svc", "data", "disable")
     shell("pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
     for mode in ("light", "dark"):
         try:
+            if FIXTURE:
+                shell("pm", "clear", PKG)
+                shell("pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
             run_theme(mode)
+            if FIXTURE:
+                capture_authenticated()
         except (subprocess.SubprocessError, ET.ParseError, RuntimeError) as e:
             records.append(dict(theme=mode, screen="capture-error", status="error", reason=str(e)))
     metadata = {"commit":os.getenv("GITHUB_SHA"),"version":os.getenv("CAPTURE_VERSION"),"device":shell("wm","size").strip(),"density":shell("wm","density").strip(),"api":shell("getprop","ro.build.version.sdk").strip(),"screens":records}
     (OUT/"manifest.json").write_text(json.dumps(metadata,ensure_ascii=False,indent=2),encoding="utf-8")
-    lines=["# UI handoff — real APK", "", f"Commit: {metadata['commit']}", f"Version: {metadata['version']}", f"Device: {metadata['device']}; {metadata['density']}; API {metadata['api']}", "", "Offline clean-install capture; cloud-authenticated and populated-data states require separate fixtures. XML bounds are physical pixels, not editable Figma layers.", "", "## Screens"]
+    lines=["# UI handoff — real APK", "", f"Commit: {metadata['commit']}", f"Version: {metadata['version']}", f"Device: {metadata['device']}; {metadata['density']}; API {metadata['api']}", "", "Capture uses a disposable emulator and isolated synthetic fixtures when enabled. XML bounds are physical pixels, not editable Figma layers.", "", "## Screens"]
     for r in records:
         lines.append(f"\n### {r['theme']} / {r['screen']} — {r['status']}")
         if "screenshot" in r:
