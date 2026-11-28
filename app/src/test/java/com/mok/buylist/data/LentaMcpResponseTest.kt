@@ -32,4 +32,14 @@ class LentaMcpResponseTest {
             }
         }
     }
+
+    @Test fun streamingHeartbeatHonorsDeadline() {
+        var checks = 0
+        assertThrows(java.net.SocketTimeoutException::class.java) {
+            readMcpResponse("text/event-stream",
+                ByteArrayInputStream(": ping\n\n: ping\n\n: ping\n\n".toByteArray()),
+                checkDeadline = { if (++checks >= 3) throw java.net.SocketTimeoutException("deadline") }
+            ) { false }
+        }
+    }
 }
