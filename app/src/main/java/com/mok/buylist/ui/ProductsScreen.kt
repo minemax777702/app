@@ -142,7 +142,10 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, viewModel:
                     }
                     AppDropdownMenu(expanded = catalogMenu, onDismissRequest = { catalogMenu = false }) {
                         AppDropdownMenuItem(text = { Text("Сканировать штрихкод") }, onClick = { catalogMenu = false; scanning = true })
-                        if (rows.isNotEmpty() || ownRows.isNotEmpty()) AppDropdownMenuItem(text = { Text("Создать свой товар") }, onClick = {
+                        AppDropdownMenuItem(text = { Text("Найти в Ленте") }, onClick = {
+                            catalogMenu = false; onlineQuery = query; scannedOnlineCode = null; adding = true
+                        })
+                        AppDropdownMenuItem(text = { Text("Создать свой товар") }, onClick = {
                             catalogMenu = false
                             customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
                             customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
@@ -248,21 +251,12 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, viewModel:
                 FreshCutSecondaryButton("Показать ещё", { shownCount += 20 })
             }
         }
-        if (catalogReady) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
-            val emptyCatalog = rows.isEmpty() && ownRows.isEmpty()
-            if (emptyCatalog) {
-                FreshCutSecondaryButton("Найти в Ленте", {
-                    onlineQuery = query; scannedOnlineCode = null; adding = true
-                })
-                SheetActionButton(onClick = {
-                    customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
-                    customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
-                    createCustom = true
-                }) { Text("Создать свой товар") }
-            } else SheetActionButton(onClick = {
-                onlineQuery = query; scannedOnlineCode = null; adding = true
-            }) { Text("Найти в Ленте") }
+        if (catalogReady && rows.isEmpty() && ownRows.isEmpty()) Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+            SheetActionButton(onClick = {
+                customName = query.takeUnless { it.all(Char::isDigit) }.orEmpty()
+                customBarcode = query.takeIf { it.all(Char::isDigit) }.orEmpty()
+                createCustom = true
+            }) { Text("Создать свой товар") }
         }
     }
     if (createCustom) {
