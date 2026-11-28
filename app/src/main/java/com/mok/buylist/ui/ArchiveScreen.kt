@@ -222,8 +222,8 @@ internal fun HeaderButton(icon: Int, description: String, onClick: () -> Unit) {
     val p = LocalPalette.current
     Box(
         Modifier
-            .size(44.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .size(UiMetrics.touchTarget)
+            .clip(RoundedCornerShape(UiMetrics.iconRadius))
             .background(p.field)
             .clickable(role = Role.Button, onClickLabel = description, onClick = onClick),
         contentAlignment = Alignment.Center,
