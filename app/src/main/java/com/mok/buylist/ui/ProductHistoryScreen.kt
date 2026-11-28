@@ -661,7 +661,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         onClick = { if (editable) editPrice() },
                         trailing = if (editable) ({
                             Box {
-                                IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { menu = true }, modifier = Modifier.size(UiMetrics.touchTarget)) {
                                     Icon(painterResource(R.drawable.ic_more), "Действия", Modifier.size(20.dp), tint = p.textSecondary)
                                 }
                                 AppDropdownMenu(menu, { menu = false }) {
