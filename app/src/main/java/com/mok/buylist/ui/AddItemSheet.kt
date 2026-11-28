@@ -160,8 +160,8 @@ fun AddItemSheet(
                 Modifier
                     .fillMaxWidth()
                     .height(54.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(16.dp))
+                    .clip(RoundedCornerShape(UiMetrics.controlRadius))
+                    .background(p.card).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius))
                     .padding(start = 12.dp, end = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -399,7 +399,7 @@ private fun ListeningIndicator(levels: List<Float>) {
 @Composable
 private fun SearchModeAction(icon: Int, title: String, modifier: Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Row(modifier.height(48.dp).clip(RoundedCornerShape(16.dp)).background(p.card)
+    Row(modifier.height(48.dp).clip(RoundedCornerShape(UiMetrics.controlRadius)).background(p.card)
         .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(painterResource(icon), null, Modifier.size(24.dp), tint = if (enabled) p.text else p.textSecondary)
