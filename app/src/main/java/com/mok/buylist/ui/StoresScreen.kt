@@ -87,6 +87,7 @@ internal fun StoresScreen(
     var openedStore by rememberSaveable { mutableStateOf<String?>(null) }
     var productQuery by remember(openedStore) { mutableStateOf("") }
     var shown by remember(openedStore, productQuery.trim()) { mutableIntStateOf(8) }
+    val storesListState = rememberLazyListState()
     val productListState = rememberLazyListState()
     LaunchedEffect(openedStore, productQuery.trim()) {
         productListState.scrollToItem(0)
@@ -129,7 +130,7 @@ internal fun StoresScreen(
                 FreshCutEmptyState(R.drawable.ic_store, stringResource(R.string.empty_stores_title),
                     modifier = Modifier.weight(1f), description = stringResource(R.string.empty_stores_description))
             } else LazyColumn(
-                state = productListState,
+                state = storesListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -182,12 +183,7 @@ internal fun StoresScreen(
                 entries.filter { it.name.contains(productQuery.trim(), ignoreCase = true) }
             }
             ProductSearch(productQuery, { productQuery = it }, Modifier.padding(horizontal = 20.dp))
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                FreshCutSectionTitle("Товары", Modifier.weight(1f))
-                FreshCutToolbarAction(R.drawable.ic_plus, "Добавить товар", {
-                    choosingProduct = true; chosenProductKey = null; choiceQuery = ""; linkPrice = ""; linkError = null
-                }, primary = true)
-            }
+            FreshCutSectionTitle("Товары", Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
             if (visibleEntries.isEmpty()) {
                 FreshCutEmptyState(
                     icon = if (productQuery.isBlank()) R.drawable.ic_package else R.drawable.ic_search,
@@ -196,6 +192,7 @@ internal fun StoresScreen(
                     description = stringResource(if (productQuery.isBlank()) R.string.empty_store_products_description else R.string.empty_store_search_description),
                 )
             } else LazyColumn(
+                state = productListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -243,6 +240,11 @@ internal fun StoresScreen(
                     FreshCutSecondaryButton("Показать ещё", { shown += 8 })
                 }
             }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
+                SheetActionButton(onClick = {
+                    choosingProduct = true; chosenProductKey = null; choiceQuery = ""; linkPrice = ""; linkError = null
+                }) { Text("Добавить товар") }
+            }
         }
     }
 
@@ -257,7 +259,7 @@ internal fun StoresScreen(
         }
         val amount = if (linkPrice.isBlank()) null else parsePriceKopecks(linkPrice)
         AppSheet(
-            onDismissRequest = { choosingProduct = false },
+            onDismissRequest = { if (!saving) { if (chosen != null) chosenProductKey = null else choosingProduct = false } },
             containerColor = p.sheet,
             title = { SheetHeader(if (chosen == null) "Товар магазина" else "Цена в магазине") },
             text = {
@@ -338,7 +340,9 @@ internal fun StoresScreen(
             onCreate = { name, barcode, price, weighted, onResult ->
                 viewModel.createCustomForStore(store.id, name, barcode, price, weighted, onResult)
             },
-            onDismiss = { creatingStoreProduct = false },
+            initialName = choiceQuery.trim().takeUnless { it.all(Char::isDigit) }.orEmpty(),
+            initialBarcode = choiceQuery.trim().takeIf { it.isNotEmpty() && it.all(Char::isDigit) }.orEmpty(),
+            onDismiss = { creatingStoreProduct = false; choosingProduct = true },
             onCreated = { creatingStoreProduct = false },
         )
     }
