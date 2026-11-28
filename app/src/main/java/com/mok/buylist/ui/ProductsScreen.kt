@@ -329,7 +329,7 @@ internal fun ProductSearch(value: String, onValueChange: (String) -> Unit, modif
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Search),
         decorationBox = { inner ->
             Row(Modifier.fillMaxWidth().height(54.dp).clip(RoundedCornerShape(UiMetrics.controlRadius))
-                .background(p.card).border(1.dp, p.line, RoundedCornerShape(UiMetrics.controlRadius)).padding(horizontal = 16.dp),
+                .background(p.card).border(1.dp, p.controlOutline, RoundedCornerShape(UiMetrics.controlRadius)).padding(horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(painterResource(R.drawable.ic_search), null, Modifier.size(24.dp), tint = p.textSecondary)
                 Box(Modifier.weight(1f)) {
