@@ -131,8 +131,18 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
     if (authOnly) return
     val me = directory.me
     if (me == null) {
-        Text(status ?: "Загрузка…", color=p.textSecondary,fontSize=14.sp)
-        FreshCutSecondaryButton("Повторить", { perform { cloud.refresh() } }, enabled = !busy)
+        if (status == null) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
+                androidx.compose.material3.CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = p.textSecondary)
+                Text("Загружаем профиль…", color = p.textSecondary, fontSize = 14.sp)
+            }
+            FreshCutSecondaryButton(if (busy) "Подключение…" else "Повторить", { perform { cloud.refresh() } }, enabled = !busy)
+        } else FreshCutStatusCard(
+            status.orEmpty(), "Не удалось получить профиль. Проверьте подключение или повторите позже.",
+            if (busy) "Подключение…" else "Повторить", { perform { cloud.refresh() } },
+            warning = true, enabled = !busy,
+        )
         FreshCutSecondaryButton("Выйти",{ perform { cloud.signOut() } },enabled=!busy)
         return
     }
@@ -144,7 +154,12 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                     {passkeySheet=true},enabled=!busy)
             }} else null)
         if (pendingCount > 0) Text("Ожидают синхронизации: $pendingCount",color=p.textSecondary,fontSize=13.sp)
-        status?.let { Text(it,color=p.textSecondary,fontSize=13.sp) }
+        status?.let { message ->
+            FreshCutStatusCard(message,
+                if (pendingCount > 0) "Изменения ожидают синхронизации." else "Можно повторить синхронизацию.",
+                if (busy) "Подключение…" else "Повторить", { perform { cloud.refresh() } },
+                warning = true, enabled = !busy)
+        }
         val tabs = if(adminOnly) listOf("Пользователи","Группы") else listOf("Списки","Группы")
         val selectedTab = tab.coerceAtMost(tabs.lastIndex)
         FreshCutTabs(tabs,selectedTab,{ tab=it })
