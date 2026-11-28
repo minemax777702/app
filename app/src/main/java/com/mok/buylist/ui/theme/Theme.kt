@@ -55,6 +55,11 @@ class ShoppingPalette(
     val actionFill: Color get() = Color(0xFFD6F36D)
     val actionInk: Color get() = Color(0xFF18230C)
     val line: Color get() = chipBorder
+    /** Strong outline for controls whose boundary communicates interactivity. */
+    val controlOutline: Color get() = if (isDark) Color(0xFF758174) else Color(0xFF80877C)
+    val disabledInk: Color get() = textSecondary
+    /** Data marks must remain visible on both light and dark cards. */
+    val chartFill: Color get() = accent
 }
 
 val LightPalette = ShoppingPalette(
@@ -143,6 +148,8 @@ fun ShoppingTheme(mode: ThemeMode, content: @Composable () -> Unit) {
             onSurfaceVariant = p.textSecondary,
             outline = p.ring,
             error = p.error,
+            onError = p.onDanger,
+            outlineVariant = p.line,
         )
     }
 
