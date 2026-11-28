@@ -80,7 +80,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
     val fieldVerticalPadding = if (LocalDensity.current.fontScale >= 1.3f) 8.dp else 0.dp
-    val lineColor = when { isError -> p.error; focused -> p.text; readOnly -> p.line; else -> p.textSecondary }
+    val lineColor = when { isError -> p.error; focused -> p.text; readOnly -> p.line; else -> p.controlOutline }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(hint, color = if (isError) p.error else p.textSecondary, style = UiTextStyles.fieldLabel)
         Box(Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight).clip(RoundedCornerShape(UiMetrics.controlRadius))
