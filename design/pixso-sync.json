@@ -3433,10 +3433,372 @@
       "previous_frame_id": "20:4019",
       "target_key": "admin-groups",
       "theme_mode": "24:7544"
+    },
+    {
+      "key": "light/store-detail",
+      "screen": "store-detail",
+      "theme": "light",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "section_id": "3:7279",
+      "frame_id": "28:2763",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "target_key": "store-detail",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store detail": {
+          "State": "Populated"
+        }
+      }
+    },
+    {
+      "key": "dark/store-detail",
+      "screen": "store-detail",
+      "theme": "dark",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "section_id": "3:7279",
+      "frame_id": "28:2763",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "target_key": "store-detail",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store detail": {
+          "State": "Populated"
+        }
+      }
+    },
+    {
+      "key": "light/store-product-picker",
+      "screen": "store-product-picker",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3009",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "target_key": "store-product-picker",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store product picker": {
+          "State": "Populated"
+        }
+      }
+    },
+    {
+      "key": "dark/store-product-picker",
+      "screen": "store-product-picker",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3009",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "target_key": "store-product-picker",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store product picker": {
+          "State": "Populated"
+        }
+      }
+    },
+    {
+      "key": "light/store-product-price",
+      "screen": "store-product-price",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3161",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "store-product-price",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/store-product-price",
+      "screen": "store-product-price",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3161",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "target_key": "store-product-price",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/store-custom-product",
+      "screen": "store-custom-product",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3301",
+      "position": {
+        "x": 952,
+        "y": 92
+      },
+      "target_key": "store-custom-product",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/store-custom-product",
+      "screen": "store-custom-product",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3301",
+      "position": {
+        "x": 952,
+        "y": 92
+      },
+      "target_key": "store-custom-product",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/store-edit",
+      "screen": "store-edit",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3515",
+      "position": {
+        "x": 32,
+        "y": 1092
+      },
+      "target_key": "store-edit",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/store-edit",
+      "screen": "store-edit",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3515",
+      "position": {
+        "x": 32,
+        "y": 1092
+      },
+      "target_key": "store-edit",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/store-remove-product",
+      "screen": "store-remove-product",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3626",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "target_key": "store-remove-product",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "dark/store-remove-product",
+      "screen": "store-remove-product",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3626",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "target_key": "store-remove-product",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null
+    },
+    {
+      "key": "light/store-detail-empty",
+      "screen": "store-detail-empty",
+      "theme": "light",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "section_id": "3:7279",
+      "frame_id": "28:2763",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "target_key": "store-detail",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store detail": {
+          "State": "Empty"
+        }
+      }
+    },
+    {
+      "key": "dark/store-detail-empty",
+      "screen": "store-detail-empty",
+      "theme": "dark",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "section_id": "3:7279",
+      "frame_id": "28:2763",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "target_key": "store-detail",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store detail": {
+          "State": "Empty"
+        }
+      }
+    },
+    {
+      "key": "light/store-product-picker-empty",
+      "screen": "store-product-picker-empty",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3009",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "target_key": "store-product-picker",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store detail": {
+          "State": "Empty"
+        },
+        "App / Store product picker": {
+          "State": "Empty"
+        }
+      }
+    },
+    {
+      "key": "dark/store-product-picker-empty",
+      "screen": "store-product-picker-empty",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3009",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "target_key": "store-product-picker",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store detail": {
+          "State": "Empty"
+        },
+        "App / Store product picker": {
+          "State": "Empty"
+        }
+      }
+    },
+    {
+      "key": "light/store-product-picker-no-results",
+      "screen": "store-product-picker-no-results",
+      "theme": "light",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3009",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "target_key": "store-product-picker",
+      "theme_mode": "2:0",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store product picker": {
+          "State": "No results"
+        }
+      }
+    },
+    {
+      "key": "dark/store-product-picker-no-results",
+      "screen": "store-product-picker-no-results",
+      "theme": "dark",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "frame_id": "28:3009",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "target_key": "store-product-picker",
+      "theme_mode": "24:7544",
+      "status": "draft",
+      "last_verified": null,
+      "variant_overrides": {
+        "App / Store product picker": {
+          "State": "No results"
+        }
+      }
     }
   ],
   "structure_status": "shared_theme_modes_and_state_aliases",
-  "section_count": 11,
+  "section_count": 12,
   "icon_library": {
     "section_id": "9:2515",
     "source_commit": "54a54ec33016fe16fd5324843b4d0b286208658a",
@@ -3449,22 +3811,12 @@
     "artifact_id": 15256786979
   },
   "inventory_check": {
-    "canonical_frames": 31,
-    "capture_keys": 70,
+    "canonical_frames": 37,
+    "capture_keys": 88,
     "pages": 4,
     "theme_modes": 2,
     "status": "draft",
-    "prior_inventory": {
-      "frames": 70,
-      "unique_keys": 70,
-      "archive_frames": 74,
-      "raster_fills": 0,
-      "dimensions_dp": {
-        "width": 411.42857142857144,
-        "height": 914.2857142857143
-      },
-      "visual_parity_verified": false
-    }
+    "note": "Store scenarios constructed from current Compose source; Android captures pending."
   },
   "layout_audit": {
     "source": "beta-ui-157",
@@ -3918,6 +4270,78 @@
         "y": 92
       },
       "status": "draft"
+    },
+    {
+      "key": "store-detail",
+      "frame_id": "28:2763",
+      "page": "app",
+      "section": "02 · Каталог и магазины",
+      "section_id": "3:7279",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "status": "draft"
+    },
+    {
+      "key": "store-product-picker",
+      "frame_id": "28:3009",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "position": {
+        "x": 32,
+        "y": 92
+      },
+      "status": "draft"
+    },
+    {
+      "key": "store-product-price",
+      "frame_id": "28:3161",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "position": {
+        "x": 492,
+        "y": 92
+      },
+      "status": "draft"
+    },
+    {
+      "key": "store-custom-product",
+      "frame_id": "28:3301",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "position": {
+        "x": 952,
+        "y": 92
+      },
+      "status": "draft"
+    },
+    {
+      "key": "store-edit",
+      "frame_id": "28:3515",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "position": {
+        "x": 32,
+        "y": 1092
+      },
+      "status": "draft"
+    },
+    {
+      "key": "store-remove-product",
+      "frame_id": "28:3626",
+      "page": "flows",
+      "section": "07 · Магазины · сценарии",
+      "section_id": "28:3008",
+      "position": {
+        "x": 492,
+        "y": 1092
+      },
+      "status": "draft"
     }
   ],
   "theme_collection": {
@@ -3977,7 +4401,7 @@
         "custom-product"
       ],
       "status": "draft",
-      "note": "36 dp icon within 96 dp tile, common full-height or inline wrap-content layout. 11 working instances and 8 reference examples; Android capture pending.",
+      "note": "36 dp icon within 96 dp tile. Full-page empty states remain; redundant empty blocks in action sheets are omitted. Search without matches in small sheets uses a compact hint.",
       "alignment": {
         "horizontal": "center",
         "vertical": "center_available_content",
@@ -4035,7 +4459,6 @@
         }
       },
       "inline_states": {
-        "group_add_member": "28:2723",
         "layout": "wrap content"
       },
       "compose_usage": [
@@ -4061,13 +4484,31 @@
       "id": "28:2750",
       "compose": "FreshCutToolbarAction",
       "count": 1
+    },
+    "store_detail": {
+      "id": "28:2955",
+      "variant": "State",
+      "count": 2,
+      "compose": "StoresScreen"
+    },
+    "store_product_picker": {
+      "id": "28:3859",
+      "variant": "State",
+      "count": 3,
+      "compose": "StoresScreen",
+      "bottom_anchor": true
+    },
+    "custom_product_form": {
+      "id": "28:3460",
+      "count": 1,
+      "compose": "CustomProductCreationSheet"
     }
   },
   "optimization": {
     "date": "2026-11-28",
-    "canonical_frames": 31,
-    "capture_keys": 70,
-    "distinct_capture_states": 35,
+    "canonical_frames": 37,
+    "capture_keys": 88,
+    "distinct_capture_states": 44,
     "removed_duplicate_frames": 39,
     "removed_archive_page_ids": [
       "2:37",

@@ -641,10 +641,6 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                         }, primary = true)
                     }
                 }
-                if (shopPrices.isEmpty()) item {
-                    FreshCutEmptyState(R.drawable.ic_store, stringResource(R.string.empty_stores_title),
-                        description = stringResource(R.string.empty_product_stores_description), fillAvailable = false)
-                }
                 items(shopPrices, key = { "store:${it.storeId}" }) { shopPrice ->
                     val editable = true
                     val attached = storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&

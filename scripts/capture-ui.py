@@ -153,7 +153,12 @@ def run_theme(mode):
         child("custom-product", ("Создать свой товар",), ("Название товара", "Свой товар"))
         start()
     if route("catalog", ("Товары",), ("Сохранённых товаров пока нет", "Действия каталога", "Магазины")):
-        route("stores", ("Магазины",), ("Магазины",))
+        if route("stores", ("Магазины",), ("Магазины",)) and FIXTURE:
+            child("store-edit", ("Добавить магазин",), ("Новый магазин",))
+            if route("store-detail-empty", ("Лента",), ("Нет товаров",)):
+                if route("store-product-picker-empty", ("Добавить товар",), ("Товар магазина",)):
+                    close_sheet()
+                back()
     start()
     route("archive", ("Архив",), ("Архив списков", "Архив пуст"))
     start()
@@ -258,6 +263,25 @@ def capture_authenticated():
     if route("catalog-populated", ("Товары",), ("Молоко 1,4 л","Хлеб ржаной","Яблоки")):
         child("product-detail", ("Молоко 1,4 л",), ("Молоко 1,4 л",))
     start()
+    if tap("Товары") and tap("Магазины"):
+        if route("store-detail", ("Магнит",), ("Молоко 1,4 л", "Хлеб ржаной")):
+            if route("store-product-picker", ("Добавить товар",), ("Товар магазина",)):
+                if route("store-product-price", ("Молоко 1,4 л",), ("Цена в магазине",)):
+                    close_sheet()
+                else:
+                    close_sheet()
+            if tap("Добавить товар"):
+                if fill_field(0, "zzzznotfound"):
+                    ime = shell("dumpsys", "input_method")
+                    if re.search(r"mInputShown=true|mIsInputViewShown=true|isInputViewShown=true", ime):
+                        back()
+                    capture("store-product-picker-no-results", ("Нет результатов. Измените название.",))
+                if tap("Создать свой товар"):
+                    capture("store-custom-product", ("Свой товар",))
+                close_sheet()
+            if tap("Действия с ценой"):
+                child("store-remove-product", ("Убрать из магазина",), ("Убрать товар из магазина?",))
+    start()
     # Collapsed archive rows only expose date and summary, not product names.
     if route("archive-populated", ("Архив",), ("Личный список · 3 похода",)):
         route("archive-expanded", ("Развернуть",), ("Молоко 1,4 л", "Хлеб ржаной"))
@@ -289,6 +313,10 @@ def main():
         except (subprocess.SubprocessError, ET.ParseError, RuntimeError, ValueError) as e:
             records.append(dict(theme=mode, screen="capture-error", status="error", reason=str(e)))
     required = {"welcome", "registration", "shopping", "notifications", "add", "custom-product", "catalog", "stores", "archive", "statistics", "stats-filters", "stats-stores", "stats-products", "stats-trend", "profile", "theme", "updates", "backup", "account", "account-registration", "login-form", "authenticated", "cloud-groups", "group-detail", "group-add-member", "administration", "admin-user", "admin-groups", "security", "shopping-populated", "catalog-populated", "product-detail", "archive-populated", "archive-expanded", "statistics-populated"}
+    if FIXTURE:
+        required.update({"store-detail", "store-detail-empty", "store-product-picker", "store-product-picker-empty",
+                         "store-product-picker-no-results", "store-product-price", "store-custom-product",
+                         "store-edit", "store-remove-product"})
     captured = {(r["theme"], r["screen"]) for r in records if r["status"] == "captured"}
     auth_complete = all((mode, "authenticated") in captured for mode in ("light", "dark"))
     coverage_complete = auth_complete and all((mode, screen) in captured for mode in ("light", "dark") for screen in required) and all(r["status"] == "captured" for r in records)

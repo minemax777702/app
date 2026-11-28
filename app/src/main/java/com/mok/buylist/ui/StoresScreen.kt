@@ -261,10 +261,9 @@ internal fun StoresScreen(
                             creatingStoreProduct = true
                         })
                         if (options.isEmpty()) {
-                            FreshCutEmptyState(R.drawable.ic_package,
-                                stringResource(if (choiceQuery.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
-                                description = stringResource(if (choiceQuery.isBlank()) R.string.empty_create_product_description else R.string.empty_name_search_description),
-                                fillAvailable = false)
+                            if (choiceQuery.isNotBlank()) {
+                                Text("Нет результатов. Измените название.", color = p.textSecondary, fontSize = 13.sp)
+                            }
                         } else LazyColumn(
                             Modifier.fillMaxWidth().heightIn(max = 270.dp),
                         ) {
