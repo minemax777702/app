@@ -17,6 +17,10 @@ on:
         description: 'Apply non-conflicting mapped palette changes'
         type: boolean
         default: true
+      accept_structure:
+        description: 'Record reviewed structure after implementation (does not verify parity)'
+        type: boolean
+        default: false
       release:
         description: 'Request signed beta release after successful sync'
         type: boolean
@@ -72,12 +76,14 @@ jobs:
         env:
           PIXSO_ACCESS_TOKEN: ${{ secrets.PIXSO_ACCESS_TOKEN }}
           APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
+          ACCEPT_STRUCTURE: ${{ github.event_name == 'workflow_dispatch' && inputs.accept_structure }}
         run: |
           set -euo pipefail
           git fetch origin beta
           test "$(git rev-parse HEAD)" = "$(git rev-parse origin/beta)"
           args=()
           if [[ "$APPLY" == "true" ]]; then args+=(--apply); fi
+          if [[ "$ACCEPT_STRUCTURE" == "true" ]]; then args+=(--accept-structure); fi
           python scripts/pixso-sync.py "${args[@]}"
       - name: Commit synchronized changes to beta
         id: commit
