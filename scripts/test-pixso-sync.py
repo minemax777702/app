@@ -17,9 +17,22 @@ class SyncTests(unittest.TestCase):
         self.code = sync.code_values(self.source)
 
     def test_canonical_registry(self):
-        cfg = sync.config(sync.load(sync.REGISTRY))
-        self.assertEqual(len(cfg["targets"]), len(self.base["targets"]))
-        self.assertEqual(len({x["frame_id"] for x in cfg["targets"]}), len(cfg["targets"]))
+        registry = sync.load(sync.REGISTRY)
+        cfg = sync.config(registry)
+        targets = {x["key"]: x["frame_id"] for x in cfg["targets"]}
+        self.assertEqual(len(targets), len(cfg["targets"]))
+        self.assertEqual(len(set(targets.values())), len(targets))
+        # A new registered frame legitimately precedes the approved baseline.
+        # compare() detects additions/removals; do not advance it in this test.
+        for screen in registry["screens"]:
+            self.assertEqual(screen["frame_id"], targets[screen["target_key"]])
+            self.assertEqual(screen["theme_mode"], cfg["modes"][screen["theme"]])
+
+    def test_new_target_requires_review(self):
+        self.live["targets"]["new-store-scenario"] = {"id": "new", "hash": "new"}
+        report, _ = sync.compare(self.base, self.live, self.code)
+        self.assertTrue(report["blocked"])
+        self.assertIn("new-store-scenario", report["structural"]["targets"])
 
     def test_initial_mapping(self):
         for token, modes in self.code.items():
