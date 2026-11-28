@@ -130,7 +130,7 @@ internal fun PasskeySettingsSheet(api: CloudPasskeys, activity: Activity, onClos
                 "Текущий сеанс останется активным",showChevron=true,
                 onClick={if(!revoking && !deleting && stage==PasskeyStage.IDLE)confirmSessions=true})
         }
-    },confirmButton={})
+    },confirmButton = null)
     if(confirmSessions) {
         AppSheet(onDismissRequest={if(!revoking)confirmSessions=false},containerColor=p.sheet,
             title={SheetHeader("Завершить другие сеансы?")},text={
