@@ -138,6 +138,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # Beta publication is intentionally gated by tests, APK signing and all registered captures.
   publish:
     needs: [build, ui-handoff]
     if: ${{ always() && !cancelled() && needs.build.result == 'success' && ((github.event_name == 'workflow_dispatch' && inputs.publish) || contains(github.event.head_commit.message, '[release]')) && (github.ref == 'refs/heads/main' || (github.ref == 'refs/heads/beta' && needs.ui-handoff.result == 'success')) }}
