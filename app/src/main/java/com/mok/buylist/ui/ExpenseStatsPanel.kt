@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -100,7 +101,8 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     }
 
     val byStore = remember(selected) { expenseByStore(selected) }
-    if (section == 1 && byStore.isEmpty()) Text("Нет покупок по магазинам за период", color = p.textSecondary)
+    if (section == 1 && byStore.isEmpty()) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
+        description = stringResource(R.string.empty_period_description), fillAvailable = false)
     if (section == 1 && byStore.isNotEmpty()) {
         FreshCutSectionTitle("По магазинам", Modifier.padding(top = 8.dp))
         val visible = byStore.take(storeLimit)
@@ -127,7 +129,8 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
     }
     if (section == 2) {
         FreshCutSectionTitle("Чаще всего покупаю")
-        if (topProducts.isEmpty()) Text("Нет покупок за выбранный период", color = p.textSecondary)
+        if (topProducts.isEmpty()) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
+            description = stringResource(R.string.empty_period_description), fillAvailable = false)
         topProducts.take(productLimit).forEach { product ->
             FreshCutListRow(R.drawable.ic_package, product.name,
                 "${tripCountLabel(closedByProduct[product.key]?.trips ?: 0)} · ${product.units} ед.",
@@ -196,7 +199,8 @@ internal fun ExpenseStatsPanel(all: List<ExpensePurchase>, userId: String?, peri
             if (priced.isEmpty()) null else expenseSum(priced)
         }
         val peak = totals.filterNotNull().maxOrNull() ?: 0
-        if (totals.none { it != null }) Text("Нет данных за период", color = p.textSecondary)
+        if (totals.none { it != null }) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
+            description = stringResource(R.string.empty_period_description), fillAvailable = false)
         if (totals.any { it != null }) {
             var selectedBucket by remember(buckets, allGrouped) {
                 mutableIntStateOf(totals.indexOfLast { it != null })

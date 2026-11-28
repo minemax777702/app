@@ -49,10 +49,15 @@ internal fun FreshCutEmptyState(
     title: String,
     modifier: Modifier = Modifier,
     description: String? = null,
+    fillAvailable: Boolean = true,
 ) {
     val p = LocalPalette.current
+    val bounds = if (fillAvailable) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
     Column(
-        modifier.fillMaxSize().padding(horizontal = UiMetrics.screenInset, vertical = UiMetrics.gap),
+        modifier.then(bounds).padding(
+            horizontal = if (fillAvailable) UiMetrics.screenInset else 0.dp,
+            vertical = UiMetrics.gap,
+        ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
     ) {
@@ -60,7 +65,7 @@ internal fun FreshCutEmptyState(
             Modifier.size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.card),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp), tint = p.text)
+            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(36.dp), tint = p.text)
         }
         Column(
             Modifier.fillMaxWidth().heightIn(min = 60.dp),

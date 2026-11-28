@@ -29,6 +29,7 @@ import com.mok.buylist.update.formatReleaseDate
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
@@ -345,7 +346,9 @@ internal fun AppUpdateSheet(onClose: () -> Unit) {
                         FreshCutToolbarAction(if (historyError != null) R.drawable.ic_sync else R.drawable.ic_chevron_down,
                             if (historyError != null) "Повторить" else "Показать ещё", { loadHistory() })
                     }
-                    else if (history.isEmpty()) Text("История пока пуста", color = p.textSecondary, fontSize = 13.sp)
+                    else if (history.isEmpty() && historyError == null) FreshCutEmptyState(
+                        R.drawable.ic_history, stringResource(R.string.empty_updates_title),
+                        description = stringResource(R.string.empty_updates_description), fillAvailable = false)
                 }
             }
         },

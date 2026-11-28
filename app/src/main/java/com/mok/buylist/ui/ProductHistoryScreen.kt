@@ -21,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Path
@@ -101,17 +102,21 @@ internal fun ProductHistoryScreen(purchases: List<ExpensePurchase>, onProductCli
     Column(Modifier.fillMaxSize().background(p.background)) {
         SubScreenHeader("История покупок", onBack)
         ProductSearch(query, { query = it }, Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp))
-        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp,
+        if (products.isEmpty()) {
+            FreshCutEmptyState(R.drawable.ic_history,
+                stringResource(if (query.isBlank()) R.string.empty_purchases_title else R.string.empty_search_title),
+                modifier = Modifier.weight(1f).padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
+                description = stringResource(if (query.isBlank()) R.string.empty_purchases_description else R.string.empty_name_search_description))
+        } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp,
             bottom = 24.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (products.isEmpty()) item { Text("Товары не найдены", Modifier.padding(16.dp), color = p.textSecondary) }
             items(products.take(shownCount), key = { it.productKey }) { product ->
                 FreshCutListRow(R.drawable.ic_package, product.name,
                     "Последняя покупка: ${formatter.format(expenseDate(product, zone))}",
                     onClick = { onProductClick(product.productKey) })
             }
             if (shownCount < products.size) item {
-                Text("Показать ещё", Modifier.clickable { shownCount += 5 }.padding(12.dp), color = p.accent)
+                FreshCutSecondaryButton("Показать ещё", { shownCount += 5 })
             }
         }
         navigation()
@@ -618,9 +623,9 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                                         }
                                     }
                                 }
-                                TextButton(onClick = { editingBarcode = null; barcodeInput = ""; barcodeError = null; barcodeEditorOpen = true }) {
-                                    Text("Добавить штрихкод", color = p.text)
-                                }
+                                FreshCutSecondaryButton("Добавить штрихкод", {
+                                    editingBarcode = null; barcodeInput = ""; barcodeError = null; barcodeEditorOpen = true
+                                })
                                 if (ownProduct != null) CustomProductImageActions(ownProduct.id)
                             }
                         }
@@ -631,12 +636,15 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 item {
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         FreshCutSectionTitle("Магазины и цены", Modifier.weight(1f))
-                        Text("Добавить", Modifier.clickable {
+                        FreshCutToolbarAction(R.drawable.ic_plus, "Добавить магазин", {
                             linkedStore = null; linkedPrice = ""; linkError = null; editingStoreLink = true
-                        }.padding(8.dp), color = p.text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        }, primary = true)
                     }
                 }
-                if (shopPrices.isEmpty()) item { Text("Магазины пока не добавлены", color = p.textSecondary, fontSize = 13.sp) }
+                if (shopPrices.isEmpty()) item {
+                    FreshCutEmptyState(R.drawable.ic_store, stringResource(R.string.empty_stores_title),
+                        description = stringResource(R.string.empty_product_stores_description), fillAvailable = false)
+                }
                 items(shopPrices, key = { "store:${it.storeId}" }) { shopPrice ->
                     val editable = true
                     val attached = storeLinks.any { !it.deleted && it.storeId == shopPrice.storeId &&
@@ -691,13 +699,17 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                 HistoryCard {
                     Text("${pricePeriod.title} · ${storeLabel(priceStoreFilter)} · ${if (effectiveUnit == "kg") "за кг" else "за шт."}",
                         color = p.textSecondary, fontSize = 12.sp)
-                    if (points.isEmpty()) Text("Нет данных за период", color = p.textSecondary)
+                    if (points.isEmpty()) FreshCutEmptyState(R.drawable.ic_chart, stringResource(R.string.empty_statistics_title),
+                        description = stringResource(R.string.empty_period_description), fillAvailable = false)
                     else PriceChart(points, zone)
                 }
             }
             if (historyOpen) {
                 item { FreshCutSectionTitle("Покупки") }
-                if (rows.isEmpty()) item { Text("История покупок пока пуста", color = p.textSecondary, fontSize = 13.sp) }
+                if (rows.isEmpty()) item {
+                    FreshCutEmptyState(R.drawable.ic_history, stringResource(R.string.empty_purchases_title),
+                        description = stringResource(R.string.empty_purchases_description), fillAvailable = false)
+                }
                 rows.take(historyCount).groupBy { Instant.ofEpochMilli(it.at).atZone(zone).toLocalDate() }.forEach { (day, dayRows) ->
                     item(key = "day:$day") {
                         Text(day.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ru-RU"))),

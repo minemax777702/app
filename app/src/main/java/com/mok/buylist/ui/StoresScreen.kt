@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -119,7 +120,10 @@ internal fun StoresScreen(
                 Modifier.padding(start = 20.dp, end = 20.dp, bottom = 16.dp), color = p.textSecondary, fontSize = 13.sp)
         }
         if (store == null) {
-            LazyColumn(
+            if (active.isEmpty()) {
+                FreshCutEmptyState(R.drawable.ic_store, stringResource(R.string.empty_stores_title),
+                    modifier = Modifier.weight(1f), description = stringResource(R.string.empty_stores_description))
+            } else LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -143,10 +147,6 @@ internal fun StoresScreen(
                             } else Icon(painterResource(R.drawable.ic_chevron_down), null, Modifier.size(20.dp)
                                 .rotate(-90f), tint = p.textSecondary)
                         })
-                }
-                if (active.isEmpty()) item {
-                    Text("Добавьте первый магазин", color = p.textSecondary,
-                        modifier = Modifier.padding(16.dp))
                 }
             }
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)) {
@@ -178,19 +178,20 @@ internal fun StoresScreen(
             ProductSearch(productQuery, { productQuery = it }, Modifier.padding(horizontal = 20.dp))
             Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 FreshCutSectionTitle("Товары", Modifier.weight(1f))
-                Text("Добавить", Modifier.clickable {
+                FreshCutToolbarAction(R.drawable.ic_plus, "Добавить товар", {
                     choosingProduct = true; chosenProductKey = null; choiceQuery = ""; linkPrice = ""; linkError = null
-                }.padding(8.dp), color = p.text, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }, primary = true)
             }
-            LazyColumn(
+            if (visibleEntries.isEmpty()) {
+                FreshCutEmptyState(R.drawable.ic_package,
+                    stringResource(if (productQuery.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
+                    modifier = Modifier.weight(1f),
+                    description = stringResource(if (productQuery.isBlank()) R.string.empty_store_products_description else R.string.empty_name_search_description))
+            } else LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (visibleEntries.isEmpty()) item {
-                    Text("Товары не найдены", color = p.textSecondary,
-                        modifier = Modifier.padding(16.dp))
-                }
                 items(visibleEntries.take(shown), key = { it.key }) { entry ->
                     val catalogItem = lenta.firstOrNull { "lenta:${it.id}" == entry.key }
                     val purchasedAt = entry.purchasedAt?.let {
@@ -231,9 +232,7 @@ internal fun StoresScreen(
                         })
                 }
                 if (shown < visibleEntries.size) item {
-                    TextButton(onClick = { shown += 8 }) {
-                        Text("Показать ещё", color = p.accent)
-                    }
+                    FreshCutSecondaryButton("Показать ещё", { shown += 8 })
                 }
             }
         }
@@ -257,15 +256,16 @@ internal fun StoresScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (chosen == null) {
                         SheetTextField(choiceQuery, { choiceQuery = it }, "Найти товар в базе")
-                        TextButton(onClick = {
+                        FreshCutSecondaryButton("Создать свой товар", {
                             choosingProduct = false
                             creatingStoreProduct = true
-                        }) {
-                            Icon(painterResource(R.drawable.ic_plus), contentDescription = null,
-                                tint = p.text, modifier = Modifier.size(18.dp))
-                            Text("Создать новый товар", color = p.accent)
-                        }
-                        androidx.compose.foundation.lazy.LazyColumn(
+                        })
+                        if (options.isEmpty()) {
+                            FreshCutEmptyState(R.drawable.ic_package,
+                                stringResource(if (choiceQuery.isBlank()) R.string.empty_catalog_title else R.string.empty_search_title),
+                                description = stringResource(if (choiceQuery.isBlank()) R.string.empty_create_product_description else R.string.empty_name_search_description),
+                                fillAvailable = false)
+                        } else LazyColumn(
                             Modifier.fillMaxWidth().heightIn(max = 270.dp),
                         ) {
                             items(options.take(choiceShown), key = { it.first }) { (key, name) ->
@@ -279,9 +279,7 @@ internal fun StoresScreen(
                                 }
                             }
                             if (options.size > choiceShown) item {
-                                TextButton(onClick = { choiceShown += 30 }) {
-                                    Text("Показать ещё", color = p.accent)
-                                }
+                                FreshCutSecondaryButton("Показать ещё", { choiceShown += 30 })
                             }
                         }
                     } else {
@@ -291,9 +289,7 @@ internal fun StoresScreen(
                         SheetTextField(linkPrice, { linkPrice = it; linkError = null },
                             "Цена, ₽ (необязательно)")
                         if (store.id == lentaStoreId()) Text("Ручная цена не меняется при обновлении каталога. Очистите поле, чтобы вернуть цену каталога.", color = p.textSecondary, fontSize = 12.sp)
-                        TextButton(onClick = { chosenProductKey = null }) {
-                            Text("Выбрать другой товар", color = p.accent)
-                        }
+                        FreshCutSecondaryButton("Выбрать другой товар", { chosenProductKey = null })
                     }
                     linkError?.let { Text(it, color = p.error) }
                 }

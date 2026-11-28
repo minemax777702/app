@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -116,8 +117,17 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                     LinearProgressIndicator(Modifier.fillMaxWidth(), color = p.accent)
                 }
             }
-            // Вспомогательные действия прокручиваются вместе с результатами.
-            LazyColumn(
+            val emptyResult = trimmed.length >= 2 && !hasOtherResults &&
+                resultRows.isEmpty() && state.complete && !state.loading && !state.failed
+            if (emptyResult) {
+                FreshCutEmptyState(
+                    icon = R.drawable.ic_search,
+                    title = stringResource(R.string.empty_search_title),
+                    description = stringResource(R.string.empty_search_description),
+                    modifier = Modifier.weight(1f),
+                )
+                footer?.invoke()
+            } else LazyColumn(
                 Modifier.fillMaxWidth().weight(1f).pointerInput(Unit) {
                     // Observe, never consume: the list retains its own scrolling and fling.
                     // Also fires at either edge and when results fit without scrolling.
@@ -137,10 +147,8 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                 },
                 state = listState, overscrollEffect = null, verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (address.isBlank() && trimmed.length >= 2) item { TextButton(onClick = onSettings) { Text("Указать адрес магазина") } }
+                if (address.isBlank() && trimmed.length >= 2) item { FreshCutSecondaryButton("Указать адрес магазина", onSettings) }
                 if (state.failed && !state.loading) item { Text("Не удалось выполнить поиск. Сохранённые товары доступны.", color = p.error, fontSize = 13.sp) }
-                if (!hasOtherResults && !state.loading && state.started && !state.hasMore && !state.failed && state.local.isEmpty() && state.online.isEmpty())
-                    item { Text("Ничего не найдено", color = p.textSecondary, fontSize = 14.sp, modifier = Modifier.padding(12.dp)) }
                 leadingResults()
                 // In ranked mode avoid jumping rows and showing a provisional winner.
                 if (!fullSort || !state.loading) items(resultRows, key = { it.key }) { row ->
@@ -149,7 +157,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                     else customContent(row)
                 }
                 if (!fullSort && !onlineOnly && state.local.isNotEmpty() && !state.started && address.isNotBlank()) {
-                    item { Text("Найти в Ленте", Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
+                    item { FreshCutSecondaryButton("Найти в Ленте", { controller.searchOnline() }) }
                 }
                 if (fullSort && !state.loading && !state.complete) item {
                     Text(if (state.stalled) "Лента возвращает повторяющиеся страницы. Результат неполный."
@@ -165,8 +173,10 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                     }
                 }
                 if ((state.hasMore || state.failed) && !state.loading) {
-                    item { Text(if (state.failed) "Повторить" else if (fullSort) "Продолжить загрузку" else "Показать ещё",
-                        Modifier.clickable { controller.searchOnline() }.padding(12.dp), color = p.accent) }
+                    item { FreshCutSecondaryButton(
+                        if (state.failed) "Повторить" else if (fullSort) "Продолжить загрузку" else "Показать ещё",
+                        { controller.searchOnline() },
+                    ) }
                 }
                 if (footer != null) item(key = "search-footer") { footer() }
             }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -211,8 +212,12 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                     chosen=if(user.id in chosen) chosen-user.id else chosen+user.id
                                 })
                         }
-                        if(query.isNotBlank() && visible.isEmpty()) Text("Пользователи не найдены",color=p.textSecondary,fontSize=13.sp)
-                    } else Text("Нет пользователей для добавления",color=p.textSecondary,fontSize=14.sp)
+                        if(query.isNotBlank() && visible.isEmpty()) FreshCutEmptyState(
+                            R.drawable.ic_user_round, stringResource(R.string.empty_search_title),
+                            description = stringResource(R.string.empty_user_search_description), fillAvailable = false)
+                    } else FreshCutEmptyState(
+                        R.drawable.ic_user_round, stringResource(R.string.empty_users_title),
+                        description = stringResource(R.string.empty_users_description), fillAvailable = false)
                     if(me.admin) FreshCutListRow(R.drawable.ic_user_plus,"Создать пользователя",
                         showChevron=false,onClick={
                             createUserGroup=row.id;groupSheet=false;createUser=true
@@ -249,7 +254,9 @@ internal fun SupabasePanel(authOnly: Boolean = false, adminOnly: Boolean = false
                                 FreshCutListRow(R.drawable.ic_list_check,item.name,selected=workspace?.listId==item.id,showChevron=false,
                                     onClick={if(directory.manages(item)){groupSheet=false;editingList=item;newListGroup=row.id;listSheet=true}})
                             }
-                            if(directory.lists.none{it.group==row.id}) Text("Нет списков",color=p.textSecondary,fontSize=13.sp)
+                            if(directory.lists.none{it.group==row.id}) FreshCutEmptyState(
+                                R.drawable.ic_list_check, stringResource(R.string.empty_lists_title),
+                                description = stringResource(R.string.empty_lists_description), fillAvailable = false)
                         }
                         if(!adminOnly && directory.participates(row)) {
                             FreshCutListRow(R.drawable.ic_log_out,"Выйти из группы",showChevron=false,onClick={

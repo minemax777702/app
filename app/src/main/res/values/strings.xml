@@ -185,4 +185,20 @@
     <string name="empty_statistics_description">Покупки появятся в статистике.</string>
     <string name="empty_notifications_title">Нет уведомлений</string>
     <string name="empty_notifications_description">Здесь будут обновления и действия.</string>
+    <string name="empty_stores_title">Нет магазинов</string>
+    <string name="empty_stores_description">Добавьте первый магазин.</string>
+    <string name="empty_store_products_description">Добавьте товар в магазин.</string>
+    <string name="empty_name_search_description">Попробуйте другое название.</string>
+    <string name="empty_create_product_description">Создайте свой товар.</string>
+    <string name="empty_purchases_title">Нет покупок</string>
+    <string name="empty_purchases_description">Здесь появится история покупок.</string>
+    <string name="empty_product_stores_description">Добавьте магазин и цену.</string>
+    <string name="empty_period_description">Выберите другой период.</string>
+    <string name="empty_user_search_description">Попробуйте другое имя.</string>
+    <string name="empty_users_title">Нет пользователей</string>
+    <string name="empty_users_description">Все доступные пользователи уже в группе.</string>
+    <string name="empty_lists_title">Нет списков</string>
+    <string name="empty_lists_description">Создайте первый список группы.</string>
+    <string name="empty_updates_title">Нет версий</string>
+    <string name="empty_updates_description">Здесь появится история обновлений.</string>
 </resources>
