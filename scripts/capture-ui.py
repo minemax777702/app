@@ -54,12 +54,22 @@ def capture(name, expected=()):
         return False
     folder = OUT / theme
     folder.mkdir(exist_ok=True)
+    layout_name = None
+    if FIXTURE:
+        shell("run-as", PKG, "rm", "-f", "files/compose-layout.json")
+        shell("am", "broadcast", "-n", PKG+"/com.mok.buylist.capture.LayoutCaptureReceiver")
+        data = adb("exec-out", "run-as", PKG, "cat", "files/compose-layout.json", binary=True)
+        layout = json.loads(data)
+        if layout.get("schema") != 1 or not layout.get("roots"):
+            raise RuntimeError("Compose layout export unavailable")
+        layout_name = f"{theme}/{name}.layout.json"
+        (OUT/layout_name).write_bytes(data)
     png = adb("exec-out", "screencap", "-p", binary=True)
     if not png.startswith(b"\x89PNG\r\n\x1a\n"):
         raise RuntimeError("Invalid screenshot")
     (folder / (name+".png")).write_bytes(png)
     (folder / (name+".xml")).write_bytes(raw)
-    records.append(dict(theme=theme, screen=name, status="captured", screenshot=f"{theme}/{name}.png", hierarchy=f"{theme}/{name}.xml", sha256=hashlib.sha256(png).hexdigest(), visible=labels))
+    records.append(dict(theme=theme, screen=name, status="captured", screenshot=f"{theme}/{name}.png", hierarchy=f"{theme}/{name}.xml", sha256=hashlib.sha256(png).hexdigest(), visible=labels, layout=layout_name))
     return True
 
 def start():
@@ -241,7 +251,7 @@ def main():
             run_theme(mode)
             if FIXTURE:
                 capture_authenticated()
-        except (subprocess.SubprocessError, ET.ParseError, RuntimeError) as e:
+        except (subprocess.SubprocessError, ET.ParseError, RuntimeError, ValueError) as e:
             records.append(dict(theme=mode, screen="capture-error", status="error", reason=str(e)))
     required = {"welcome", "registration", "shopping", "notifications", "add", "custom-product", "catalog", "stores", "archive", "statistics", "stats-filters", "stats-stores", "stats-products", "stats-trend", "profile", "theme", "updates", "backup", "account", "account-registration", "login-form", "authenticated", "cloud-groups", "group-detail", "group-add-member", "administration", "admin-user", "admin-groups", "security", "shopping-populated", "catalog-populated", "product-detail", "archive-populated", "archive-expanded", "statistics-populated"}
     captured = {(r["theme"], r["screen"]) for r in records if r["status"] == "captured"}
