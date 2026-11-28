@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -85,6 +86,8 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
     val batch by viewModel.batchPriceRefresh.collectAsStateWithLifecycle()
     val refresh by viewModel.priceRefresh.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
+    val catalogListState = rememberLazyListState()
+    var addressOpen by rememberSaveable { mutableStateOf(false) }
     var catalogMenu by remember { mutableStateOf(false) }
     var onlineQuery by rememberSaveable { mutableStateOf("") }
     var adding by rememberSaveable { mutableStateOf(false) }
@@ -180,7 +183,7 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                 description = stringResource(if (query.isBlank()) R.string.empty_catalog_description else R.string.empty_search_description),
                 modifier = Modifier.weight(1f),
             )
-        } else LazyColumn(Modifier.weight(1f), overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        } else LazyColumn(Modifier.weight(1f), state = catalogListState, overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(catalogRows.take(shownCount), key = { it.key }) { row ->
                 val own = row.custom
                 val lenta = row.lenta
@@ -286,10 +289,11 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
                         adding = false
                         activity?.notifyUser("Товар сохранён")
                     }
-                }, onSettings = { adding = false; onAddressSettings() }, onlineOnly = true)
+                }, onSettings = { addressOpen = true }, onlineOnly = true)
             }
         }
     }
+    if (addressOpen) LentaSettings { addressOpen = false }
     if (scanning || scanningOnline) BarcodeScannerSheet(onDismiss = { scanning = false; scanningOnline = false }, onCode = { code ->
         if (scanningOnline) { onlineQuery = code; scannedOnlineCode = code } else query = code
         scanning = false; scanningOnline = false
