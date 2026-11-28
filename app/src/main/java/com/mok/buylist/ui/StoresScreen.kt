@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,8 +85,12 @@ internal fun StoresScreen(
     }
     val identities = remember(lenta, custom, lentaCodes, customCodes) { com.mok.buylist.data.sharedCatalogIdentities(lenta, custom, lentaCodes, customCodes) }
     var openedStore by rememberSaveable { mutableStateOf<String?>(null) }
-    var shown by remember(openedStore) { mutableIntStateOf(8) }
     var productQuery by remember(openedStore) { mutableStateOf("") }
+    var shown by remember(openedStore, productQuery.trim()) { mutableIntStateOf(8) }
+    val productListState = rememberLazyListState()
+    LaunchedEffect(openedStore, productQuery.trim()) {
+        productListState.scrollToItem(0)
+    }
     var editing by remember { mutableStateOf<ShoppingStore?>(null) }
     var creating by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<ShoppingStore?>(null) }
@@ -124,6 +129,7 @@ internal fun StoresScreen(
                 FreshCutEmptyState(R.drawable.ic_store, stringResource(R.string.empty_stores_title),
                     modifier = Modifier.weight(1f), description = stringResource(R.string.empty_stores_description))
             } else LazyColumn(
+                state = productListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
