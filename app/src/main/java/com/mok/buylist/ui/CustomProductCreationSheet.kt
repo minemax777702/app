@@ -48,7 +48,7 @@ internal fun CreateCustomProductAction(
 ) {
     val p = LocalPalette.current
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+        modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.controlRadius))
             .background(p.field)
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -118,7 +118,7 @@ internal fun CustomProductCreationSheet(
                     },
                 )
                 if (matchingLenta.isNotEmpty()) {
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.cardRadius))
                         .background(p.card).padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(9.dp)) {
                         Text("Сначала проверьте товар Ленты", color = p.accent,
