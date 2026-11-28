@@ -612,7 +612,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
                             }
                             if (barcodeExpanded) {
                                 barcodes.forEach { code ->
-                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.field).padding(start = 12.dp),
+                                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.field).padding(start = 12.dp),
                                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                                         Text(code, Modifier.weight(1f), color = p.text, fontSize = 14.sp)
                                         IconButton(onClick = { editingBarcode = code; barcodeInput = code; barcodeError = null; barcodeEditorOpen = true }) {
@@ -679,7 +679,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
             if (historyOpen) item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Походов" to closedTripCount(rows).toString(), "Интервал" to (interval?.let { "$it дн." } ?: "—")).forEach { (label, value) ->
-                        Column(Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(p.card).padding(14.dp),
+                        Column(Modifier.weight(1f).clip(RoundedCornerShape(UiMetrics.compactCardRadius)).background(p.card).padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(value, color = p.text, fontSize = 24.sp, fontWeight = FontWeight.SemiBold)
                             Text(label, color = p.textSecondary, fontSize = 12.sp)
@@ -864,7 +864,7 @@ private fun PriceChart(points: List<ExpensePurchase>, zone: ZoneId) {
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf("Минимум" to min, "Максимум" to max).forEach { (label, value) ->
-            Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(p.field).padding(10.dp)) {
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(UiMetrics.nestedRadius)).background(p.field).padding(10.dp)) {
                 Text(label, color = p.textSecondary, fontSize = 11.sp)
                 Text(historyMoney(value), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
@@ -883,6 +883,6 @@ private fun CompactProductLine(label: String, value: String) {
 
 @Composable
 private fun HistoryCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(LocalPalette.current.card).padding(16.dp),
+    Column(modifier.fillMaxWidth().clip(RoundedCornerShape(UiMetrics.featureCardRadius)).background(LocalPalette.current.card).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
 }
