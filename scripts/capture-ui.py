@@ -77,12 +77,20 @@ def route(name, labels, expected=()):
     records.append(dict(theme=theme, screen=name, status="not_reached", expected=list(labels)))
     return False
 
+def close_sheet():
+    _, root = hierarchy()
+    labels = {v for n in root.iter("node") if n.get("package") == PKG
+              for v in (n.get("text"), n.get("content-desc")) if v}
+    if "Close sheet" in labels or "Закрыть" in labels:
+        return tap("Close sheet", "Закрыть")
+    return False
+
 def child(name, labels, expected=()):
     if route(name, labels, expected):
-        back()
+        if not close_sheet():
+            back()
     else:
-        # A tap may have opened an unrecognized state; reset via caller if necessary.
-        pass
+        close_sheet()
 
 def run_theme(mode):
     global theme
@@ -110,17 +118,21 @@ def run_theme(mode):
             route("stats-"+{"Магазины":"stores","Товары":"products","Динамика":"trend"}[tab], (tab,), ("Фильтры", "Обзор"))
     start()
     if route("profile", ("Профиль",), ("Оформление", "Обновления приложения")):
+        # Capture account before updates: the update sheet may restore on relaunch.
+        if route("account", ("Личный профиль",), ("Войти",)):
+            route("account-registration", ("Регистрация",), ("Зарегистрироваться",))
+        start()
+        close_sheet()
+        tap("Профиль")
         child("theme", ("Оформление",), ("Светлая", "Тёмная", "Тема оформления", "Системная"))
         start()
-        tap("Профиль")
-        child("updates", ("Обновления приложения",), ("Текущая версия", "Обновления"))
-        start()
+        close_sheet()
         tap("Профиль")
         child("backup", ("Резервная копия",), ("Сохранить в файл", "Восстановить из файла"))
         start()
+        close_sheet()
         tap("Профиль")
-        if route("account", ("Личный профиль",), ("Вход", "Регистрация", "Электронная почта")):
-            route("account-registration", ("Регистрация",), ("Зарегистрироваться",))
+        child("updates", ("Обновления приложения",), ("Текущая версия",))
 
 
 def fill_field(index, value):
@@ -201,7 +213,9 @@ def capture_authenticated():
     if route("catalog-populated", ("Товары",), ("Молоко 1,4 л","Хлеб ржаной","Яблоки")):
         child("product-detail", ("Молоко 1,4 л",), ("Молоко 1,4 л",))
     start()
-    route("archive-populated", ("Архив",), ("Молоко 1,4 л","Хлеб ржаной","Завершённый поход"))
+    # Collapsed archive rows only expose date and summary, not product names.
+    if route("archive-populated", ("Архив",), ("Личный список · 3 похода",)):
+        route("archive-expanded", ("Развернуть",), ("Молоко 1,4 л", "Хлеб ржаной"))
     start()
     route("statistics-populated", ("Статистика",), ("Фильтры","Обзор"))
 
@@ -229,7 +243,7 @@ def main():
                 capture_authenticated()
         except (subprocess.SubprocessError, ET.ParseError, RuntimeError) as e:
             records.append(dict(theme=mode, screen="capture-error", status="error", reason=str(e)))
-    required = {"authenticated", "cloud-groups", "group-detail", "administration", "shopping-populated", "catalog-populated", "product-detail", "archive-populated", "statistics-populated"}
+    required = {"welcome", "registration", "shopping", "notifications", "add", "custom-product", "catalog", "stores", "archive", "statistics", "stats-filters", "stats-stores", "stats-products", "stats-trend", "profile", "theme", "updates", "backup", "account", "account-registration", "login-form", "authenticated", "cloud-groups", "group-detail", "group-add-member", "administration", "admin-user", "admin-groups", "security", "shopping-populated", "catalog-populated", "product-detail", "archive-populated", "archive-expanded", "statistics-populated"}
     captured = {(r["theme"], r["screen"]) for r in records if r["status"] == "captured"}
     auth_complete = all((mode, "authenticated") in captured for mode in ("light", "dark"))
     coverage_complete = auth_complete and all((mode, screen) in captured for mode in ("light", "dark") for screen in required) and all(r["status"] == "captured" for r in records)
