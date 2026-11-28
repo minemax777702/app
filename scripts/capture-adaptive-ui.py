@@ -68,6 +68,39 @@ def tap_enabled(ui, label):
     return True
 
 
+
+def swipe_product(ui, fraction):
+    """Use the text center as a safe vertical coordinate; stay clear of system edges."""
+    _, root = ui.hierarchy()
+    bounds = None
+    for node in root.iter("node"):
+        if node.get("package") == ui.PKG and node.get("text") == LONG_PRODUCT:
+            b = list(map(int, re.findall(r"\d+", node.get("bounds", ""))))
+            if len(b) == 4 and b[3] > b[1]:
+                bounds = b
+                break
+    if bounds is None:
+        return False
+    sizes = re.findall(r"(?:Physical|Override) size: (\d+)x(\d+)", ui.shell("wm", "size"))
+    if not sizes:
+        return False
+    width = int(sizes[-1][0])
+    y = (bounds[1] + bounds[3]) // 2
+    start = round(width * .80)
+    end = max(round(width * .08), round(start - width * fraction))
+    ui.shell("input", "swipe", str(start), str(y), str(end), str(y), "450")
+    time.sleep(.7)
+    return True
+
+
+def wait_absent(ui, label, attempts=8):
+    for _ in range(attempts):
+        if label not in labels(ui):
+            return True
+        time.sleep(.5)
+    return False
+
+
 def audit_populated_card(ui):
     # Called from the disposable offline product creation form, after entering LONG_PRODUCT.
     price_entered = ui.fill_field(2, "123456.78")
@@ -77,12 +110,17 @@ def audit_populated_card(ui):
     if not price_entered or not tap_enabled(ui, "Добавить товар"):
         check(ui, "long-product-save", False, "Create product action unavailable")
         return
+    # The creation form closes first; the search sheet remains underneath it.
+    if wait_label(ui, "Создать свой товар"):
+        ui.close_sheet()
     saved = wait_label(ui, LONG_PRODUCT)
     check(ui, "long-product-save", saved, "Full long product name exposed in list")
     if not saved:
         ui.capture("long-product-save-failure")
         return
     ui.capture("shopping-long-product", (LONG_PRODUCT,))
+    short = swipe_product(ui, .15) and wait_label(ui, LONG_PRODUCT)
+    check(ui, "short-swipe-cancel", short, "Short swipe keeps the product in the list")
     increased = tap_enabled(ui, "Увеличить количество") and wait_label(ui, "Количество: 2. Действия с товаром")
     check(ui, "quantity-increase", increased, "Plus updates quantity without opening product detail")
     if increased:
@@ -92,6 +130,9 @@ def audit_populated_card(ui):
     if ui.route("catalog-long-product", ("Товары",), (LONG_PRODUCT,)):
         check(ui, "catalog-long-product-price", any("123" in x and "456,78" in x for x in labels(ui)),
               "Large formatted price remains available")
+        if ui.tap("Список") and wait_label(ui, LONG_PRODUCT):
+            removed = swipe_product(ui, .72) and wait_absent(ui, LONG_PRODUCT)
+            check(ui, "long-swipe-remove", removed, "Deliberate left swipe removes only the test product")
 
 def audit_case(ui, mode):
     ui.theme = mode
