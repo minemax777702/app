@@ -27,7 +27,8 @@
     },
     "index": {
       "id": "7:2575",
-      "target_name": "00 · Index & Sync"
+      "target_name": "00 · Index & Sync",
+      "index_frame_id": "24:5549"
     }
   },
   "screens": [
@@ -242,6 +243,12 @@
       "position": {
         "x": 32,
         "y": 1172
+      },
+      "text_wrap_review": {
+        "layer_id": "9:3171",
+        "alignment": "left",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
       }
     },
     {
@@ -257,6 +264,12 @@
       "position": {
         "x": 482,
         "y": 1172
+      },
+      "text_wrap_review": {
+        "layer_id": "9:3285",
+        "alignment": "left",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
       }
     },
     {
@@ -273,7 +286,26 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3583",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 9,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ]
+      }
     },
     {
       "key": "dark/archive",
@@ -289,7 +321,26 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3638",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 9,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ]
+      }
     },
     {
       "key": "light/archive-populated",
@@ -367,7 +418,27 @@
         "x": 32,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3066",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "dark/statistics",
@@ -383,7 +454,27 @@
         "x": 482,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3132",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "light/statistics-populated",
@@ -431,7 +522,27 @@
         "x": 1902,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3198",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "dark/stats-stores",
@@ -447,7 +558,27 @@
         "x": 2352,
         "y": 132
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3264",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "light/stats-products",
@@ -463,7 +594,27 @@
         "x": 32,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3330",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "dark/stats-products",
@@ -479,7 +630,27 @@
         "x": 482,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3396",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "light/stats-trend",
@@ -495,7 +666,27 @@
         "x": 967,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3462",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "dark/stats-trend",
@@ -511,7 +702,27 @@
         "x": 1417,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "16:3528",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      },
+      "layout_review": {
+        "capture": "beta-ui-157",
+        "capture_commit": "cb27040ae9ce0e6f10dd2ffc24e4a78e9acaa7bd",
+        "matched_compose_texts": 14,
+        "typography_adjusted": true,
+        "geometry_adjusted": true,
+        "visual_screenshot_compared": true,
+        "visual_parity_verified": false,
+        "remaining_differences": [
+          "Android system status bar placeholder glyphs",
+          "Android system gesture handle and minor rasterization differences"
+        ],
+        "chart_icon_rescaled": true
+      }
     },
     {
       "key": "light/stats-filters",
@@ -527,7 +738,13 @@
         "x": 1902,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "21:4531",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      }
     },
     {
       "key": "dark/stats-filters",
@@ -543,7 +760,13 @@
         "x": 2352,
         "y": 1172
       },
-      "capture_version": "beta-ui-157"
+      "capture_version": "beta-ui-157",
+      "text_wrap_review": {
+        "layer_id": "21:4626",
+        "alignment": "center",
+        "single_line_auto_width": true,
+        "confirmed_in_pixso": "2026-11-28"
+      }
     },
     {
       "key": "light/profile",
@@ -1198,7 +1421,7 @@
       "capture_version": "beta-ui-157"
     }
   ],
-  "structure_status": "all_70_frames_present_index_content_pending",
+  "structure_status": "all_70_frames_present_index_content_created",
   "section_count": 11,
   "icon_library": {
     "section_id": "9:2515",
@@ -1224,14 +1447,31 @@
   },
   "layout_audit": {
     "source": "beta-ui-157",
-    "reviewed_frames": 8,
-    "matched_compose_texts": 146,
-    "remaining_frames": 62,
+    "reviewed_frames": 18,
+    "matched_compose_texts": 276,
+    "remaining_frames": 52,
     "inventory_text_layers_excluding_os": 1258,
     "auto_line_height_layers": 950,
     "zero_pixel_letter_spacing_layers": 622,
     "non_manrope_layers": 0,
     "affected_frames": 62,
-    "visual_parity_verified": false
+    "visual_parity_verified": false,
+    "latest_batch": {
+      "date": "2026-11-28",
+      "screens": [
+        "archive",
+        "statistics",
+        "stats-stores",
+        "stats-products",
+        "stats-trend"
+      ],
+      "frames": 10,
+      "matched_compose_texts": 130,
+      "pixso_screenshots_compared": 10,
+      "chart_instances_rescaled": 8,
+      "verified_frames": 0
+    },
+    "text_wrap_fixes_confirmed": 14,
+    "inventory_metrics_source": "pre-batch inventory; not recalculated"
   }
 }
