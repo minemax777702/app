@@ -52,7 +52,7 @@ internal fun FreshCutEmptyState(
 ) {
     val p = LocalPalette.current
     Column(
-        modifier.fillMaxWidth().padding(horizontal = UiMetrics.screenInset),
+        modifier.fillMaxSize().padding(horizontal = UiMetrics.screenInset, vertical = UiMetrics.gap),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
     ) {

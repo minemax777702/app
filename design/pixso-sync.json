@@ -3977,7 +3977,22 @@
         "custom-product"
       ],
       "status": "draft",
-      "note": "One Compose component and LocalPalette; Pixso variant icon overrides are preserved by caller. Pending Android capture comparison."
+      "note": "Compose and Pixso centered within the available content area; Android capture comparison pending.",
+      "alignment": {
+        "horizontal": "center",
+        "vertical": "center_available_content",
+        "inset_dp": 20,
+        "vertical_inset_dp": 8,
+        "description_slot_min_dp": 60,
+        "exclude": [
+          "header",
+          "tabs",
+          "search",
+          "bottom_actions",
+          "navigation"
+        ],
+        "pixso_instances_checked": 10
+      }
     }
   },
   "optimization": {
