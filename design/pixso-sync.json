@@ -471,14 +471,15 @@
       "theme": "light",
       "page": "app",
       "section": "04 · Статистика",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "21:4469",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7302",
       "position": {
         "x": 1902,
         "y": 1172
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/stats-filters",
@@ -486,14 +487,15 @@
       "theme": "dark",
       "page": "app",
       "section": "04 · Статистика",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "21:4564",
+      "status": "draft",
       "last_verified": null,
       "section_id": "3:7302",
       "position": {
         "x": 2352,
         "y": 1172
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/profile",
