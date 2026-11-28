@@ -213,7 +213,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
     }
     if (showBackup) AppSheet(
         onDismissRequest = { showBackup = false }, containerColor = p.sheet,
-        title = { SheetHeader("Резервная копия") }, minBodyHeight = 296.dp,
+        title = { SheetHeader("Резервная копия") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ProfileMenuRow(R.drawable.ic_download_update, "Сохранить в файл", "Экспорт данных", {
@@ -226,7 +226,7 @@ fun SyncScreen(profile: Profile?, onRename: () -> Unit, addressRequest: Int, onA
                 })
             }
         },
-        confirmButton = {},
+        confirmButton = null,
     )
 
     if (showAddress) LentaSettings { showAddress = false }
