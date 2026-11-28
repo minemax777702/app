@@ -59,7 +59,7 @@ fun SettingsScreen(
             }
             Box(Modifier.weight(1f)) {
                 if (section == 0) stateHolder.SaveableStateProvider("products") {
-                    ProductsScreen(onBack, onAdd, onAddressSettings = { onTab(1) }, viewModel = viewModel,
+                    ProductsScreen(onBack, onAdd, viewModel = viewModel,
                         onProductClick = { selectedProduct = it })
                 } else stateHolder.SaveableStateProvider("stores") {
                     StoresScreen(viewModel, archive, bought, onProductClick = { selectedProduct = it }, onDetailChange = { storeDetail = it })
