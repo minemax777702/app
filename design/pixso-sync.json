@@ -561,14 +561,15 @@
       "theme": "light",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:5685",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 32,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/welcome",
@@ -576,14 +577,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:5769",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 482,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/registration",
@@ -591,14 +593,15 @@
       "theme": "light",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:5853",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 967,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/registration",
@@ -606,14 +609,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:5932",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 1417,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/account",
@@ -685,14 +689,15 @@
       "theme": "light",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:6011",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 967,
         "y": 1172
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/login-form",
@@ -700,14 +705,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "01 · Авторизация",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:6095",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2515",
       "position": {
         "x": 1417,
         "y": 1172
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/add",
@@ -715,14 +721,15 @@
       "theme": "light",
       "page": "flows",
       "section": "02 · Добавление",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:6179",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2531",
       "position": {
         "x": 32,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/add",
@@ -730,14 +737,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "02 · Добавление",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:6268",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2531",
       "position": {
         "x": 482,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/custom-product",
@@ -745,14 +753,15 @@
       "theme": "light",
       "page": "flows",
       "section": "02 · Добавление",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:6357",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2531",
       "position": {
         "x": 967,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "dark/custom-product",
@@ -760,14 +769,15 @@
       "theme": "dark",
       "page": "flows",
       "section": "02 · Добавление",
-      "frame_id": null,
-      "status": "pending",
+      "frame_id": "20:6474",
+      "status": "draft",
       "last_verified": null,
       "section_id": "7:2531",
       "position": {
         "x": 1417,
         "y": 132
-      }
+      },
+      "capture_version": "beta-ui-157"
     },
     {
       "key": "light/notifications",
@@ -1121,7 +1131,7 @@
   "icon_library": {
     "section_id": "9:2515",
     "source_commit": "54a54ec33016fe16fd5324843b4d0b286208658a",
-    "components": 52
+    "components": 58
   },
   "latest_capture": {
     "version": "beta-ui-157",
