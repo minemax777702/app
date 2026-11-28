@@ -762,12 +762,7 @@ private fun Header(
             listPicker()
             FreshCutToolbarAction(R.drawable.ic_bell, "Уведомления", onNotifications)
             Box {
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(p.field)
-                    .clickable(enabled = themeEnabled, role = Role.Button) { expanded = true }
-                    .semantics { contentDescription = "Действия со списком" },
-                    contentAlignment = Alignment.Center) {
-                    Icon(painterResource(R.drawable.ic_more), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
-                }
+                FreshCutToolbarAction(R.drawable.ic_more, "Действия со списком", { expanded = true }, enabled = themeEnabled)
                 AppDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                     AppDropdownMenuItem(text = { Text("Переключить тему") },
                         onClick = { expanded = false; onToggleTheme() })
