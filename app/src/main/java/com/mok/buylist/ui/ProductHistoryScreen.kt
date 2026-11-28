@@ -508,7 +508,7 @@ internal fun ProductDetailsScreen(productKey: String, purchases: List<ExpensePur
     val back: () -> Unit = { if (detailTab != 0) detailTab = 0 else onBack() }
     BackHandler(onBack = back)
     Column(Modifier.fillMaxSize().background(p.background)) {
-        SubScreenHeader("Информация о товаре", back) {
+        SubScreenHeader("Информация о товаре", back, titleFontSize = 23.sp) {
             if (product != null) {
                 FreshCutToolbarAction(R.drawable.ic_edit, "Изменить цену Ленты", {
                     linkedStore = stores.firstOrNull { it.id == com.mok.buylist.data.lentaStoreId() }
