@@ -1,0 +1,38 @@
+# GitHub schedules run only on the default branch. All design edits and builds remain in beta.
+name: Pixso bidirectional sync
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Apply non-conflicting mapped palette changes'
+        type: boolean
+        default: true
+      accept_structure:
+        description: 'Record reviewed structure after implementation'
+        type: boolean
+        default: false
+      release:
+        description: 'Request signed beta release after successful sync'
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+
+jobs:
+  dispatch-beta:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch sync on beta only
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APPLY: ${{ github.event_name != 'workflow_dispatch' || inputs.apply }}
+          ACCEPT_STRUCTURE: ${{ github.event_name == 'workflow_dispatch' && inputs.accept_structure }}
+          RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.release }}
+        run: |
+          gh workflow run pixso-sync.yml --repo "$GITHUB_REPOSITORY" --ref beta -f "apply=$APPLY" -f "accept_structure=$ACCEPT_STRUCTURE" -f "release=$RELEASE"
