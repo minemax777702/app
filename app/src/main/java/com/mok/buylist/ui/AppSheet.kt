@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -77,6 +78,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None) {
     val p = LocalPalette.current
     var focused by remember { mutableStateOf(false) }
+    val fieldVerticalPadding = if (LocalDensity.current.fontScale >= 1.3f) 8.dp else 0.dp
     val lineColor = when { isError -> p.error; focused -> p.text; readOnly -> p.line; else -> p.textSecondary }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(hint, color = if (isError) p.error else p.textSecondary, fontSize = 12.sp,
@@ -86,6 +88,7 @@ internal fun SheetTextField(value: String, onValueChange: (String) -> Unit, hint
             .padding(start = 16.dp, end = if (trailingAction == null) 16.dp else 2.dp), contentAlignment = Alignment.CenterStart) {
             BasicTextField(value = value, onValueChange = onValueChange, readOnly = readOnly,
                 modifier = Modifier.fillMaxWidth().padding(end = if (trailingAction == null) 0.dp else UiMetrics.touchTarget)
+                    .padding(vertical = fieldVerticalPadding)
                     .onFocusChanged { focused = it.isFocused }.semantics {
                         contentDescription = hint
                         if (isError) error("Проверьте значение поля")
