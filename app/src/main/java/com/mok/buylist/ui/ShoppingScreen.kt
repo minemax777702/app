@@ -209,7 +209,9 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
     val visibleRows = remember(rows) { rows?.filter { it.state == RowState.ACTIVE } }
     val allPurchased = progress.total > 0 && progress.bought == progress.total
 
-    fun navigate(destination: FreshCutDestination) {
+    var statsFromArchive by rememberSaveable { mutableStateOf(false) }
+    fun navigate(destination: FreshCutDestination, fromArchive: Boolean = false) {
+        statsFromArchive = destination == FreshCutDestination.STATS && fromArchive
         showNotifications = false
         showArchive = destination == FreshCutDestination.ARCHIVE
         showStats = destination == FreshCutDestination.STATS
@@ -226,6 +228,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
     }
     LaunchedEffect(destination) { onDestinationChange(destination.name) }
     val screenStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    val shoppingListState = rememberLazyListState()
     Column(Modifier.fillMaxSize().background(p.background)) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when (destination) {
@@ -237,7 +240,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 onUndo = viewModel::undoAction, onClear = viewModel::clearNotifications,
                 onClearAll = viewModel::clearAllNotifications)
         } else Column(Modifier.fillMaxSize()) {
-            val shoppingListState = rememberLazyListState()
             Header(
                 progress = progress,
                 totals = totals,
@@ -333,7 +335,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
             ArchiveScreen(
                 archive = archive,
                 onBack = { showArchive = false },
-                onOpenStats = { navigate(FreshCutDestination.STATS) },
+                onOpenStats = { navigate(FreshCutDestination.STATS, fromArchive = true) },
                 onRepeat = { names, quantities, events ->
                     viewModel.repeatArchived(names, quantities, events) { result ->
                         showArchive = false
@@ -373,13 +375,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
         }
 
                 FreshCutDestination.STATS -> screenStates.SaveableStateProvider("stats") {
-            BackHandler { showStats = false }
+            val backFromStats: () -> Unit = { navigate(if (statsFromArchive) FreshCutDestination.ARCHIVE else FreshCutDestination.LIST) }
+            BackHandler(onBack = backFromStats)
             StatsScreen(
                 archive = archive,
                 bought = bought,
                 users = users,
                 meId = profile?.id.orEmpty(),
-                onBack = { showStats = false },
+                onBack = backFromStats,
                 viewModel = viewModel,
                 listContext = listContext,
                 listPicker = listPicker,
@@ -387,7 +390,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
         }
             }
         }
-        FreshCutNavigation(destination, ::navigate,
+        FreshCutNavigation(destination, { navigate(it) },
             Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp))
     }
 
@@ -412,7 +415,6 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
             onAddCustom = viewModel::addCustomProduct,
             onCreateCustom = viewModel::addManualProduct,
             onDismiss = { showAdd = false },
-            onAddressSettings = { showAdd = false; navigate(FreshCutDestination.PROFILE); addressRequest++ },
         )
     }
     customStoreRequest?.let { request ->
@@ -597,13 +599,14 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
     }
     scanLookup?.let { code ->
         var lookupQuery by remember(code) { mutableStateOf(code) }
+        var lookupAddressOpen by remember(code) { mutableStateOf(false) }
         AppModalSheet(onDismissRequest = { scanLookup = null }, containerColor = p.sheet,
             dragHandle = { SheetDragHandle { scanLookup = null } }) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(horizontal = 20.dp)) {
                 SheetHeader("Выберите товар")
                 ProductSearch(lookupQuery, { lookupQuery = it })
                 LentaSuggestions(lookupQuery, Modifier.weight(1f), onSettings = {
-                    scanLookup = null; navigate(FreshCutDestination.PROFILE); addressRequest++
+                    lookupAddressOpen = true
                 }, onAdd = { product ->
                     scanLookup = null
                     val chosen = if (product.ean.isBlank() || product.ean == "null") product.copy(ean = code) else product
@@ -617,6 +620,7 @@ fun ShoppingScreen(viewModel: ShoppingViewModel = viewModel(), initialDestinatio
                 })
             }
         }
+        if (lookupAddressOpen) LentaSettings { lookupAddressOpen = false }
     }
     pendingWeight?.let { (code, product) ->
         var price by remember(code, product.id) { mutableStateOf("") }
