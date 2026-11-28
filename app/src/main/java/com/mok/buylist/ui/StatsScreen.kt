@@ -358,25 +358,10 @@ private fun PeriodChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun EmptyStats(modifier: Modifier = Modifier) {
-    val p = LocalPalette.current
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-    ) {
-        Box(
-            Modifier.padding(bottom = 16.dp).size(132.dp).clip(CircleShape).background(p.boughtBg),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_chart), contentDescription = null, Modifier.size(64.dp), tint = p.text)
-        }
-        Text(
-            stringResource(R.string.stats_empty_title),
-            color = p.text,
-            fontSize = 22.sp,
-            lineHeight = 28.sp,
-            fontWeight = FontWeight.ExtraBold,
-        )
-    }
+    FreshCutEmptyState(
+        icon = R.drawable.ic_chart,
+        title = stringResource(R.string.stats_empty_title),
+        modifier = modifier,
+    )
 }
 

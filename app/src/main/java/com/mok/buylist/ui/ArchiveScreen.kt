@@ -472,25 +472,10 @@ private fun ArchiveProductDetails(list: ArchivedList, index: Int, userNames: Map
 
 @Composable
 private fun EmptyArchive(modifier: Modifier = Modifier) {
-    val p = LocalPalette.current
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-    ) {
-        Box(
-            Modifier.padding(bottom = 12.dp).size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.field),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_archive), contentDescription = null, Modifier.size(24.dp), tint = p.text)
-        }
-        Text(
-            stringResource(R.string.archive_empty_title),
-            color = p.text,
-            fontSize = 23.sp,
-            lineHeight = 28.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text("Завершённые списки появятся здесь.", color = p.textSecondary, fontSize = 14.sp)
-    }
+    FreshCutEmptyState(
+        icon = R.drawable.ic_archive,
+        title = stringResource(R.string.archive_empty_title),
+        modifier = modifier,
+        description = "Завершённые списки появятся здесь.",
+    )
 }

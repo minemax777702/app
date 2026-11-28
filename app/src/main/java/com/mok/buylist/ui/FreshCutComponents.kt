@@ -42,6 +42,57 @@ internal object UiMetrics {
     val sectionGap = 12.dp
 }
 
+/** App / Empty state (Pixso 27:2137): единая геометрия для обеих тем. */
+@Composable
+internal fun FreshCutEmptyState(
+    icon: Int,
+    title: String,
+    modifier: Modifier = Modifier,
+    description: String? = null,
+) {
+    val p = LocalPalette.current
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = UiMetrics.screenInset),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically),
+    ) {
+        Box(
+            Modifier.size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.card),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(24.dp), tint = p.text)
+        }
+        Column(
+            Modifier.fillMaxWidth().heightIn(min = 60.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                title,
+                modifier = Modifier.fillMaxWidth(),
+                color = p.text,
+                fontSize = 23.sp,
+                lineHeight = 28.sp,
+                letterSpacing = 0.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            )
+            if (description != null) {
+                Text(
+                    description,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = p.textSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 24.sp,
+                    letterSpacing = 0.5.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
 internal enum class FreshCutDestination { LIST, CATALOG, ARCHIVE, STATS, PROFILE }
 
 @Composable

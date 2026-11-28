@@ -166,14 +166,12 @@ fun ProductsScreen(onBack: () -> Unit, onAdd: (LentaProduct) -> Unit, onAddressS
             }
         }
         if (rows.isEmpty() && ownRows.isEmpty()) {
-            Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(painterResource(R.drawable.ic_package), null, Modifier.size(40.dp), tint = p.textSecondary)
-                Text(if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено",
-                    color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-                Text(if (query.isBlank()) "Добавьте товар, чтобы начать." else "Попробуйте другое название или штрихкод.",
-                    color = p.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
-            }
+            FreshCutEmptyState(
+                icon = R.drawable.ic_package,
+                title = if (query.isBlank()) "Сохранённых товаров пока нет" else "Ничего не найдено",
+                description = if (query.isBlank()) "Добавьте товар, чтобы начать." else "Попробуйте другое название или штрихкод.",
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
         }
         LazyColumn(Modifier.weight(1f), overscrollEffect = null, contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(catalogRows.take(shownCount), key = { it.key }) { row ->

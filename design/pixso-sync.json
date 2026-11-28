@@ -3946,6 +3946,38 @@
       "variant": "State",
       "count": 3,
       "text_editing": "instance_text_overrides"
+    },
+    "empty_state": {
+      "id": "27:2137",
+      "variant": "Theme",
+      "count": 2,
+      "compose": "FreshCutEmptyState",
+      "geometry": {
+        "tile": 96,
+        "radius": 32,
+        "icon": 24,
+        "gap": 20,
+        "text_gap": 8,
+        "title_size": 23,
+        "title_line_height": 28,
+        "description_size": 14,
+        "description_line_height": 24,
+        "letter_spacing": 0.5
+      },
+      "targets": [
+        "shopping",
+        "catalog",
+        "archive",
+        "statistics",
+        "stats-filters",
+        "notifications",
+        "welcome",
+        "registration",
+        "add",
+        "custom-product"
+      ],
+      "status": "draft",
+      "note": "One Compose component and LocalPalette; Pixso variant icon overrides are preserved by caller. Pending Android capture comparison."
     }
   },
   "optimization": {

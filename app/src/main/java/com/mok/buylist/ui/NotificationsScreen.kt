@@ -52,12 +52,12 @@ internal fun NotificationsScreen(
         SubScreenHeader("Уведомления", onBack) {
             if (actions.isNotEmpty()) FreshCutToolbarAction(R.drawable.ic_trash, "Очистить уведомления", { confirmClearAll = true })
         }
-        if (visible.isEmpty()) Column(Modifier.weight(1f).fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-            Icon(painterResource(R.drawable.ic_bell), null, Modifier.size(40.dp), tint = p.textSecondary)
-            Spacer(Modifier.height(12.dp))
-            Text("Пока нет уведомлений", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-
+        if (visible.isEmpty()) {
+            FreshCutEmptyState(
+                icon = R.drawable.ic_bell,
+                title = "Пока нет уведомлений",
+                modifier = Modifier.weight(1f),
+            )
         } else LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), overscrollEffect = null) {
             if (undoable.isNotEmpty()) {

@@ -1267,27 +1267,12 @@ private fun FreshCutQuantityButton(symbol: String, label: String, enabled: Boole
 
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
-    val p = LocalPalette.current
-    Column(
-        modifier.fillMaxWidth().padding(horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
-    ) {
-        Box(
-            Modifier.padding(bottom = 12.dp).size(96.dp).clip(RoundedCornerShape(32.dp)).background(p.field),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_list_check), contentDescription = null, Modifier.size(24.dp), tint = p.text)
-        }
-        Text(
-            stringResource(R.string.empty_title),
-            color = p.text,
-            fontSize = 23.sp,
-            lineHeight = 28.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text("Все покупки будут здесь.", color = p.textSecondary, fontSize = 14.sp)
-    }
+    FreshCutEmptyState(
+        icon = R.drawable.ic_list_check,
+        title = stringResource(R.string.empty_title),
+        modifier = modifier,
+        description = "Все покупки будут здесь.",
+    )
 }
 
 /** Кнопка внутри общей панели: отдельная область нажатия и подпись для TalkBack. */
