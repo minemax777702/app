@@ -35,7 +35,12 @@
       "section": "01 · Покупки",
       "frame_id": "3:6672",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7272",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/shopping",
@@ -45,7 +50,12 @@
       "section": "01 · Покупки",
       "frame_id": "3:6972",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7272",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/shopping-populated",
@@ -55,7 +65,12 @@
       "section": "01 · Покупки",
       "frame_id": "3:6717",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7272",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/shopping-populated",
@@ -65,7 +80,12 @@
       "section": "01 · Покупки",
       "frame_id": "3:7017",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7272",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/catalog",
@@ -75,7 +95,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": "3:6804",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/catalog",
@@ -85,7 +110,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": "3:7104",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/catalog-populated",
@@ -95,7 +125,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/catalog-populated",
@@ -105,7 +140,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/stores",
@@ -115,7 +155,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/stores",
@@ -125,7 +170,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     },
     {
       "key": "light/product-detail",
@@ -135,7 +185,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 32,
+        "y": 1172
+      }
     },
     {
       "key": "dark/product-detail",
@@ -145,7 +200,12 @@
       "section": "02 · Каталог и магазины",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7279",
+      "position": {
+        "x": 482,
+        "y": 1172
+      }
     },
     {
       "key": "light/archive",
@@ -155,7 +215,12 @@
       "section": "03 · Архив",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7292",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/archive",
@@ -165,7 +230,12 @@
       "section": "03 · Архив",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7292",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/archive-populated",
@@ -175,7 +245,12 @@
       "section": "03 · Архив",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7292",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/archive-populated",
@@ -185,7 +260,12 @@
       "section": "03 · Архив",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7292",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/archive-expanded",
@@ -195,7 +275,12 @@
       "section": "03 · Архив",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7292",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/archive-expanded",
@@ -205,7 +290,12 @@
       "section": "03 · Архив",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7292",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     },
     {
       "key": "light/statistics",
@@ -215,7 +305,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/statistics",
@@ -225,7 +320,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/statistics-populated",
@@ -235,7 +335,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/statistics-populated",
@@ -245,7 +350,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/stats-stores",
@@ -255,7 +365,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/stats-stores",
@@ -265,7 +380,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     },
     {
       "key": "light/stats-products",
@@ -275,7 +395,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 32,
+        "y": 1172
+      }
     },
     {
       "key": "dark/stats-products",
@@ -285,7 +410,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 482,
+        "y": 1172
+      }
     },
     {
       "key": "light/stats-trend",
@@ -295,7 +425,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 967,
+        "y": 1172
+      }
     },
     {
       "key": "dark/stats-trend",
@@ -305,7 +440,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 1417,
+        "y": 1172
+      }
     },
     {
       "key": "light/stats-filters",
@@ -315,7 +455,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 1902,
+        "y": 1172
+      }
     },
     {
       "key": "dark/stats-filters",
@@ -325,7 +470,12 @@
       "section": "04 · Статистика",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7302",
+      "position": {
+        "x": 2352,
+        "y": 1172
+      }
     },
     {
       "key": "light/profile",
@@ -335,7 +485,12 @@
       "section": "05 · Профиль",
       "frame_id": "3:6848",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7321",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/profile",
@@ -345,7 +500,12 @@
       "section": "05 · Профиль",
       "frame_id": "3:7148",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7321",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/authenticated",
@@ -355,7 +515,12 @@
       "section": "05 · Профиль",
       "frame_id": "3:6918",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7321",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/authenticated",
@@ -365,7 +530,12 @@
       "section": "05 · Профиль",
       "frame_id": "3:7218",
       "status": "draft",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "3:7321",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/welcome",
@@ -375,7 +545,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/welcome",
@@ -385,7 +560,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/registration",
@@ -395,7 +575,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/registration",
@@ -405,7 +590,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/account",
@@ -415,7 +605,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/account",
@@ -425,7 +620,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     },
     {
       "key": "light/account-registration",
@@ -435,7 +635,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 32,
+        "y": 1172
+      }
     },
     {
       "key": "dark/account-registration",
@@ -445,7 +650,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 482,
+        "y": 1172
+      }
     },
     {
       "key": "light/login-form",
@@ -455,7 +665,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 967,
+        "y": 1172
+      }
     },
     {
       "key": "dark/login-form",
@@ -465,7 +680,12 @@
       "section": "01 · Авторизация",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2515",
+      "position": {
+        "x": 1417,
+        "y": 1172
+      }
     },
     {
       "key": "light/add",
@@ -475,7 +695,12 @@
       "section": "02 · Добавление",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2531",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/add",
@@ -485,7 +710,12 @@
       "section": "02 · Добавление",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2531",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/custom-product",
@@ -495,7 +725,12 @@
       "section": "02 · Добавление",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2531",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/custom-product",
@@ -505,7 +740,12 @@
       "section": "02 · Добавление",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2531",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/notifications",
@@ -515,7 +755,12 @@
       "section": "03 · Уведомления",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2538",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/notifications",
@@ -525,7 +770,12 @@
       "section": "03 · Уведомления",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2538",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/theme",
@@ -535,7 +785,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/theme",
@@ -545,7 +800,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/backup",
@@ -555,7 +815,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/backup",
@@ -565,7 +830,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/updates",
@@ -575,7 +845,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/updates",
@@ -585,7 +860,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     },
     {
       "key": "light/security",
@@ -595,7 +875,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 32,
+        "y": 1172
+      }
     },
     {
       "key": "dark/security",
@@ -605,7 +890,12 @@
       "section": "04 · Настройки",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2542",
+      "position": {
+        "x": 482,
+        "y": 1172
+      }
     },
     {
       "key": "light/cloud-groups",
@@ -615,7 +905,12 @@
       "section": "05 · Группы",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2555",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/cloud-groups",
@@ -625,7 +920,12 @@
       "section": "05 · Группы",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2555",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/group-detail",
@@ -635,7 +935,12 @@
       "section": "05 · Группы",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2555",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/group-detail",
@@ -645,7 +950,12 @@
       "section": "05 · Группы",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2555",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/group-add-member",
@@ -655,7 +965,12 @@
       "section": "05 · Группы",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2555",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/group-add-member",
@@ -665,7 +980,12 @@
       "section": "05 · Группы",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2555",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     },
     {
       "key": "light/administration",
@@ -675,7 +995,12 @@
       "section": "06 · Администрирование",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2565",
+      "position": {
+        "x": 32,
+        "y": 132
+      }
     },
     {
       "key": "dark/administration",
@@ -685,7 +1010,12 @@
       "section": "06 · Администрирование",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2565",
+      "position": {
+        "x": 482,
+        "y": 132
+      }
     },
     {
       "key": "light/admin-user",
@@ -695,7 +1025,12 @@
       "section": "06 · Администрирование",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2565",
+      "position": {
+        "x": 967,
+        "y": 132
+      }
     },
     {
       "key": "dark/admin-user",
@@ -705,7 +1040,12 @@
       "section": "06 · Администрирование",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2565",
+      "position": {
+        "x": 1417,
+        "y": 132
+      }
     },
     {
       "key": "light/admin-groups",
@@ -715,7 +1055,12 @@
       "section": "06 · Администрирование",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2565",
+      "position": {
+        "x": 1902,
+        "y": 132
+      }
     },
     {
       "key": "dark/admin-groups",
@@ -725,7 +1070,14 @@
       "section": "06 · Администрирование",
       "frame_id": null,
       "status": "pending",
-      "last_verified": null
+      "last_verified": null,
+      "section_id": "7:2565",
+      "position": {
+        "x": 2352,
+        "y": 132
+      }
     }
-  ]
+  ],
+  "structure_status": "sections_verified_index_unconfirmed",
+  "section_count": 11
 }

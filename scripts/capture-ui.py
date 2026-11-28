@@ -72,10 +72,45 @@ def capture(name, expected=()):
     records.append(dict(theme=theme, screen=name, status="captured", screenshot=f"{theme}/{name}.png", hierarchy=f"{theme}/{name}.xml", sha256=hashlib.sha256(png).hexdigest(), visible=labels, layout=layout_name))
     return True
 
+def save_launch_diagnostics(attempt, result):
+    # Only disposable test-device data; retain diagnostics, not a design capture.
+    folder = OUT / "diagnostics" / theme
+    folder.mkdir(parents=True, exist_ok=True)
+    prefix = folder / f"launch-{attempt}"
+    prefix.with_suffix(".txt").write_text(result, encoding="utf-8")
+    for suffix, command in (
+        (".activity.txt", ("shell", "dumpsys", "activity", "activities")),
+        (".crash.txt", ("logcat", "-b", "crash", "-d", "-t", "100")),
+    ):
+        try:
+            prefix.with_suffix(suffix).write_text(adb(*command), encoding="utf-8")
+        except subprocess.SubprocessError:
+            pass
+    try:
+        raw, _ = hierarchy()
+        prefix.with_suffix(".xml").write_bytes(raw)
+        prefix.with_suffix(".png").write_bytes(adb("exec-out", "screencap", "-p", binary=True))
+    except (subprocess.SubprocessError, ET.ParseError):
+        pass
+
 def start():
-    shell("am", "force-stop", PKG)
-    shell("am", "start", "-W", "-n", ACT)
-    time.sleep(1)
+    # A cold emulator can still be on the launcher or lock screen after am start.
+    for attempt in range(1, 3):
+        shell("input", "keyevent", "KEYCODE_WAKEUP")
+        shell("wm", "dismiss-keyguard")
+        shell("am", "force-stop", PKG)
+        result = shell("am", "start", "-W", "-n", ACT)
+        print(f"[{theme}] launch {attempt}: {result.strip()}", flush=True)
+        for _ in range(8):
+            try:
+                _, root = hierarchy()
+                if any(n.get("package") == PKG for n in root.iter("node")):
+                    return
+            except (subprocess.SubprocessError, ET.ParseError):
+                pass
+            time.sleep(1)
+        save_launch_diagnostics(attempt, result)
+    raise RuntimeError("Application window unavailable after two launches; see diagnostics")
 
 def back():
     shell("input", "keyevent", "4")
