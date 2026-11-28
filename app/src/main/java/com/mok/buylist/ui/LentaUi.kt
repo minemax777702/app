@@ -172,7 +172,7 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                         color = p.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 8.dp))
                 }
                 if (searching && !fullSort) item(key = "search-loading") {
-                    val loadingSize = Modifier.height(56.dp)
+                    val loadingSize = Modifier.heightIn(min = 56.dp)
                     Box(Modifier.fillMaxWidth().then(loadingSize),
                         contentAlignment = Alignment.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(UiMetrics.gap)) {
@@ -180,6 +180,12 @@ internal fun LentaSuggestions(query: String, modifier: Modifier = Modifier,
                             Text(if (ready) "Ищем товары…" else "Загружаем каталог…", color = p.textSecondary, fontSize = 13.sp)
                         }
                     }
+                }
+                if (searching && !fullSort && ready) item(key = "search-stop") {
+                    FreshCutSecondaryButton("Остановить поиск", controller::stop, enabled = state.pending || state.loading)
+                }
+                if (state.paused && !fullSort && !searching) item(key = "search-paused") {
+                    Text("Поиск приостановлен. Результат неполный.", color = p.textSecondary, fontSize = 12.sp)
                 }
                 if (state.hasMore && !state.failed && !searching) {
                     item { FreshCutSecondaryButton(
@@ -200,7 +206,7 @@ private fun LentaResult(product: LentaProduct, row: ProductSearchRow, onClick: (
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             LentaImage(product.image, Modifier.size(52.dp))
             Column(Modifier.weight(1f)) {
-                Text(product.name, color = p.text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(product.name, color = p.text, fontSize = 15.sp, lineHeight = 19.sp, fontWeight = FontWeight.SemiBold)
                 val price = row.price?.let { java.math.BigDecimal.valueOf(it, 2).stripTrailingZeros().toPlainString().replace('.', ',') + " ₽" }
                 val details = listOfNotNull(price, product.pack.takeIf { it.isNotBlank() }).joinToString(" · ")
                 if (details.isNotEmpty()) Text(details, color = p.textSecondary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
