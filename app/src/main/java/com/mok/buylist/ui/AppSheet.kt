@@ -54,7 +54,7 @@ internal fun SheetActionButton(onClick: () -> Unit, enabled: Boolean = true, des
     Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth().heightIn(min = if (secondary) UiMetrics.fieldHeight else UiMetrics.primaryHeight),
         shape = RoundedCornerShape(UiMetrics.controlRadius), colors = ButtonDefaults.buttonColors(
             containerColor = background, contentColor = ink,
-            disabledContainerColor = p.field, disabledContentColor = p.textSecondary.copy(alpha = 0.7f),
+            disabledContainerColor = p.field, disabledContentColor = p.disabledInk,
         )) {
         ProvideTextStyle(UiTextStyles.action) { content() }
     }
@@ -65,7 +65,7 @@ internal fun SheetDeleteButton(title: String, onClick: () -> Unit, enabled: Bool
     val p = LocalPalette.current
     OutlinedButton(onClick=onClick, enabled=enabled, modifier=Modifier.fillMaxWidth().heightIn(min = UiMetrics.fieldHeight),
         shape=RoundedCornerShape(UiMetrics.controlRadius), border=androidx.compose.foundation.BorderStroke(1.dp,p.error),
-        colors=ButtonDefaults.outlinedButtonColors(contentColor=p.error)) {
+        colors=ButtonDefaults.outlinedButtonColors(contentColor=p.error, disabledContentColor=p.disabledInk)) {
         Icon(painterResource(icon),null,Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Text(title, style = UiTextStyles.action, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
