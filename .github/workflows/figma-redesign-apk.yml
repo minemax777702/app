@@ -16,6 +16,10 @@ on:
         description: 'Publish signed APK (false = capture UI only on beta)'
         type: boolean
         default: true
+      adaptive_audit:
+        description: 'Also capture small screens, large fonts and keyboard (beta only)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -208,7 +212,7 @@ jobs:
     needs: build
     if: ${{ always() && github.ref == 'refs/heads/beta' && (needs.build.result == 'success' || (needs.build.result == 'skipped' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch'))) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: ${{ inputs.adaptive_audit && 60 || 35 }}
     concurrency:
       group: ui-handoff-${{ github.ref }}
       cancel-in-progress: true
@@ -281,11 +285,14 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Test capture recovery
-        run: python3 scripts/test-capture-ui.py
+        run: |
+          python3 scripts/test-capture-ui.py
+          python3 -m py_compile scripts/capture-adaptive-ui.py
       - name: Capture real release UI
         uses: reactivecircus/android-emulator-runner@v2
         env:
           CAPTURE_VERSION: ${{ needs.build.outputs.version || format('beta-ui-{0}', github.run_number) }}
+          ADAPTIVE_AUDIT: ${{ github.event_name == 'workflow_dispatch' && inputs.adaptive_audit }}
         with:
           api-level: 35
           target: google_apis
@@ -295,7 +302,16 @@ jobs:
           ram-size: 4096M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: adb install -g app/build/outputs/apk/uiCapture/app-uiCapture.apk && CAPTURE_FIXTURE=1 python3 scripts/capture-ui.py
+          script: adb install -g app/build/outputs/apk/uiCapture/app-uiCapture.apk && CAPTURE_FIXTURE=1 python3 scripts/capture-ui.py && ( [ "$ADAPTIVE_AUDIT" != "true" ] || CAPTURE_FIXTURE=1 python3 scripts/capture-adaptive-ui.py )
+      - name: Upload adaptive UI audit
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.adaptive_audit }}
+        uses: actions/upload-artifact@v6
+        with:
+          name: fresh-cut-adaptive-ui-audit
+          path: ui-adaptive-audit/
+          if-no-files-found: warn
+          compression-level: 1
+          retention-days: 30
       - name: Prepare Pixso incremental update plan
         run: |
           python3 scripts/plan-pixso-sync.py --registry design/pixso-sync.json --handoff ui-handoff --output pixso-sync-input
